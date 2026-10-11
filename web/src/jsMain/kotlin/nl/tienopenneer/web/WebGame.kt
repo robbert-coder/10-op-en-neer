@@ -24,6 +24,10 @@ class WebGame(
     seed: Double,
     names: Array<String>,
     actions: Array<Int>,
+    /** Stoelen (1..4) waar een mens zit; bij een gewoon spel alleen 1. */
+    humanSeats: Array<Int>,
+    /** De stoel van de speler op dit apparaat. De toestand wordt gedraaid zodat die stoel onderaan zit. */
+    private val viewSeat: Int,
 ) {
     private val game: Game = Game.restore(
         Rules(maxCards, pointsPerTrick, wrongScoresZero, penaltyPerTrick, negativeScores, roundingAllowed, mustTrump),
@@ -31,28 +35,48 @@ class WebGame(
         names.toList(),
         actions.toList(),
         smart,
+        humanSeats.toSet(),
+        viewSeat,
     )
+
+    /** Stoel in het spel naar plaats op het scherm (1 = onderaan) en terug. */
+    private fun toView(seat: Int) = if (seat == 0) 0 else (seat - viewSeat + 4) % 4 + 1
+    private fun toSeat(view: Int) = (view - 1 + viewSeat - 1) % 4 + 1
 
     val seed: Double get() = game.seed.toDouble()
 
     fun actions(): Array<Int> = game.humanActions.toTypedArray()
 
     fun setPlayerName(name: String) {
-        game.player(1).name = name
+        game.player(viewSeat).name = name
     }
+
+    /** Aantal handelingen van mensen tot nu toe (de volgorde is voor iedereen gelijk). */
+    fun actionCount(): Int = game.humanActions.size
+
+    /** De stoel van de mens die nu aan de beurt is (in het spel, niet op het scherm), of 0. */
+    fun humanToMove(): Int = game.humanToMove
 
     fun advance(): Boolean = game.advance()
 
     /** Geeft een foutmelding, of null als de voorspelling is gedaan. */
-    fun bid(n: Int): String? = game.humanBid(n)
+    fun bid(n: Int): String? =
+        if (game.humanToMove != viewSeat) "Je bent nu niet aan de beurt." else game.humanBid(n)
 
     /** Geeft een foutmelding, of null als de kaart is opgelegd. */
-    fun play(code: Int): String? = game.humanPlay(Card.fromCode(code))
+    fun play(code: Int): String? =
+        if (game.humanToMove != viewSeat) "Je bent nog niet aan de beurt." else game.humanPlay(Card.fromCode(code))
 
-    fun hintBid(): Int = game.hintBid()
+    /** Een handeling van een andere mens (via internet): een voorspelling (0..13) of een kaartcode (100+). */
+    fun applyRemote(seat: Int, value: Int): String? {
+        if (game.humanToMove != seat) return "Stoel $seat is niet aan de beurt."
+        return if (value >= 100) game.humanPlay(Card.fromCode(value)) else game.humanBid(value)
+    }
+
+    fun hintBid(): Int = game.hintBid(viewSeat)
 
     /** Code van de kaart die de computer zou spelen, of 0. */
-    fun hintCard(): Int = game.hintCard()?.code ?: 0
+    fun hintCard(): Int = game.hintCard(viewSeat)?.code ?: 0
 
     /** Namen van de geluiden sinds de vorige aanroep, bijvoorbeeld "GOED_VOORSPELD". */
     fun takeSounds(): Array<String> = game.takeSounds().map { it.name }.toTypedArray()
@@ -60,7 +84,7 @@ class WebGame(
     fun state(): String {
         val g = game
         val r = g.rules
-        val legal = g.legalCardsForHuman().map { it.code }.toSet()
+        val legal = g.legalCardsForHuman(viewSeat).map { it.code }.toSet()
         val sb = StringBuilder()
         sb.append('{')
         sb.append("\"variant\":").append(str(r.variantName))
@@ -70,32 +94,37 @@ class WebGame(
         sb.append(",\"cards\":").append(g.cardsThisRound)
         sb.append(",\"trump\":").append(g.trump.code)
         sb.append(",\"phase\":").append(str(g.phase.name))
-        sb.append(",\"leader\":").append(g.leader)
+        sb.append(",\"leader\":").append(toView(g.leader))
         sb.append(",\"active\":").append(
-            when (g.phase) {
-                Phase.BIDDING -> g.toBid
-                Phase.PLAYING -> g.toPlay
-                else -> 0
-            },
+            toView(
+                when (g.phase) {
+                    Phase.BIDDING -> g.toBid
+                    Phase.PLAYING -> g.toPlay
+                    else -> 0
+                },
+            ),
         )
         sb.append(",\"status\":").append(str(g.status))
         sb.append(",\"tricksOver\":").append(str(g.tricksOverText()))
-        sb.append(",\"forbiddenBid\":").append(g.forbiddenHumanBid() ?: -1)
-        sb.append(",\"trickWinner\":").append(g.trickWinner)
-        sb.append(",\"lastTrickWinner\":").append(g.lastTrickWinner)
-        sb.append(",\"table\":").append(list((1..4).map { g.tableCard(it).code }))
-        sb.append(",\"lastTrick\":").append(list((1..4).map { g.lastTrickCard(it).code }))
+        sb.append(",\"forbiddenBid\":").append(g.forbiddenHumanBid(viewSeat) ?: -1)
+        sb.append(",\"trickWinner\":").append(toView(g.trickWinner))
+        sb.append(",\"lastTrickWinner\":").append(toView(g.lastTrickWinner))
+        sb.append(",\"table\":").append(list((1..4).map { g.tableCard(toSeat(it)).code }))
+        sb.append(",\"lastTrick\":").append(list((1..4).map { g.lastTrickCard(toSeat(it)).code }))
         sb.append(",\"hand\":[")
-        g.player(1).handCards().forEachIndexed { i, c ->
+        g.player(viewSeat).handCards().forEachIndexed { i, c ->
             if (i > 0) sb.append(',')
             sb.append("{\"code\":").append(c.code).append(",\"legal\":").append(c.code in legal).append('}')
         }
         sb.append(']')
         sb.append(",\"players\":[")
-        for (nr in 1..4) {
-            val pl = g.player(nr)
-            if (nr > 1) sb.append(',')
+        for (view in 1..4) {
+            val seat = toSeat(view)
+            val pl = g.player(seat)
+            if (view > 1) sb.append(',')
             sb.append("{\"name\":").append(str(pl.name))
+            sb.append(",\"seat\":").append(seat)
+            sb.append(",\"human\":").append(seat in g.humanSeats)
             sb.append(",\"bid\":").append(pl.bid)
             sb.append(",\"tricks\":").append(pl.tricks)
             sb.append(",\"cardCount\":").append(pl.cardCount)

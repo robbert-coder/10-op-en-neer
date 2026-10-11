@@ -27,6 +27,15 @@ De uitgesproken voorspellingen (`bod_*.ogg`) zijn gemaakt met de Piper-stemmen n
 - Online zetten gebeurt via GitHub Pages met `.github/workflows/web.yml`. Zet daarvoor eenmalig bij *Settings > Pages* de bron op *GitHub Actions*.
 - Op de iPhone: open de site in Safari, tik op *Deel* en kies *Zet op beginscherm*.
 
+### Samen spelen via internet
+
+In de webversie kun je via "Samen spelen via internet" een tafel openen en de link delen. Wie de link opent,
+schuift aan; lege plaatsen worden Henk, Truus of Kees. De apparaten maken rechtstreeks verbinding met elkaar
+via WebRTC ([PeerJS](https://peerjs.com), MIT-licentie, meegeleverd in `web/static/vendor/`). De openbare
+PeerJS-server wordt alleen gebruikt om elkaar te vinden. Iedereen rekent het spel zelf uit: met dezelfde seed
+en dezelfde handelingen van de mensen verloopt het spel overal precies hetzelfde.
+
+
 ## Opbouw
 
 - `web/` – de webversie: `src/jsMain` maakt de spelcode bruikbaar in de browser, `static/` is de pagina

@@ -4,6 +4,7 @@ import { WebGame, describeCard, defaultNames } from "./tienopenneer.mjs";
 import { faceSvg, initialSvg } from "./faces.js";
 import * as tineke from "./tineke.js";
 import { BID_LINES, WET_LINES, BID_MS } from "./voices.js";
+import { Host, Guest, makeCode, normalizeCode } from "./net.js";
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
@@ -49,11 +50,11 @@ const BOERENBRIDGE = {
   negativeScores: false, roundingAllowed: false, mustTrump: false,
 };
 
-function createGame(rules, smart, seed, names, actions) {
+function createGame(rules, smart, seed, names, actions, humanSeats = [1], viewSeat = 1) {
   return new WebGame(
     rules.maxCards, rules.pointsPerTrick, rules.wrongScoresZero, rules.penaltyPerTrick,
     rules.negativeScores, rules.roundingAllowed, rules.mustTrump, smart,
-    seed, names, actions,
+    seed, names, actions, humanSeats, viewSeat,
   );
 }
 
@@ -132,8 +133,19 @@ async function playSound(name) {
 // Toestand
 // ------------------------------------------------------------------------------------------
 
-/** Gezicht per stoel: 1 is de mens, dan Henk (links), Truus (boven) en Kees (rechts). */
-const FACES = [null, null, "henk", "truus", "kees"];
+/** Gezicht per stoel in het spel: 1 is de mens, dan Henk (links), Truus (boven) en Kees (rechts). */
+const SEAT_FACE = [null, null, "henk", "truus", "kees"];
+
+/** Gezicht van de speler op plaats nr van het scherm, of null voor een mens. */
+function faceFor(nr) {
+  const p = st?.players[nr - 1];
+  if (!p) return SEAT_FACE[nr];
+  return p.human ? null : SEAT_FACE[p.seat];
+}
+const voiceFor = (nr) => faceFor(nr) ?? "speler";
+
+/** Samen spelen: { role: "host"|"guest", code, seat, link, players, queue, game, rules, smart, status, error } */
+let online = null;
 
 let game = null;
 let st = null; // laatste toestand uit de spelcode
@@ -176,6 +188,12 @@ let newRounding = true;
 let newMustTrump = false;
 let hsTab = "10openneer";
 
+/** De stoel (in het spel) van een andere mens die nu aan de beurt is, of 0. */
+function remoteTurn() {
+  if (!online?.game || !game) return 0;
+  const seat = game.humanToMove();
+  return seat && seat !== online.seat ? seat : 0;
+}
 const humanBidding = () => st && st.phase === "BIDDING" && st.active === 1;
 const humanPlaying = () => st && st.phase === "PLAYING" && st.active === 1;
 const hasGameInProgress = () => st !== null && st.phase !== "GAME_OVER";
@@ -209,6 +227,7 @@ function restoreSavedGame() {
 }
 
 function saveGame() {
+  if (online?.game) { saveOnline(); return; }
   if (!game || !st || st.phase === "GAME_OVER") return;
   store.set("spel", {
     rules: currentRules,
@@ -220,6 +239,7 @@ function saveGame() {
 }
 
 function startNewGame(rules) {
+  closeOnline();
   if (!settings.tinekeAsked) {
     settings.tinekeAsked = true;
     saveSettings();
@@ -304,7 +324,7 @@ function announceBids() {
     if (p.bid >= 0 && !announced[nr]) {
       announced[nr] = true;
       const speak = settings.sound && settings.speakBids;
-      const v = VOICES[nr - 1];
+      const v = voiceFor(nr);
       const k = pickLine(`bod${nr}`, BID_LINES[v][p.bid].length, true);
       if (speak) playSound(`bod_${v}_${p.bid}_${k}`);
       const line = BID_LINES[v][p.bid][k];
@@ -316,10 +336,10 @@ function announceBids() {
     }
     if (!wetShown[nr] && isWet(p) && st.phase !== "BIDDING") {
       wetShown[nr] = true;
-      if (nr === 1) {
+      if (!faceFor(nr)) {
         showBubble(nr, "Nat…", 2200, true);
       } else {
-        const v = VOICES[nr - 1];
+        const v = voiceFor(nr);
         const k = pickLine(`nat${nr}`, WET_LINES[v].length, false);
         if (settings.sound && settings.speakBids && !wetSpoken) {
           wetSpoken = true;
@@ -358,11 +378,20 @@ function stepDelay(phase) {
 function drive() {
   if (driver !== null || busy || tinekeWaiting || screen !== "game" || !st) return;
   if (st.phase === "GAME_OVER" || st.phase === "ROUND_COMPLETE" || humanBidding() || humanPlaying()) return;
+  // Wachten op een andere mens: pas verder als zijn handeling binnen is
+  if (remoteTurn() && !online.queue.has(game.actionCount())) return;
   driver = setTimeout(async () => {
     driver = null;
     if (tinekeWaiting) return;
     if (st.phase === "TRICK_COMPLETE") {
       await collectTrick();
+    } else if (remoteTurn()) {
+      const index = game.actionCount();
+      const a = online.queue.get(index);
+      online.queue.delete(index);
+      const error = a ? game.applyRemote(a.seat, a.value) : "geen handeling";
+      if (error) console.warn("Handeling van een andere speler past niet:", error);
+      afterStep();
     } else {
       game.advance();
       afterStep();
@@ -422,7 +451,9 @@ function handleGameOver() {
 // ------------------------------------------------------------------------------------------
 
 function onBid(n) {
+  const index = game.actionCount();
   const error = game.bid(n);
+  if (!error) netSend(index, n);
   clearTransient();
   if (error) message = error;
   if (!error) {
@@ -448,7 +479,9 @@ function onCardTap(code, el) {
     return;
   }
   const from = el.getBoundingClientRect();
+  const index = game.actionCount();
   const error = game.play(code);
+  if (!error) netSend(index, code);
   clearTransient();
   if (error) {
     message = error;
@@ -557,7 +590,7 @@ function tinekeContinue() {
 }
 
 function tinekeHelp(event, extra = {}) {
-  if (!settings.tinekeHelp || !st) return Promise.resolve();
+  if (!settings.tinekeHelp || !st || online?.game) return Promise.resolve();
   const h = tineke.help(event, st, helpLevel, describeCard, extra);
   if (!h) return Promise.resolve();
   return tinekeSay(h.text, { wait: h.wait, isHelp: true });
@@ -624,9 +657,12 @@ function cardHtml(code, extra = "", style = "") {
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 
 function avatarHtml(nr, name, mood = "") {
-  const svg = FACES[nr] ? faceSvg(FACES[nr]) : initialSvg(name);
-  return `<div class="avatar ${mood}" data-who="${FACES[nr] ?? "mens"}">${svg}</div>`;
+  const face = faceFor(nr);
+  const svg = face ? faceSvg(face) : initialSvg(name);
+  return `<div class="avatar ${mood}" data-who="${face ?? "mens"}">${svg}</div>`;
 }
+
+const seatsKey = () => st.players.map((p) => `${p.name}|${p.human}|${p.seat}`).join(",");
 
 /** Stoelen één keer opbouwen, zodat de gezichten blijven knipperen en praten tussen de beurten door. */
 function buildSeats() {
@@ -642,8 +678,8 @@ function buildSeats() {
 `;
     el.querySelector(".avatar").insertAdjacentHTML("beforeend",
       `<span class="lead" hidden>uit</span><svg class="turn-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12H6m0 0 6-6m-6 6 6 6"/></svg>`);
-    el.dataset.name = st.players[nr - 1].name;
   }
+  $("#seat-1").dataset.key = seatsKey();
 }
 
 /** Heeft deze speler al voorspeld (tijdens het voorspellen) of al een kaart opgelegd (tijdens de slag)? */
@@ -664,7 +700,7 @@ function moodFor(nr) {
 
 function updateSeats() {
   if (!st) return;
-  if ($("#seat-1").dataset.name !== st.players[0].name || !$("#seat-1 .avatar")) buildSeats();
+  if ($("#seat-1").dataset.key !== seatsKey() || !$("#seat-1 .avatar")) buildSeats();
   for (let nr = 1; nr <= 4; nr++) {
     const p = st.players[nr - 1];
     const el = $(`#seat-${nr}`);
@@ -809,6 +845,11 @@ function renderGame() {
   if (!text) {
     if (humanBidding()) text = "Hoeveel slagen denk je te halen?";
     else if (humanPlaying()) text = "Jij bent aan de beurt. Kies een kaart.";
+    else if (remoteTurn()) {
+      const p = st.players[st.active - 1];
+      const off = online.players.find((x) => x.seat === p.seat)?.online === false;
+      text = off ? `${p.name} heeft geen verbinding. Wachten tot ${p.name} terug is…` : `Wachten op ${p.name}…`;
+    }
     else if (st.phase === "TRICK_COMPLETE") text = `${st.status} Tik op tafel om door te gaan.`;
     else text = st.status;
   }
@@ -850,6 +891,7 @@ function renderGame() {
   lt.textContent = showLastTrick ? "Huidige slag tonen" : "Laatste slag tonen";
 
   layout();
+  renderSidebar();
   renderDialog();
 }
 
@@ -861,8 +903,10 @@ function layout() {
   const handEl = $("#hand");
   const cards = Array.from(handEl.children);
   const n = cards.length;
-  const available = Math.min(width - 24, 640);
-  const hw = n <= 1 ? 74 : Math.min(74, available / (0.58 * (n - 1) + 1));
+  const wide = isWide();
+  const maxW = wide ? Math.min(118, Math.max(74, window.innerHeight / 8.5)) : 74;
+  const available = Math.min(width - 24, wide ? 1000 : 640);
+  const hw = n <= 1 ? maxW : Math.min(maxW, available / (0.58 * (n - 1) + 1));
   const spacing = n <= 1 ? 0 : Math.min(hw + 6, (available - hw) / (n - 1));
   handEl.style.setProperty("--hw", `${hw}px`);
   handEl.style.width = `${n === 0 ? 0 : hw + spacing * (n - 1)}px`;
@@ -878,7 +922,7 @@ function layout() {
   });
 
   const felt = $("#table");
-  const tw = Math.max(30, Math.min(74, felt.clientWidth / 3.5, felt.clientHeight / (1.42 * 2.45)));
+  const tw = Math.max(30, Math.min(wide ? 124 : 74, felt.clientWidth / 3.5, felt.clientHeight / (1.42 * 2.45)));
   felt.style.setProperty("--tw", `${tw}px`);
 }
 window.addEventListener("resize", layout);
@@ -938,14 +982,38 @@ function gameOverHtml() {
   return `<h3>${title}</h3>${say ? tinekeLine(say) : ""}<div class="result-rows">${rows}</div>${hs}
     <div class="actions"><button data-action="scores">Scorelijst</button>
     <button data-action="menu">Menu</button>
-    <button class="primary" data-action="new-game">Nieuw spel</button></div>`;
+    ${!online?.game ? `<button class="primary" data-action="new-game">Nieuw spel</button>`
+      : online.role === "host" ? `<button class="primary" data-action="new-online">Nog een spel</button>` : ""}</div>`;
 }
 
 let endComment = null;
 const tinekeLine = (text) => `<div class="tineke-line">${faceAvatar("tineke", "happy")}<p>${esc(text)}</p></div>`;
 const faceAvatar = (who, mood = "") => `<div class="avatar ${mood}">${faceSvg(who)}</div>`;
 
+/** Groot scherm (desktop): grotere kaarten en altijd de scorelijst ernaast. */
+const wideQuery = window.matchMedia("(min-width: 1000px) and (min-height: 640px)");
+const isWide = () => wideQuery.matches;
+wideQuery.addEventListener?.("change", () => { if (screen === "game") { buildSeats(); renderGame(); } });
+
+function renderSidebar() {
+  const el = $("#sidebar");
+  if (!isWide()) { if (el.innerHTML) el.innerHTML = ""; return; }
+  const html = `<h3>Scorelijst</h3><div class="scroll">${sheetTableHtml()}</div>
+    <p class="legend">Klein getal: voorspelling. Doorgestreept: fout voorspeld.</p>`;
+  if (el.dataset.key === html) return;
+  el.dataset.key = html;
+  el.innerHTML = html;
+  el.querySelector("tr.current")?.scrollIntoView({ block: "center" });
+}
+
 function scoreSheetHtml() {
+  return `<h3>Scorelijst · ${esc(st.variant)}</h3>
+    <div class="scroll">${sheetTableHtml()}</div>
+    <p class="legend">Klein getal: voorspelling. Doorgestreept: fout voorspeld.</p>
+    <div class="actions"><button class="primary" data-action="close-scores">Sluiten</button></div>`;
+}
+
+function sheetTableHtml() {
   const head = st.players.map((p) => `<th>${esc(p.name)}</th>`).join("");
   let rows = "";
   for (let r = 1; r <= st.rounds; r++) {
@@ -958,10 +1026,7 @@ function scoreSheetHtml() {
     rows += `<tr class="${r === st.round ? "current" : ""}"><td>${r} (${cardsInRound(r)})</td>${cells}</tr>`;
   }
   const totals = st.players.map((p) => `<td>${p.total}</td>`).join("");
-  return `<h3>Scorelijst · ${esc(st.variant)}</h3>
-    <div class="scroll"><table><tr><th>Ronde</th>${head}</tr>${rows}<tr class="total"><td>Totaal</td>${totals}</tr></table></div>
-    <p class="legend">Klein getal: voorspelling. Doorgestreept: fout voorspeld.</p>
-    <div class="actions"><button class="primary" data-action="close-scores">Sluiten</button></div>`;
+  return `<table><tr><th>Ronde</th>${head}</tr>${rows}<tr class="total"><td>Totaal</td>${totals}</tr></table>`;
 }
 
 function cardsInRound(r) {
@@ -980,6 +1045,7 @@ function show(name) {
   if (name === "newgame") renderNewGame();
   if (name === "highscores") renderHighScores();
   if (name === "settings") renderSettings();
+  if (name === "online") renderOnline();
   if (name === "game") {
     buildSeats();
     previousTable = [0, 0, 0, 0];
@@ -1007,7 +1073,11 @@ function rulesVariantName(rules) {
 
 const newRules = () => ({ ...newBase, roundingAllowed: newRounding, mustTrump: newMustTrump });
 
+let newOnline = false; // wordt het nieuwe spel een tafel voor samen spelen?
+
 function renderNewGame() {
+  $("#newgame h2").textContent = newOnline ? "Tafel openen" : "Nieuw spel";
+  $("#btn-start").textContent = newOnline ? "Tafel openen" : "Start";
   $$(".variant").forEach((el) => el.classList.toggle("selected", Number(el.dataset.variant) === newBase.maxCards));
   $("#opt-smart").checked = settings.smart;
   $("#opt-rounding").checked = newRounding;
@@ -1054,6 +1124,269 @@ const RULES_TEXT = [
 $("#rules-text").innerHTML = RULES_TEXT.map(([h, b]) => `<h3>${h}</h3><p>${b}</p>`).join("");
 
 // ------------------------------------------------------------------------------------------
+// Samen spelen via internet
+// ------------------------------------------------------------------------------------------
+
+const clientId = () => {
+  if (!settings.clientId) {
+    settings.clientId = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    saveSettings();
+  }
+  return settings.clientId;
+};
+
+const tableLink = (code) => `${location.origin}${location.pathname}?spel=${code}`;
+
+function netEvents() {
+  return {
+    onWelcome: (seat) => {
+      online.seat = seat;
+      online.status = "";
+      renderOnline();
+    },
+    onLobby: (players) => {
+      online.players = players;
+      if (screen === "online") renderOnline();
+      if (screen === "game") renderGame();
+      saveOnline();
+    },
+    onStart: (g, log) => onNetStart(g, log),
+    onAction: (a) => onNetAction(a),
+    onStatus: (text) => {
+      online.status = text;
+      if (screen === "online") renderOnline();
+      if (screen === "game" && text) { message = text; renderGame(); }
+    },
+    onError: (text) => {
+      online.error = text;
+      if (screen === "online") renderOnline();
+      if (screen === "game") { message = text; renderGame(); }
+    },
+    onClosed: (text) => {
+      const wasPlaying = !!online?.game;
+      online.error = text;
+      online.link = null;
+      store.remove("online-gast");
+      if (wasPlaying && screen === "game") { message = text; renderGame(); } else show("online");
+    },
+  };
+}
+
+/** Sluit de huidige tafel (als die er is). */
+function closeOnline() {
+  if (!online) return;
+  online.link?.close();
+  if (online.game) { stopDriver(); game = null; st = null; }
+  online = null;
+  store.remove("online");
+  store.remove("online-gast");
+}
+
+function openTable(rules) {
+  closeOnline();
+  store.remove("spel");
+  game = null;
+  st = null;
+  const code = makeCode();
+  online = {
+    role: "host", code, seat: 1, players: [{ name: settings.playerName, seat: 1, online: true }],
+    queue: new Map(), game: null, rules, smart: settings.smart, status: "Tafel openen…", error: "",
+  };
+  online.link = new Host(code, settings.playerName, netEvents());
+  show("online");
+}
+
+function joinTable(code) {
+  closeOnline();
+  online = { role: "guest", code, seat: 0, players: [], queue: new Map(), game: null, status: "Verbinden met de tafel…", error: "" };
+  online.link = new Guest(code, settings.playerName, clientId(), netEvents());
+  store.set("online-gast", { code });
+  show("online");
+}
+
+/** De gastheer begint (opnieuw) een spel met wie er aan tafel zit; lege stoelen worden computers. */
+function startHostGame() {
+  if (online?.role !== "host") return;
+  const names = Array.from(defaultNames());
+  const humanSeats = [];
+  for (const p of online.players) {
+    names[p.seat - 1] = p.seat === 1 ? settings.playerName : p.name;
+    humanSeats.push(p.seat);
+  }
+  const g = { rules: online.rules, smart: online.smart, seed: Math.floor(Math.random() * 2147483647), names, humanSeats };
+  online.link.start(g);
+  startOnlineGame(g, []);
+}
+
+function startOnlineGame(g, log) {
+  stopDriver();
+  tinekeHide();
+  currentRules = g.rules;
+  currentSmart = g.smart;
+  online.game = g;
+  online.queue = new Map();
+  game = createGame(g.rules, g.smart, g.seed, g.names, log.map((a) => a.value), g.humanSeats, online.seat);
+  gameOverHandled = false;
+  endComment = null;
+  highScorePlace = 0;
+  showScores = false;
+  lastTurnKey = "";
+  announcedRound = 0;
+  previousTable = [0, 0, 0, 0];
+  clearTransient();
+  refresh();
+  saveOnline();
+  show("game");
+  onTurn();
+  drive();
+}
+
+function onNetStart(g, log) {
+  const same = online.game && game && online.game.seed === g.seed;
+  if (same && game.actionCount() <= log.length) {
+    // Weer verbonden: alleen de gemiste handelingen nog uitvoeren
+    log.forEach((a, index) => { if (index >= game.actionCount()) online.queue.set(index, { index, ...a }); });
+    message = null;
+    if (screen === "game") renderGame();
+    drive();
+    return;
+  }
+  startOnlineGame(g, log);
+}
+
+function onNetAction(a) {
+  if (!game || !online?.game) return;
+  if (a.index < game.actionCount()) return;
+  online.queue.set(a.index, a);
+  saveOnline();
+  drive();
+}
+
+/** Een eigen handeling naar de anderen sturen. */
+function netSend(index, value) {
+  if (!online?.game) return;
+  online.link?.sendAction(index, online.seat, value);
+  saveOnline();
+}
+
+function saveOnline() {
+  if (online?.role === "host" && online.link && online.game) store.set("online", online.link.snapshot());
+}
+
+/** Na het herladen van de pagina: de eigen tafel weer openen, of opnieuw aanschuiven bij een ander. */
+function resumeOnline() {
+  const saved = store.get("online", null);
+  if (saved?.started) {
+    try {
+      online = {
+        role: "host", code: saved.code, seat: 1, players: saved.players, queue: new Map(), game: null,
+        rules: saved.started.rules, smart: saved.started.smart, status: "", error: "",
+      };
+      online.link = new Host(saved.code, settings.playerName, netEvents(), saved);
+      online.game = saved.started;
+      currentRules = saved.started.rules;
+      currentSmart = saved.started.smart;
+      game = createGame(saved.started.rules, saved.started.smart, saved.started.seed, saved.started.names,
+        saved.log.map((a) => a.value), saved.started.humanSeats, 1);
+      refresh();
+      return true;
+    } catch (e) {
+      console.warn("Tafel kon niet worden hersteld", e);
+      store.remove("online");
+      online = null;
+      game = null;
+      st = null;
+    }
+  }
+  const guest = store.get("online-gast", null);
+  if (guest?.code) {
+    joinTable(guest.code);
+    return true;
+  }
+  return false;
+}
+
+function renderOnline() {
+  $("#on-name").value = settings.playerName;
+  const inLobby = !!online;
+  $("#online-home").hidden = inLobby;
+  $("#online-lobby").hidden = !inLobby;
+  const msg = $("#online-msg");
+  const text = online?.error || online?.status || "";
+  msg.textContent = text;
+  msg.hidden = !text;
+  msg.classList.toggle("info", !online?.error);
+  if (!online) return;
+  $("#lobby-code").textContent = online.code;
+  const isHost = online.role === "host";
+  $("#share-row").hidden = !isHost;
+  const rules = online.rules ?? online.game?.rules;
+  $("#lobby-variant").textContent = rules ? rulesVariantName(rules) : "";
+  const names = Array.from(defaultNames());
+  const rows = [1, 2, 3, 4].map((seat) => {
+    const p = online.players.find((x) => x.seat === seat);
+    if (p) {
+      const me = seat === online.seat;
+      return `<div class="lobby-seat"><div class="avatar">${initialSvg(p.name)}</div>
+        <div class="nm">${esc(p.name)}${me ? " (jij)" : ""}<small>${seat === 1 ? "Gastheer" : "Speler"}</small></div>
+        <span class="dot ${p.online === false ? "off" : ""}"></span></div>`;
+    }
+    return `<div class="lobby-seat waiting"><div class="avatar">${faceSvg(SEAT_FACE[seat])}</div>
+      <div class="nm">Nog vrij<small>Anders speelt ${names[seat - 1]} hier</small></div></div>`;
+  }).join("");
+  $("#lobby-seats").innerHTML = rows;
+  const humans = online.players.length;
+  const start = $("#btn-online-start");
+  start.hidden = !isHost || !!online.game;
+  start.textContent = humans >= 4 ? "Start het spel" : `Start met ${4 - humans} ${4 - humans === 1 ? "computerspeler" : "computerspelers"}`;
+  let note = "";
+  if (online.game) note = "Het spel is begonnen.";
+  else if (isHost) note = humans === 1 ? "Deel de link en wacht tot anderen aanschuiven." : "Start zodra iedereen er is.";
+  else if (online.seat) note = "Wachten tot de gastheer het spel start…";
+  $("#lobby-note").textContent = note;
+  $("#btn-leave").textContent = isHost ? "Tafel sluiten" : "Tafel verlaten";
+}
+
+$("#btn-online").addEventListener("click", () => show(online?.game && game ? "game" : "online"));
+$("#on-name").addEventListener("input", (e) => {
+  settings.playerName = e.target.value.trim() || "Speler";
+  saveSettings();
+});
+$("#btn-host").addEventListener("click", () => { newOnline = true; show("newgame"); });
+$("#btn-join").addEventListener("click", () => {
+  const code = normalizeCode($("#on-code").value);
+  if (code.length !== 5) {
+    $("#online-msg").hidden = false;
+    $("#online-msg").textContent = "Vul de code van vijf tekens in.";
+    return;
+  }
+  joinTable(code);
+});
+$("#on-code").addEventListener("input", (e) => { e.target.value = normalizeCode(e.target.value); });
+$("#btn-online-start").addEventListener("click", startHostGame);
+$("#btn-leave").addEventListener("click", () => { closeOnline(); renderOnline(); renderMenu(); });
+$("#btn-share").addEventListener("click", async () => {
+  const url = tableLink(online.code);
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: "10 op en neer", text: `Speel je mee? Code ${online.code}`, url });
+      return;
+    } catch { /* geannuleerd */ }
+  }
+  copyLink(url);
+});
+$("#btn-copy").addEventListener("click", () => copyLink(tableLink(online.code)));
+async function copyLink(url) {
+  try {
+    await navigator.clipboard.writeText(url);
+    online.status = "De link is gekopieerd. Stuur hem naar wie je wilt laten meedoen.";
+  } catch {
+    online.status = `Stuur deze link: ${url}`;
+  }
+  renderOnline();
+}
+
+// ------------------------------------------------------------------------------------------
 // Invoer
 // ------------------------------------------------------------------------------------------
 
@@ -1072,7 +1405,7 @@ document.addEventListener("click", (e) => {
 });
 
 $("#btn-resume").addEventListener("click", () => { show("game"); drive(); });
-$("#btn-new").addEventListener("click", () => show("newgame"));
+$("#btn-new").addEventListener("click", () => { newOnline = false; show("newgame"); });
 
 $$(".variant").forEach((el) => el.addEventListener("click", () => {
   newBase = el.dataset.variant === "13" ? BOERENBRIDGE : TIEN_OP_EN_NEER;
@@ -1085,6 +1418,10 @@ $("#opt-rounding").addEventListener("change", (e) => { newRounding = e.target.ch
 $("#opt-musttrump").addEventListener("change", (e) => { newMustTrump = e.target.checked; renderNewGame(); });
 $("#btn-start").addEventListener("click", () => {
   const rules = newRules();
+  if (newOnline) {
+    openTable(rules);
+    return;
+  }
   if (hasGameInProgress()) {
     confirmDialog = {
       title: "Nieuw spel",
@@ -1192,7 +1529,11 @@ $("#dialog-box").addEventListener("click", (e) => {
       leaveGame();
       break;
     case "new-game":
+      newOnline = false;
       show("newgame");
+      break;
+    case "new-online":
+      startHostGame();
       break;
   }
 });
@@ -1206,8 +1547,19 @@ $$(".logo-cards .card-slot").forEach((el) => {
 });
 $("#menu-faces").innerHTML = [2, 3, 4].map((nr) => avatarHtml(nr, "")).join("");
 
-restoreSavedGame();
-show("menu");
+const joinCode = normalizeCode(new URLSearchParams(location.search).get("spel"));
+if (!resumeOnline()) restoreSavedGame();
+if (joinCode.length === 5 && !(online?.code === joinCode)) {
+  // Geopend via een gedeelde link: meteen aanschuiven
+  show("online");
+  $("#on-code").value = joinCode;
+  if (settings.playerName && settings.playerName !== "Speler") joinTable(joinCode);
+  else $("#on-name").focus();
+} else if (online && !online.game) {
+  show("online");
+} else {
+  show("menu");
+}
 
 const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 const standalone = navigator.standalone === true || window.matchMedia("(display-mode: standalone)").matches;

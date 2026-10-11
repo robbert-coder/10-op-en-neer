@@ -30,6 +30,7 @@
       <div class="buttons">
         <button id="btn-resume" class="primary">Doorgaan met spel</button>
         <button id="btn-new" class="primary">Nieuw spel</button>
+        <button id="btn-online" class="online-btn">Samen spelen via internet</button>
         <div class="button-row">
           <button data-go="rules">Spelregels</button>
           <button data-go="highscores">Highscores</button>
@@ -73,6 +74,40 @@
       </div>
     </section>
 
+    <!-- Samen spelen -->
+    <section id="online" class="screen page">
+      <header><button class="back" data-go="menu" aria-label="Terug">‹</button><h2>Samen spelen</h2></header>
+      <div class="content">
+        <div id="online-home" class="online-home">
+          <div class="group"><label class="field">Jouw naam<input type="text" id="on-name" maxlength="16" autocomplete="off"></label></div>
+          <div class="group pad">
+            <b>Tafel openen</b>
+            <p class="note">Je opent een tafel en deelt de link met bekenden. Wie de link opent, schuift aan. Zijn er minder dan vier mensen, dan vul je de lege plaatsen aan met Henk, Truus of Kees.</p>
+            <button class="primary wide" id="btn-host">Tafel openen</button>
+          </div>
+          <div class="group pad">
+            <b>Meedoen met een code</b>
+            <div class="join-row">
+              <input type="text" id="on-code" placeholder="CODE" maxlength="5" autocapitalize="characters" autocomplete="off" spellcheck="false">
+              <button class="primary" id="btn-join">Meedoen</button>
+            </div>
+          </div>
+        </div>
+        <div id="online-lobby" class="online-lobby" hidden>
+          <div class="table-code"><small>Code van de tafel</small><b id="lobby-code"></b><span id="lobby-variant"></span></div>
+          <div class="share-row" id="share-row">
+            <button class="primary" id="btn-share">Link delen</button>
+            <button id="btn-copy">Link kopiëren</button>
+          </div>
+          <div class="group" id="lobby-seats"></div>
+          <p class="note center" id="lobby-note"></p>
+          <button class="primary wide" id="btn-online-start">Start het spel</button>
+          <button class="text wide" id="btn-leave">Tafel verlaten</button>
+        </div>
+        <p class="online-msg" id="online-msg" hidden></p>
+      </div>
+    </section>
+
     <!-- Spel -->
     <section id="game" class="screen game">
       <div class="topbar">
@@ -112,6 +147,7 @@
       <div class="bids" id="bids"></div>
       <div class="seat south" id="seat-1"></div>
       <div class="hand" id="hand"></div>
+      <aside class="sidebar sheet" id="sidebar" aria-label="Scorelijst"></aside>
     </section>
 
     <!-- Spelregels -->
@@ -176,6 +212,7 @@
   <div class="overlay" id="dialog" hidden><div class="dialog" id="dialog-box"></div></div>
   <div class="flyer-layer" id="flyers"></div>
 
+  <script src="vendor/peerjs.min.js"></script>
   <script type="module" src="app.js"></script>
 </body>
 </html>

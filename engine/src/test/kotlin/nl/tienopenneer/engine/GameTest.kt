@@ -213,4 +213,36 @@ class GameTest {
         }
         assertTrue(heard.containsAll(listOf(Sound.GOED_VOORSPELD, Sound.MEDESPELER_NAT, Sound.SLAG_TE_VEEL, Sound.SLAG_TE_WEINIG)), "$heard")
     }
+
+    /** Twee mensen aan tafel (stoel 1 en 3): het spel loopt, en herstellen geeft dezelfde stand. */
+    @Test
+    fun severalHumansAndRestore() {
+        val rules = Rules(maxCards = 6, pointsPerTrick = 1, wrongScoresZero = true, penaltyPerTrick = 0,
+            negativeScores = false, roundingAllowed = false, mustTrump = false)
+        val seats = setOf(1, 3)
+        val g = Game(rules, 4242L, smartComputers = true)
+        g.humanSeats = seats
+        var guard = 0
+        val movers = mutableSetOf<Int>()
+        while (g.phase != Phase.GAME_OVER) {
+            check(++guard < 100_000) { "Spel loopt vast" }
+            val seat = g.humanToMove
+            if (seat != 0) {
+                movers.add(seat)
+                if (g.phase == Phase.BIDDING) {
+                    assertNull(g.humanBid(g.hintBid(seat)))
+                } else {
+                    val card = g.hintCard(seat)!!
+                    assertTrue(card in g.legalCardsForHuman(seat))
+                    assertNull(g.humanPlay(card))
+                }
+            } else {
+                g.advance()
+            }
+        }
+        assertEquals(seats, movers)
+        val r = Game.restore(rules, 4242L, Game.DEFAULT_NAMES, g.humanActions, true, seats, 3)
+        while (r.canAdvance) r.advance()
+        assertEquals(g.players.map { it.total }, r.players.map { it.total })
+    }
 }

@@ -167,6 +167,15 @@ class Game internal constructor(
     private val humanLog = mutableListOf<Int>()
     val humanActions: List<Int> get() = humanLog
 
+    /**
+     * De stoelen waar een mens zit. Normaal alleen stoel 1; bij samen spelen via internet ook andere.
+     * Alleen zetten voordat het spel begint.
+     */
+    var humanSeats: Set<Int> = setOf(1)
+
+    /** Vanuit welke stoel de geluiden bedoeld zijn (wie "ik" is op dit apparaat). */
+    var viewSeat: Int = 1
+
     private val sounds = mutableListOf<Sound>()
     private var doomSoundPlayed = false
 
@@ -209,7 +218,15 @@ class Game internal constructor(
     fun lastTrickCard(player: Int): Card = lastTrickCards[player]
 
     val isHumanTurn: Boolean
-        get() = (phase == Phase.BIDDING && toBid == 1) || (phase == Phase.PLAYING && toPlay == 1)
+        get() = (phase == Phase.BIDDING && toBid in humanSeats) || (phase == Phase.PLAYING && toPlay in humanSeats)
+
+    /** De stoel van de mens die nu aan de beurt is, of 0. */
+    val humanToMove: Int
+        get() = when {
+            phase == Phase.BIDDING && toBid in humanSeats -> toBid
+            phase == Phase.PLAYING && toPlay in humanSeats -> toPlay
+            else -> 0
+        }
 
     /** Kan de computer of het spel zelf verder (zonder invoer van de mens)? */
     val canAdvance: Boolean
@@ -233,14 +250,14 @@ class Game internal constructor(
     fun advance(): Boolean {
         when (phase) {
             Phase.BIDDING -> {
-                if (toBid == 1) return false
+                if (toBid in humanSeats) return false
                 val pl = p[toBid]
                 pl.estimate = estimate(toBid)
                 pl.bid = if (smartSeat[toBid]) smartBid(toBid) else legalBid(pl.estimate)
                 bidPlaced()
             }
             Phase.PLAYING -> {
-                if (toPlay == 1) return false
+                if (toPlay in humanSeats) return false
                 status = "${p[toPlay].name} is aan de beurt."
                 playCard(if (smartSeat[toPlay]) smartCard(toPlay) else chooseCardComputer(toPlay))
             }
@@ -258,26 +275,26 @@ class Game internal constructor(
         return true
     }
 
-    /** Is [n] een toegestane voorspelling voor de mens? Geeft een foutmelding of null. */
+    /** Is [n] een toegestane voorspelling voor de mens die aan de beurt is? Geeft een foutmelding of null. */
     fun checkHumanBid(n: Int): String? {
-        if (phase != Phase.BIDDING || toBid != 1) return "Je bent nu niet aan de beurt om te voorspellen."
+        if (phase != Phase.BIDDING || toBid !in humanSeats) return "Je bent nu niet aan de beurt om te voorspellen."
         if (n < 0 || n > cardsThisRound) return "Je kunt 0 t/m $cardsThisRound slagen voorspellen."
-        if (!rules.roundingAllowed && isLastBidder(1) && n == tricksOver) {
+        if (!rules.roundingAllowed && isLastBidder(toBid) && n == tricksOver) {
             return "Rondmaken is niet toegestaan: je mag geen $n zeggen."
         }
         return null
     }
 
     /** De voorspelling die volgens de rondmaakregel verboden is voor de mens, of null. */
-    fun forbiddenHumanBid(): Int? =
-        if (!rules.roundingAllowed && phase == Phase.BIDDING && toBid == 1 && isLastBidder(1) &&
+    fun forbiddenHumanBid(seat: Int = 1): Int? =
+        if (!rules.roundingAllowed && phase == Phase.BIDDING && toBid == seat && isLastBidder(seat) &&
             tricksOver in 0..cardsThisRound
         ) tricksOver else null
 
     fun humanBid(n: Int): String? {
         checkHumanBid(n)?.let { return it }
-        val pl = p[1]
-        pl.estimate = estimate(1)
+        val pl = p[toBid]
+        pl.estimate = estimate(toBid)
         pl.bid = n
         humanLog.add(n)
         bidPlaced()
@@ -291,13 +308,15 @@ class Game internal constructor(
         return p[1].legal[slot]
     }
 
+    /** Legt een kaart op voor de mens die aan de beurt is. Geeft een foutmelding of null. */
     fun humanPlay(card: Card): String? {
-        if (phase != Phase.PLAYING || toPlay != 1) return "Je bent nog niet aan de beurt."
-        val slot = (1..13).firstOrNull { p[1].hand[it] == card } ?: return "Die kaart heb je niet."
-        findPossibleCards(1)
-        if (!p[1].legal[slot]) {
+        if (phase != Phase.PLAYING || toPlay !in humanSeats) return "Je bent nog niet aan de beurt."
+        val me = toPlay
+        val slot = (1..13).firstOrNull { p[me].hand[it] == card } ?: return "Die kaart heb je niet."
+        findPossibleCards(me)
+        if (!p[me].legal[slot]) {
             val leadSuit = table[leader].suit
-            return if (canFollowSuit(1) && card.suit != leadSuit) {
+            return if (canFollowSuit(me) && card.suit != leadSuit) {
                 "Je moet kleur bekennen. Kies een ${Card.suitName(leadSuit)}."
             } else {
                 "Je moet introeven. Kies een ${Card.suitName(trump.suit)}."
@@ -308,22 +327,23 @@ class Game internal constructor(
         return null
     }
 
-    /** Tip voor de mens: de voorspelling die de computer zou doen. */
-    fun hintBid(): Int = if (smartSeat[1] && phase == Phase.BIDDING && toBid == 1) smartBid(1) else legalBid(estimate(1))
+    /** Tip voor de mens op stoel [seat]: de voorspelling die de computer zou doen. */
+    fun hintBid(seat: Int = 1): Int =
+        if (smartSeat[seat] && phase == Phase.BIDDING && toBid == seat) smartBid(seat) else legalBid(estimate(seat))
 
-    /** Tip voor de mens: de kaart die de computer zou spelen. */
-    fun hintCard(): Card? =
-        if (phase == Phase.PLAYING && toPlay == 1) {
-            p[1].hand[if (smartSeat[1]) smartCard(1) else chooseCardComputer(1)]
+    /** Tip voor de mens op stoel [seat]: de kaart die de computer zou spelen. */
+    fun hintCard(seat: Int = 1): Card? =
+        if (phase == Phase.PLAYING && toPlay == seat) {
+            p[seat].hand[if (smartSeat[seat]) smartCard(seat) else chooseCardComputer(seat)]
         } else {
             null
         }
 
-    /** De kaarten van de mens die nu gespeeld mogen worden. */
-    fun legalCardsForHuman(): Set<Card> {
-        if (phase != Phase.PLAYING || toPlay != 1) return emptySet()
-        findPossibleCards(1)
-        return (1..13).filter { p[1].legal[it] }.map { p[1].hand[it] }.toSet()
+    /** De kaarten van de mens op stoel [seat] die nu gespeeld mogen worden. */
+    fun legalCardsForHuman(seat: Int = 1): Set<Card> {
+        if (phase != Phase.PLAYING || toPlay != seat) return emptySet()
+        findPossibleCards(seat)
+        return (1..13).filter { p[seat].legal[it] }.map { p[seat].hand[it] }.toSet()
     }
 
     private fun isLastBidder(player: Int) = nextPlayer(player) == leader
@@ -492,13 +512,13 @@ class Game internal constructor(
 
     /** KaartKiezen: geluid als de mens zijn voorspelling onmogelijk nog kan halen. */
     private fun checkHumanDoom() {
-        if (simulation || phase != Phase.PLAYING || toPlay != 1) return
-        findPossibleCards(1)
-        testTrickWinnable(1)
-        val me = p[1]
+        if (simulation || phase != Phase.PLAYING || toPlay != viewSeat) return
+        findPossibleCards(viewSeat)
+        testTrickWinnable(viewSeat)
+        val me = p[viewSeat]
         val stillNeeded = me.bid - me.tricks
         if ((stillNeeded == me.cardCount && canWinCount == 0) ||
-            (stillNeeded == 0 && cannotWinCount == 0 && leader == nextPlayer(1))
+            (stillNeeded == 0 && cannotWinCount == 0 && leader == nextPlayer(viewSeat))
         ) {
             doomSoundPlayed = true
             sounds.add(Sound.ONVOORKOMBARE_ONDERGANG)
@@ -507,15 +527,15 @@ class Game internal constructor(
 
     /** SlagNaarHoogste: geluiden na een slag. */
     private fun trickSounds(winner: Int) {
-        val otherWet = (2..4).any { nr ->
+        val otherWet = (1..4).filter { it != viewSeat }.any { nr ->
             val o = p[nr]
             (winner == nr && o.tricks == o.bid + 1) || (o.bid - o.tricks == o.cardCount + 1)
         }
         if (otherWet) sounds.add(Sound.MEDESPELER_NAT)
-        val me = p[1]
-        if (winner == 1 && me.tricks == me.bid + 1) {
+        val me = p[viewSeat]
+        if (winner == viewSeat && me.tricks == me.bid + 1) {
             if (!doomSoundPlayed) sounds.add(Sound.SLAG_TE_VEEL)
-        } else if (winner != 1 && me.bid - me.tricks == me.cardCount + 1) {
+        } else if (winner != viewSeat && me.bid - me.tricks == me.cardCount + 1) {
             if (!doomSoundPlayed) sounds.add(Sound.SLAG_TE_WEINIG)
         } else if (me.bid == me.tricks && me.cardCount == 0) {
             sounds.add(Sound.GOED_VOORSPELD)
@@ -675,8 +695,12 @@ class Game internal constructor(
             names: List<String>,
             humanActions: List<Int>,
             smartComputers: Boolean = false,
+            humanSeats: Set<Int> = setOf(1),
+            viewSeat: Int = 1,
         ): Game {
             val g = Game(rules, seed, names, smartComputers)
+            g.humanSeats = humanSeats
+            g.viewSeat = viewSeat
             for (action in humanActions) {
                 while (g.canAdvance) g.advance()
                 val error = if (action >= 100) g.humanPlay(Card.fromCode(action)) else g.humanBid(action)
