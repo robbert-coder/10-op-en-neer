@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Twee kaarten met een pijl op en neer -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- achterste kaart -->
+    <path
+        android:fillColor="#FFE8E2D0"
+        android:pathData="M38,30 h26 a4,4 0 0 1 4,4 v38 a4,4 0 0 1 -4,4 h-26 a4,4 0 0 1 -4,-4 v-38 a4,4 0 0 1 4,-4 z" />
+    <!-- voorste kaart -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:strokeColor="#FF333333"
+        android:strokeWidth="1"
+        android:pathData="M44,34 h26 a4,4 0 0 1 4,4 v38 a4,4 0 0 1 -4,4 h-26 a4,4 0 0 1 -4,-4 v-38 a4,4 0 0 1 4,-4 z" />
+    <!-- harten -->
+    <path
+        android:fillColor="#FFD32F2F"
+        android:pathData="M57,66 C50,60 47,56 47,52 C47,49 49,47 52,47 C54,47 56,48 57,50 C58,48 60,47 62,47 C65,47 67,49 67,52 C67,56 64,60 57,66 Z" />
+    <!-- pijl omhoog -->
+    <path
+        android:fillColor="#FFFFD54F"
+        android:pathData="M24,46 l6,-8 l6,8 h-4 v10 h-4 v-10 z" />
+    <!-- pijl omlaag -->
+    <path
+        android:fillColor="#FFFFD54F"
+        android:pathData="M78,62 l6,8 l6,-8 h-4 v-10 h-4 v10 z" />
+</vector>
