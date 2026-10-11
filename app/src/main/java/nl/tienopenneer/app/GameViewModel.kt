@@ -13,6 +13,7 @@ import nl.tienopenneer.engine.Card
 import nl.tienopenneer.engine.Game
 import nl.tienopenneer.engine.Phase
 import nl.tienopenneer.engine.Rules
+import nl.tienopenneer.engine.Sound
 import nl.tienopenneer.engine.describe
 import kotlin.random.Random
 
@@ -60,6 +61,7 @@ data class ScoreRow(val round: Int, val cards: Int, val cells: List<ScoreCell?>)
 
 class GameViewModel(app: Application) : AndroidViewModel(app) {
     private val storage = Storage(app)
+    private val soundPlayer = SoundPlayer(app)
 
     var settings by mutableStateOf(storage.loadSettings())
         private set
@@ -250,6 +252,17 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         if (gameOverHandled) return
         gameOverHandled = true
         highScorePlace = storage.addHighScore(g.rules, g.player(1).name, g.player(1).total)
+        // AfgelopenCommentaar: applaus bij een goed resultaat
+        val me = g.player(1)
+        val aloneFirst = me.rank == 1 && g.players.count { it.rank == 1 } == 1
+        val applause = when {
+            highScorePlace > 0 || aloneFirst -> Sound.ZEER_GOED_GESPEELD
+            me.rank == 1 -> Sound.GOED_GESPEELD
+            g.rules.isTienOpEnNeer && me.total >= 190 -> Sound.ZEER_GOED_GESPEELD
+            g.rules.isTienOpEnNeer && me.total >= 180 -> Sound.GOED_GESPEELD
+            else -> null
+        }
+        if (applause != null && settings.sound) soundPlayer.play(listOf(applause))
         storage.clearGame()
     }
 
@@ -265,6 +278,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             ui = null
             return
         }
+        val sounds = g.takeSounds()
+        if (settings.sound) soundPlayer.play(sounds)
         val hand = g.player(1).handCards().let { cards ->
             if (settings.sortDescending) cards.sortedWith(compareBy({ it.suit }, { -it.rank })) else cards
         }
@@ -327,6 +342,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     override fun onCleared() {
         driver?.cancel()
+        soundPlayer.release()
         super.onCleared()
     }
 }

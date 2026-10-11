@@ -317,6 +317,11 @@ fun SettingsScreen(vm: GameViewModel) {
             "Je kaarten van hoog naar laag sorteren (aas eerst).",
             vm.settings.sortDescending,
         ) { vm.updateSettings(vm.settings.copy(sortDescending = it)) }
+        SwitchRow(
+            "Geluid",
+            "De geluidjes uit het originele spel, bijvoorbeeld bij een slag te veel of een goede voorspelling.",
+            vm.settings.sound,
+        ) { vm.updateSettings(vm.settings.copy(sound = it)) }
     }
 }
 

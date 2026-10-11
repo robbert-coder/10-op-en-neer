@@ -2,6 +2,17 @@ package nl.tienopenneer.engine
 
 import kotlin.random.Random
 
+/** De geluiden uit het origineel, met de gebeurtenis waarbij ze klonken. */
+enum class Sound {
+    SLAG_TE_VEEL,
+    SLAG_TE_WEINIG,
+    ONVOORKOMBARE_ONDERGANG,
+    GOED_VOORSPELD,
+    MEDESPELER_NAT,
+    GOED_GESPEELD,
+    ZEER_GOED_GESPEELD,
+}
+
 enum class Phase {
     /** Een speler moet het aantal slagen voorspellen ([Game.toBid]). */
     BIDDING,
@@ -137,6 +148,12 @@ class Game(
     /** Logboek van de handelingen van de mens; daarmee kan een spel worden hersteld. */
     private val humanLog = mutableListOf<Int>()
     val humanActions: List<Int> get() = humanLog
+
+    private val sounds = mutableListOf<Sound>()
+    private var doomSoundPlayed = false
+
+    /** Geeft de geluiden die sinds de vorige aanroep zijn ontstaan, en leegt de lijst. */
+    fun takeSounds(): List<Sound> = sounds.toList().also { sounds.clear() }
 
     private val dealtHands = Array(26) { Array(5) { Array(14) { Card.NONE } } }
     private val dealtTrumps = Array(26) { Card.NONE }
@@ -298,6 +315,7 @@ class Game(
 
     private fun startRound() {
         round++
+        doomSoundPlayed = false
         // ResetRondeVars + KaartenWeg
         totalBid = 0
         numberBid = 0
@@ -357,6 +375,7 @@ class Game(
             trickNumber = 1
             toPlay = leader
             phase = Phase.PLAYING
+            checkHumanDoom()
         }
     }
 
@@ -389,6 +408,8 @@ class Game(
         if (toPlay == leader) {
             phase = Phase.TRICK_COMPLETE
             status = "De slag is voor ${p[highestOnTable].name}."
+        } else {
+            checkHumanDoom()
         }
     }
 
@@ -406,6 +427,7 @@ class Game(
         lastTrickLeader = leader
         lastTrickWinner = winner
         trickNumber++
+        trickSounds(winner)
 
         if (cardsRemaining == 0) {
             computeScore()
@@ -417,6 +439,39 @@ class Game(
             toPlay = winner
             phase = Phase.PLAYING
             status = "${p[winner].name} moet uitkomen."
+            checkHumanDoom()
+        }
+    }
+
+    /** KaartKiezen: geluid als de mens zijn voorspelling onmogelijk nog kan halen. */
+    private fun checkHumanDoom() {
+        if (phase != Phase.PLAYING || toPlay != 1) return
+        findPossibleCards(1)
+        testTrickWinnable(1)
+        val me = p[1]
+        val stillNeeded = me.bid - me.tricks
+        if ((stillNeeded == me.cardCount && canWinCount == 0) ||
+            (stillNeeded == 0 && cannotWinCount == 0 && leader == nextPlayer(1))
+        ) {
+            doomSoundPlayed = true
+            sounds.add(Sound.ONVOORKOMBARE_ONDERGANG)
+        }
+    }
+
+    /** SlagNaarHoogste: geluiden na een slag. */
+    private fun trickSounds(winner: Int) {
+        val otherWet = (2..4).any { nr ->
+            val o = p[nr]
+            (winner == nr && o.tricks == o.bid + 1) || (o.bid - o.tricks == o.cardCount + 1)
+        }
+        if (otherWet) sounds.add(Sound.MEDESPELER_NAT)
+        val me = p[1]
+        if (winner == 1 && me.tricks == me.bid + 1) {
+            if (!doomSoundPlayed) sounds.add(Sound.SLAG_TE_VEEL)
+        } else if (winner != 1 && me.bid - me.tricks == me.cardCount + 1) {
+            if (!doomSoundPlayed) sounds.add(Sound.SLAG_TE_WEINIG)
+        } else if (me.bid == me.tricks && me.cardCount == 0) {
+            sounds.add(Sound.GOED_VOORSPELD)
         }
     }
 
@@ -535,6 +590,7 @@ class Game(
                 val error = if (action >= 100) g.humanPlay(Card.fromCode(action)) else g.humanBid(action)
                 check(error == null) { "Opgeslagen spel kan niet hersteld worden: $error" }
             }
+            g.sounds.clear()
             return g
         }
     }

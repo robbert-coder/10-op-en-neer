@@ -189,4 +189,28 @@ class GameTest {
         println("Gemiddelde score per speler (10 op en neer): %.1f".format(average))
         assertTrue(average in 100.0..200.0, "gemiddelde $average")
     }
+
+    @Test
+    fun soundsFollowTheHumanResult() {
+        val heard = mutableSetOf<Sound>()
+        for (seed in 1L..40L) {
+            val g = Game(Rules.TIEN_OP_EN_NEER, seed)
+            while (g.phase != Phase.GAME_OVER) {
+                if (g.isHumanTurn) {
+                    if (g.phase == Phase.BIDDING) g.humanBid(g.hintBid()) else g.humanPlay(g.hintCard()!!)
+                } else {
+                    val before = g.phase
+                    g.advance()
+                    val sounds = g.takeSounds()
+                    heard += sounds
+                    if (Sound.GOED_VOORSPELD in sounds) {
+                        assertEquals(Phase.TRICK_COMPLETE, before)
+                        assertEquals(g.player(1).bid, g.player(1).tricks)
+                    }
+                }
+                heard += g.takeSounds()
+            }
+        }
+        assertTrue(heard.containsAll(listOf(Sound.GOED_VOORSPELD, Sound.MEDESPELER_NAT, Sound.SLAG_TE_VEEL, Sound.SLAG_TE_WEINIG)), "$heard")
+    }
 }

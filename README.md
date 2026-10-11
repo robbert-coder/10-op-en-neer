@@ -10,9 +10,12 @@ Deze app is een port van het Windows-spel [10 op en neer](https://sourceforge.ne
 - Instelbaar: rondmaken toegestaan en verplicht introeven
 - Computerspelers met dezelfde strategie als het origineel
 - Scorelijst, laatste slag bekijken, tips, highscores per variant
+- De originele geluidjes (slag te veel, slag te weinig, goed voorspeld, medespeler nat, applaus), uit te zetten bij Instellingen
 - Het spel wordt automatisch bewaard; je kunt altijd verder waar je gebleven was
 
-Nog niet overgezet: netwerkspel, de helpster Tineke, geluiden en statistieken.
+Nog niet overgezet: netwerkspel, de helpster Tineke en statistieken.
+
+De geluiden in `app/src/main/res/raw/` komen uit het installatieprogramma van het origineel en zijn omgezet naar OGG. Een deel ervan lijkt afkomstig uit oude Windows-geluidspakketten; controleer de rechten voordat je de app openbaar verspreidt.
 
 ## Opbouw
 
