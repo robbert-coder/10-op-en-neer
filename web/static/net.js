@@ -15,6 +15,18 @@ export function makeCode() {
   return c;
 }
 
+/** De plaatjes die je kunt kiezen, naast een eigen foto. */
+export const AVATAR_EMOJIS = ["🦊", "🐻", "🐼", "🐸", "🐵", "🦁", "🐯", "🐨", "🐷", "🐙", "🦉", "🐧",
+  "😎", "🤠", "👑", "🌷", "⚽", "🎸", "☕", "🍀"];
+
+/** Een plaatje van een ander alleen gebruiken als het een van de emoji's is of een kleine foto. */
+export function cleanAvatar(v) {
+  if (typeof v !== "string") return null;
+  if (AVATAR_EMOJIS.includes(v)) return v;
+  if (v.length <= 60000 && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(v)) return v;
+  return null;
+}
+
 export const normalizeCode = (s) => String(s || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 5);
 
 /** Instellingen voor PeerJS. Met ?peerhost=host:poort kan een eigen (test)server gebruikt worden. */
@@ -47,10 +59,10 @@ const peerError = (err) => {
  * events: onLobby(players), onAction({index, seat, value}), onStatus(text), onError(text)
  */
 export class Host {
-  constructor(code, myName, events, saved = null) {
+  constructor(code, myName, events, saved = null, myAvatar = null) {
     this.code = code;
     this.events = events;
-    this.players = [{ id: "host", name: myName, seat: 1, online: true }];
+    this.players = [{ id: "host", name: myName, seat: 1, online: true, avatar: cleanAvatar(myAvatar) }];
     this.conns = new Map(); // clientId -> verbinding
     this.started = null; // startgegevens zodra het spel loopt
     this.log = []; // alle handelingen van mensen, in volgorde: {seat, value}
@@ -59,6 +71,8 @@ export class Host {
     if (saved) {
       // Na het herladen van de pagina: dezelfde tafel weer openen, de anderen verbinden vanzelf opnieuw
       this.players = saved.players.map((p) => ({ ...p, online: p.id === "host" }));
+      const me = this.players.find((p) => p.id === "host");
+      if (me) me.avatar = cleanAvatar(myAvatar);
       this.started = saved.started;
       this.log = saved.log;
       this.chat = saved.chat ?? [];
@@ -108,6 +122,7 @@ export class Host {
       }
       p.online = true;
       if (!this.started) p.name = name;
+      p.avatar = cleanAvatar(msg.avatar);
       conn.clientId = id;
       const old = this.conns.get(id);
       if (old && old !== conn) old.close();
@@ -116,6 +131,9 @@ export class Host {
       if (this.started) conn.send({ t: "start", game: this.started, log: this.log });
       conn.send({ t: "chatlog", messages: this.chat });
       this.lobbyChanged();
+    } else if (msg.t === "me") {
+      const p = this.players.find((x) => x.id === conn.clientId);
+      if (p) { p.avatar = cleanAvatar(msg.avatar); this.lobbyChanged(); }
     } else if (msg.t === "chat") {
       const p = this.players.find((x) => x.id === conn.clientId);
       if (p) this.addChat(p.seat, p.name, msg.text, conn);
@@ -145,7 +163,7 @@ export class Host {
   }
 
   lobbyChanged() {
-    const list = this.players.map(({ name, seat, online }) => ({ name, seat, online }));
+    const list = this.players.map(({ name, seat, online, avatar }) => ({ name, seat, online, avatar: avatar ?? null }));
     this.broadcast({ t: "lobby", players: list });
     this.events.onLobby?.(list);
   }
@@ -184,6 +202,13 @@ export class Host {
     this.addChat(1, me?.name ?? "", text);
   }
 
+  /** De gastheer kiest een ander plaatje. */
+  setAvatar(v) {
+    const me = this.players.find((x) => x.id === "host");
+    if (me) me.avatar = cleanAvatar(v);
+    this.lobbyChanged();
+  }
+
   /** Een handeling van de gastheer zelf. */
   sendAction(index, seat, value) {
     if (index !== this.log.length) return;
@@ -203,9 +228,10 @@ export class Host {
  *         onStatus(text), onError(text), onClosed(text)
  */
 export class Guest {
-  constructor(code, myName, clientId, events) {
+  constructor(code, myName, clientId, events, avatar = null) {
     this.code = code;
     this.name = myName;
+    this.avatar = cleanAvatar(avatar);
     this.clientId = clientId;
     this.events = events;
     this.closed = false;
@@ -230,7 +256,7 @@ export class Guest {
       this.everConnected = true;
       this.retries = 0;
       this.events.onStatus?.("");
-      conn.send({ t: "hello", id: this.clientId, name: this.name });
+      conn.send({ t: "hello", id: this.clientId, name: this.name, avatar: this.avatar });
     });
     conn.on("data", (msg) => this.receive(msg));
     conn.on("close", () => {
@@ -249,7 +275,9 @@ export class Guest {
   receive(msg) {
     if (!msg || typeof msg !== "object") return;
     if (msg.t === "welcome") this.events.onWelcome?.(msg.seat);
-    else if (msg.t === "lobby") this.events.onLobby?.(msg.players);
+    else if (msg.t === "lobby") {
+      this.events.onLobby?.((msg.players || []).map((p) => ({ ...p, avatar: cleanAvatar(p.avatar) })));
+    }
     else if (msg.t === "start") this.events.onStart?.(msg.game, msg.log);
     else if (msg.t === "act") this.events.onAction?.({ index: msg.index, seat: msg.seat, value: msg.value });
     else if (msg.t === "chat") this.events.onChat?.(msg.message, false);
@@ -260,6 +288,12 @@ export class Guest {
 
   sendAction(index, seat, value) {
     if (this.conn?.open) this.conn.send({ t: "act", index, seat, value });
+  }
+
+  /** Een ander plaatje kiezen; de gastheer laat het iedereen zien. */
+  setAvatar(v) {
+    this.avatar = cleanAvatar(v);
+    if (this.conn?.open) this.conn.send({ t: "me", avatar: this.avatar });
   }
 
   /** Een chatbericht gaat naar de gastheer, die het doorstuurt. Geeft false zonder verbinding. */

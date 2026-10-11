@@ -10,6 +10,8 @@ import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
 import android.webkit.JavascriptInterface
+import android.webkit.ValueCallback
+import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
@@ -19,6 +21,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.webkit.WebViewAssetLoader
@@ -33,6 +36,13 @@ import java.io.IOException
 class MainActivity : ComponentActivity() {
 
     private lateinit var web: WebView
+
+    /** Een foto kiezen voor je eigen plaatje (een <input type="file"> op de pagina). */
+    private var fileCallback: ValueCallback<Array<Uri>>? = null
+    private val pickImage = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        fileCallback?.onReceiveValue(if (uri != null) arrayOf(uri) else null)
+        fileCallback = null
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge(
@@ -63,6 +73,23 @@ class MainActivity : ComponentActivity() {
                     if (request.url.host == WebViewAssetLoader.DEFAULT_DOMAIN) return false
                     openExternal(request.url)
                     return true
+                }
+            }
+            webChromeClient = object : WebChromeClient() {
+                override fun onShowFileChooser(
+                    view: WebView,
+                    callback: ValueCallback<Array<Uri>>,
+                    params: FileChooserParams,
+                ): Boolean {
+                    fileCallback?.onReceiveValue(null)
+                    fileCallback = callback
+                    return try {
+                        pickImage.launch("image/*")
+                        true
+                    } catch (_: ActivityNotFoundException) {
+                        fileCallback = null
+                        false
+                    }
                 }
             }
             addJavascriptInterface(Bridge(), "TienApp")

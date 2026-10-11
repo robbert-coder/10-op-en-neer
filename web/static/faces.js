@@ -79,3 +79,11 @@ export function initialSvg(name) {
       font-family="ui-rounded, 'SF Pro Rounded', system-ui, sans-serif">${letter.replace(/[<&>"]/g, "")}</text>
   </svg>`;
 }
+
+/** Avatar met een gekozen emoji. */
+export function emojiSvg(emoji) {
+  return `<svg class="face-svg" viewBox="0 0 100 100" aria-hidden="true">
+    <circle cx="50" cy="50" r="46" fill="#2F6B4F"/>
+    <text x="50" y="54" text-anchor="middle" dominant-baseline="central" font-size="54">${emoji.replace(/[<&>"]/g, "")}</text>
+  </svg>`;
+}

@@ -1,10 +1,10 @@
 // Webversie van "10 op en neer". De spelregels en computerspelers komen uit de Kotlin-code
 // van de Android-app (tienopenneer.mjs); dit bestand tekent alleen het scherm.
 import { WebGame, describeCard, defaultNames } from "./tienopenneer.mjs";
-import { faceSvg, initialSvg } from "./faces.js";
+import { faceSvg, initialSvg, emojiSvg } from "./faces.js";
 import * as tineke from "./tineke.js";
 import { BID_LINES, WET_LINES, BID_MS } from "./voices.js";
-import { Host, Guest, makeCode, normalizeCode } from "./net.js";
+import { Host, Guest, makeCode, normalizeCode, AVATAR_EMOJIS, cleanAvatar } from "./net.js";
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
@@ -443,7 +443,118 @@ function handleGameOver() {
   else if (st.isTienOpEnNeer && me.total >= 180) applause = "goed_gespeeld";
   if (applause && settings.sound) playSound(applause);
   store.remove("spel");
+  celebrate().then(renderDialog);
   renderDialog();
+}
+
+// ------------------------------------------------------------------------------------------
+// Feestje aan het einde: stuiterende kaarten die een spoor achterlaten, zoals bij het oude Patience
+// ------------------------------------------------------------------------------------------
+
+let celebrating = false;
+
+/** Tekent één kaart op een eigen klein canvas, zodat hij snel steeds opnieuw getekend kan worden. */
+function cardSprite(code, w, dpr) {
+  const h = Math.round(w * 1.42);
+  const c = document.createElement("canvas");
+  c.width = w * dpr;
+  c.height = h * dpr;
+  const g = c.getContext("2d");
+  g.scale(dpr, dpr);
+  const suit = Math.floor(code / 100);
+  const rank = code % 100;
+  const color = suit === 2 || suit === 4 ? "#D93636" : "#1E2430";
+  const sym = SUIT[suit].replace("\uFE0E", "");
+  const label = LABEL[rank] ?? String(rank);
+  const rad = w * 0.12;
+  g.beginPath();
+  if (g.roundRect) g.roundRect(0.5, 0.5, w - 1, h - 1, rad);
+  else g.rect(0.5, 0.5, w - 1, h - 1);
+  g.fillStyle = "#FFFFFF";
+  g.fill();
+  g.strokeStyle = "rgba(0,0,0,.25)";
+  g.stroke();
+  g.fillStyle = color;
+  g.textAlign = "center";
+  g.textBaseline = "middle";
+  const font = (px) => `700 ${px}px ui-rounded, "SF Pro Rounded", system-ui, sans-serif`;
+  g.font = font(w * 0.26);
+  g.fillText(label, w * 0.2, h * 0.14);
+  g.font = font(w * 0.2);
+  g.fillText(sym, w * 0.2, h * 0.3);
+  g.font = font(rank >= 11 && rank <= 13 ? w * 0.5 : w * 0.56);
+  g.fillText(rank >= 11 && rank <= 13 ? label : sym, w / 2, h * 0.56);
+  return c;
+}
+
+/** Speelt de animatie af; tikken slaat hem over. Klaar als de kaarten weg zijn. */
+function celebrate() {
+  if (celebrating || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return Promise.resolve();
+  celebrating = true;
+  return new Promise((resolve) => {
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const W = window.innerWidth;
+    const H = window.innerHeight;
+    const canvas = document.createElement("canvas");
+    canvas.className = "celebrate";
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    document.body.appendChild(canvas);
+    const g = canvas.getContext("2d");
+    g.scale(dpr, dpr);
+    const w = Math.round(Math.max(46, Math.min(90, W / 8)));
+    const h = Math.round(w * 1.42);
+    // Vier stapels bovenaan, zoals de azen bij Patience; de kaarten springen er om de beurt af
+    const piles = [0, 1, 2, 3].map((i) => (W - w) * (0.14 + 0.24 * i));
+    const order = [];
+    for (let rank = 14; rank >= 2; rank--) for (let suit = 1; suit <= 4; suit++) order.push(suit * 100 + rank);
+    const sprites = new Map();
+    const active = [];
+    const gravity = H / 1400;
+    let launched = 0;
+    let last = 0;
+    let done = false;
+    let started = performance.now();
+
+    const finish = () => {
+      if (done) return;
+      done = true;
+      canvas.classList.add("out");
+      setTimeout(() => { canvas.remove(); celebrating = false; resolve(); }, 450);
+    };
+    canvas.addEventListener("pointerdown", finish);
+
+    const launch = () => {
+      const code = order[launched];
+      if (!sprites.has(code)) sprites.set(code, cardSprite(code, w, dpr));
+      const pile = launched % 4;
+      const dir = piles[pile] + w / 2 < W / 2 ? 1 : -1;
+      const speed = W / 260 + Math.random() * W / 160;
+      active.push({
+        sprite: sprites.get(code), x: piles[pile], y: H * 0.08,
+        vx: (Math.random() < 0.8 ? dir : -dir) * speed, vy: -Math.random() * H / 120,
+      });
+      launched++;
+    };
+
+    const frame = (now) => {
+      if (done) return;
+      if (launched < order.length && now - last > 260 && active.length < 6) { launch(); last = now; }
+      for (let i = active.length - 1; i >= 0; i--) {
+        const c = active[i];
+        c.vy += gravity;
+        c.x += c.vx;
+        c.y += c.vy;
+        if (c.y + h > H) { c.y = H - h; c.vy = -c.vy * 0.82; }
+        g.drawImage(c.sprite, c.x, c.y, w, h);
+        if (c.x < -w || c.x > W) active.splice(i, 1);
+      }
+      if ((launched >= order.length && active.length === 0) || now - started > 10000) finish();
+      else requestAnimationFrame(frame);
+    };
+    // De tafel blijft zichtbaar, de kaarten tekenen eroverheen
+    requestAnimationFrame((now) => { started = now; frame(now); });
+  });
 }
 
 // ------------------------------------------------------------------------------------------
@@ -656,13 +767,30 @@ function cardHtml(code, extra = "", style = "") {
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 
+/** Het gekozen plaatje van een mens aan tafel: een emoji, een foto of anders de eerste letter. */
+function customAvatar(nr) {
+  const p = st?.players[nr - 1];
+  if (!p?.human) return null;
+  if (online) return online.players.find((x) => x.seat === p.seat)?.avatar ?? null;
+  return cleanAvatar(settings.avatar);
+}
+
+function humanAvatarHtml(avatar, name) {
+  if (avatar?.startsWith("data:image/")) return `<img class="face-img" src="${esc(avatar)}" alt="">`;
+  if (avatar && AVATAR_EMOJIS.includes(avatar)) return emojiSvg(avatar);
+  return initialSvg(name);
+}
+
 function avatarHtml(nr, name, mood = "") {
   const face = faceFor(nr);
-  const svg = face ? faceSvg(face) : initialSvg(name);
+  const svg = face ? faceSvg(face) : humanAvatarHtml(customAvatar(nr), name);
   return `<div class="avatar ${mood}" data-who="${face ?? "mens"}">${svg}</div>`;
 }
 
-const seatsKey = () => st.players.map((p) => `${p.name}|${p.human}|${p.seat}`).join(",");
+const seatsKey = () => st.players.map((p, i) => {
+  const av = customAvatar(i + 1) ?? "";
+  return `${p.name}|${p.human}|${p.seat}|${av.length}${av.slice(-24)}`;
+}).join(",");
 
 /** Stoelen één keer opbouwen, zodat de gezichten blijven knipperen en praten tussen de beurten door. */
 function buildSeats() {
@@ -875,10 +1003,7 @@ function renderGame() {
   }
 
   // Hand
-  const hand = st.hand.slice();
-  if (settings.sortDescending) {
-    hand.sort((a, b) => Math.floor(a.code / 100) - Math.floor(b.code / 100) || (b.code % 100) - (a.code % 100));
-  }
+  const hand = sortHand(st.hand);
   const playing = humanPlaying();
   $("#hand").innerHTML = hand
     .map((c) => cardHtml(c.code, `${playing && !c.legal ? "dim" : ""} ${playing && c.legal ? "up" : ""} ${c.code === hintCard ? "hl" : ""}`))
@@ -941,7 +1066,7 @@ function renderDialog() {
     html = scoreSheetHtml();
   } else if (screen === "game" && st && st.phase === "ROUND_COMPLETE" && !busy) {
     html = roundResultHtml();
-  } else if (screen === "game" && st && st.phase === "GAME_OVER") {
+  } else if (screen === "game" && st && st.phase === "GAME_OVER" && !celebrating) {
     html = gameOverHtml();
   }
   const key = html === null ? "" : `${cls}|${html}`;
@@ -1029,6 +1154,32 @@ function sheetTableHtml() {
   return `<table><tr><th>Ronde</th>${head}</tr>${rows}<tr class="total"><td>Totaal</td>${totals}</tr></table>`;
 }
 
+/**
+ * Kleuren in de hand zo ordenen dat rood en zwart elkaar afwisselen: ruiten niet naast harten en
+ * schoppen niet naast klaveren, als dat kan met de kleuren die je hebt.
+ */
+function suitOrder(suits) {
+  const red = (s) => s === 2 || s === 4;
+  const perms = (list) => list.length <= 1 ? [list] :
+    list.flatMap((x, i) => perms([...list.slice(0, i), ...list.slice(i + 1)]).map((rest) => [x, ...rest]));
+  let best = null;
+  let bestClash = Infinity;
+  for (const order of perms(suits)) {
+    let clash = 0;
+    for (let i = 1; i < order.length; i++) if (red(order[i]) === red(order[i - 1])) clash++;
+    if (clash < bestClash) { best = order; bestClash = clash; }
+  }
+  return best;
+}
+
+function sortHand(cards) {
+  const suits = [...new Set(cards.map((c) => Math.floor(c.code / 100)))].sort();
+  const pos = new Map(suitOrder(suits).map((s, i) => [s, i]));
+  const dir = settings.sortDescending ? -1 : 1;
+  return cards.slice().sort((a, b) =>
+    pos.get(Math.floor(a.code / 100)) - pos.get(Math.floor(b.code / 100)) || dir * ((a.code % 100) - (b.code % 100)));
+}
+
 function cardsInRound(r) {
   const max = (st.rounds + 1) / 2;
   return max - Math.abs(r - max);
@@ -1046,6 +1197,7 @@ function show(name) {
   if (name === "highscores") renderHighScores();
   if (name === "settings") renderSettings();
   if (name === "online") renderOnline();
+  if (name === "online" || name === "settings") renderAvatarPick();
   if (name !== "game" && name !== "online" && chatOpen) { chatOpen = false; }
   renderChat();
   if (name === "game") {
@@ -1095,6 +1247,73 @@ function renderHighScores() {
     : list.map((h, i) => `<div class="hs-row"><span class="pos">${i + 1}</span><span class="name">${esc(h.name)}</span><span class="date">${h.date}</span><span class="score">${h.score}</span></div>`).join("");
   $("#btn-hs-clear").hidden = list.length === 0;
 }
+
+// ------------------------------------------------------------------------------------------
+// Eigen plaatje
+// ------------------------------------------------------------------------------------------
+
+const myAvatar = () => cleanAvatar(settings.avatar);
+
+const CAMERA_SVG = `<svg class="face-svg" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="46" fill="rgba(255,255,255,.1)"/>
+  <path d="M30 40h9l5-7h12l5 7h9v28H30z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/>
+  <circle cx="50" cy="54" r="8" fill="none" stroke="currentColor" stroke-width="4"/></svg>`;
+
+function renderAvatarPick() {
+  const cur = myAvatar() ?? "";
+  const photo = cur.startsWith("data:image/");
+  const opt = (value, html, sel, label) =>
+    `<button type="button" class="av-opt ${sel ? "sel" : ""}" data-av="${value}" aria-label="${label}">${html}</button>`;
+  const html = [
+    opt("", initialSvg(settings.playerName), !cur, "Eerste letter van je naam"),
+    ...AVATAR_EMOJIS.map((e) => opt(e, emojiSvg(e), cur === e, e)),
+    opt("foto", photo ? humanAvatarHtml(cur, "") : CAMERA_SVG, photo, "Eigen foto kiezen"),
+  ].join("");
+  $$(".avatar-pick").forEach((el) => { el.innerHTML = html; });
+}
+
+function setAvatar(v) {
+  settings.avatar = cleanAvatar(v);
+  saveSettings();
+  online?.link?.setAvatar?.(settings.avatar);
+  renderAvatarPick();
+  if (st && screen === "game") renderGame();
+}
+
+/** Maakt van een foto een klein vierkant plaatje, zodat het snel naar de anderen gaat. */
+function photoAvatar(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const size = 128;
+      const side = Math.min(img.naturalWidth, img.naturalHeight);
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = size;
+      canvas.getContext("2d").drawImage(img, (img.naturalWidth - side) / 2, (img.naturalHeight - side) / 2, side, side, 0, 0, size, size);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL("image/jpeg", 0.8));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("geen plaatje")); };
+    img.src = url;
+  });
+}
+
+document.addEventListener("click", (e) => {
+  const b = e.target.closest(".av-opt");
+  if (!b) return;
+  if (b.dataset.av === "foto") $("#avatar-file").click();
+  else setAvatar(b.dataset.av || null);
+});
+$("#avatar-file").addEventListener("change", async (e) => {
+  const file = e.target.files?.[0];
+  e.target.value = "";
+  if (!file) return;
+  try {
+    setAvatar(await photoAvatar(file));
+  } catch {
+    alert("Deze foto kon niet worden geopend. Probeer een andere.");
+  }
+});
 
 function renderSettings() {
   $("#set-name").value = settings.playerName;
@@ -1275,17 +1494,17 @@ function openTable(rules) {
   st = null;
   const code = makeCode();
   online = {
-    role: "host", code, seat: 1, players: [{ name: settings.playerName, seat: 1, online: true }],
+    role: "host", code, seat: 1, players: [{ name: settings.playerName, seat: 1, online: true, avatar: myAvatar() }],
     queue: new Map(), game: null, rules, smart: settings.smart, status: "Tafel openen…", error: "", chat: [], unread: 0,
   };
-  online.link = new Host(code, settings.playerName, netEvents());
+  online.link = new Host(code, settings.playerName, netEvents(), null, myAvatar());
   show("online");
 }
 
 function joinTable(code) {
   closeOnline();
   online = { role: "guest", code, seat: 0, players: [], queue: new Map(), game: null, status: "Verbinden met de tafel…", error: "", chat: [], unread: 0 };
-  online.link = new Guest(code, settings.playerName, clientId(), netEvents());
+  online.link = new Guest(code, settings.playerName, clientId(), netEvents(), myAvatar());
   store.set("online-gast", { code });
   show("online");
 }
@@ -1369,7 +1588,7 @@ function resumeOnline() {
         rules: saved.started.rules, smart: saved.started.smart, status: "", error: "",
         chat: saved.chat ?? [], unread: 0,
       };
-      online.link = new Host(saved.code, settings.playerName, netEvents(), saved);
+      online.link = new Host(saved.code, settings.playerName, netEvents(), saved, myAvatar());
       online.game = saved.started;
       currentRules = saved.started.rules;
       currentSmart = saved.started.smart;
@@ -1414,7 +1633,7 @@ function renderOnline() {
     const p = online.players.find((x) => x.seat === seat);
     if (p) {
       const me = seat === online.seat;
-      return `<div class="lobby-seat"><div class="avatar">${initialSvg(p.name)}</div>
+      return `<div class="lobby-seat"><div class="avatar">${humanAvatarHtml(p.avatar, p.name)}</div>
         <div class="nm">${esc(p.name)}${me ? " (jij)" : ""}<small>${seat === 1 ? "Gastheer" : "Speler"}</small></div>
         <span class="dot ${p.online === false ? "off" : ""}"></span></div>`;
     }
@@ -1437,6 +1656,7 @@ function renderOnline() {
 $("#btn-online").addEventListener("click", () => show(online?.game && game ? "game" : "online"));
 $("#on-name").addEventListener("input", (e) => {
   settings.playerName = e.target.value.trim() || "Speler";
+  renderAvatarPick();
   saveSettings();
 });
 $("#btn-host").addEventListener("click", () => { newOnline = true; show("newgame"); });
@@ -1543,6 +1763,7 @@ $("#btn-hs-clear").addEventListener("click", () => {
 
 $("#set-name").addEventListener("input", (e) => {
   settings.playerName = e.target.value.trim() || "Speler";
+  renderAvatarPick();
   saveSettings();
   if (game) {
     game.setPlayerName(settings.playerName);
@@ -1673,4 +1894,4 @@ window.tienBack = () => {
 };
 
 // Voor de tests
-window.__tienopenneer = { get state() { return st; }, settings, get busy() { return busy; } };
+window.__tienopenneer = { get state() { return st; }, settings, get busy() { return busy; }, celebrate };
