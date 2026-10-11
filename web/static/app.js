@@ -3,6 +3,7 @@
 import { WebGame, describeCard, defaultNames } from "./tienopenneer.mjs";
 import { faceSvg, initialSvg } from "./faces.js";
 import * as tineke from "./tineke.js";
+import { BID_LINES, WET_LINES, BID_MS } from "./voices.js";
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
@@ -93,7 +94,8 @@ function unlockAudio() {
     if (!AC) return;
     audio = new AC();
     // Alvast laden, zodat het eerste geluid niet hapert
-    for (const v of VOICES) for (let n = 0; n <= 13; n++) loadSound(`bod_${v}_${n}`);
+    for (const v of VOICES) BID_LINES[v].forEach((row, n) => row.forEach((_, k) => loadSound(`bod_${v}_${n}_${k}`)));
+    for (const v of Object.keys(WET_LINES)) WET_LINES[v].forEach((_, k) => loadSound(`nat_${v}_${k}`));
   }
   if (audio.state === "suspended") audio.resume();
 }
@@ -153,6 +155,8 @@ let menuOpen = false;
 let announcedRound = 0;
 const announced = [false, false, false, false, false];
 const wetShown = [false, false, false, false, false];
+let speechUntil = 0; // tot wanneer de laatste voorspelling nog uitgesproken wordt
+let wetSpoken = false; // maar één nat-reactie tegelijk uitspreken
 const talkingUntil = [0, 0, 0, 0, 0];
 const previousTricks = [0, 0, 0, 0, 0];
 let previousTable = [0, 0, 0, 0];
@@ -270,10 +274,13 @@ function refresh() {
   }
   st = JSON.parse(game.state());
   const sounds = Array.from(game.takeSounds());
-  if (settings.sound && sounds.length) playSound(sounds[sounds.length - 1].toLowerCase());
+  // Als de spelers praten, zegt een computerspeler zelf iets als hij nat gaat in plaats van het geluidje
+  const voiceWet = settings.speakBids && sounds[sounds.length - 1] === "MEDESPELER_NAT";
+  if (settings.sound && sounds.length && !voiceWet) playSound(sounds[sounds.length - 1].toLowerCase());
   if (sounds.includes("SLAG_TE_VEEL") && Math.random() < 1 / 3) tinekeComment("te veel");
   else if (sounds.includes("SLAG_TE_WEINIG") && Math.random() < 1 / 3) tinekeComment("te weinig");
   else if (sounds.includes("GOED_VOORSPELD") && Math.random() < 1 / 4) tinekeComment("goed");
+  wetSpoken = false;
   announceBids();
   if (screen === "game") renderGame();
   if (screen === "game") onTurn();
@@ -297,24 +304,54 @@ function announceBids() {
     if (p.bid >= 0 && !announced[nr]) {
       announced[nr] = true;
       const speak = settings.sound && settings.speakBids;
-      if (speak) playSound(`bod_${VOICES[nr - 1]}_${p.bid}`);
-      const ms = speak ? 2400 : 1300;
+      const v = VOICES[nr - 1];
+      const k = pickLine(`bod${nr}`, BID_LINES[v][p.bid].length, true);
+      if (speak) playSound(`bod_${v}_${p.bid}_${k}`);
+      const line = BID_LINES[v][p.bid][k];
+      const ms = speak ? BID_MS[v][p.bid][k] + 250 : 1300 + (k ? line.length * 25 : 0);
+      if (speak) speechUntil = Date.now() + ms;
       if (nr > 1) talkingUntil[nr] = Date.now() + ms;
-      showBubble(nr, `Ik zeg <b>${p.bid}</b>!`, ms + 300);
+      showBubble(nr, bidBubble(k ? line : "", p.bid), ms + 300);
       setTimeout(() => { if (screen === "game") updateSeats(); }, ms + 20);
     }
     if (!wetShown[nr] && isWet(p) && st.phase !== "BIDDING") {
       wetShown[nr] = true;
-      showBubble(nr, nr === 1 ? "Nat…" : ["", "", "Ach nee, nat!", "Oei, ik ga nat…", "Balen, nat!"][nr], 2200, true);
+      if (nr === 1) {
+        showBubble(nr, "Nat…", 2200, true);
+      } else {
+        const v = VOICES[nr - 1];
+        const k = pickLine(`nat${nr}`, WET_LINES[v].length, false);
+        if (settings.sound && settings.speakBids && !wetSpoken) {
+          wetSpoken = true;
+          playSound(`nat_${v}_${k}`);
+        }
+        showBubble(nr, esc(WET_LINES[v][k]), 2600, true);
+      }
     }
   }
+}
+
+/** Kiest een variant: meestal alleen het getal (variant 0), en nooit twee keer achter elkaar hetzelfde. */
+const lastLine = {};
+function pickLine(key, count, plainMostly) {
+  let k;
+  do {
+    k = plainMostly && Math.random() < 0.55 ? 0 : (plainMostly ? 1 : 0) + Math.floor(Math.random() * (plainMostly ? count - 1 : count));
+  } while (count > 1 && k === lastLine[key] && k !== 0);
+  lastLine[key] = k;
+  return k;
+}
+
+/** Tekstballon bij een voorspelling, met het getal groot en vet. */
+function bidBubble(text, bid) {
+  return text ? `<b>${bid}</b> <span>${esc(text)}</span>` : `<b>${bid}</b>`;
 }
 
 function stepDelay(phase) {
   const factor = speedFactor();
   const base = { BIDDING: 550, PLAYING: 700, TRICK_COMPLETE: 1200 }[phase] ?? 300;
   // Tijd om de uitgesproken voorspelling af te laten maken
-  const minimum = phase === "BIDDING" && settings.sound && settings.speakBids ? 2800 * Math.min(factor, 1.0) : 0;
+  const minimum = phase === "BIDDING" ? Math.max(0, speechUntil - Date.now() + 300) : 0;
   return Math.max(base * factor, minimum);
 }
 
@@ -588,7 +625,7 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&l
 
 function avatarHtml(nr, name, mood = "") {
   const svg = FACES[nr] ? faceSvg(FACES[nr]) : initialSvg(name);
-  return `<div class="avatar ${mood}">${svg}</div>`;
+  return `<div class="avatar ${mood}" data-who="${FACES[nr] ?? "mens"}">${svg}</div>`;
 }
 
 /** Stoelen één keer opbouwen, zodat de gezichten blijven knipperen en praten tussen de beurten door. */
@@ -603,9 +640,18 @@ function buildSeats() {
         <span class="nat" hidden>nat</span>
       </div>
 `;
-    el.querySelector(".avatar").insertAdjacentHTML("beforeend", `<span class="lead" hidden>uit</span>`);
+    el.querySelector(".avatar").insertAdjacentHTML("beforeend",
+      `<span class="lead" hidden>uit</span><svg class="turn-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12H6m0 0 6-6m-6 6 6 6"/></svg>`);
     el.dataset.name = st.players[nr - 1].name;
   }
+}
+
+/** Heeft deze speler al voorspeld (tijdens het voorspellen) of al een kaart opgelegd (tijdens de slag)? */
+function hasHadTurn(nr) {
+  if (st.active === nr || talkingUntil[nr] > Date.now()) return false;
+  if (st.phase === "BIDDING") return st.players[nr - 1].bid >= 0;
+  if (st.phase === "PLAYING") return st.table[nr - 1] !== 0;
+  return false;
 }
 
 function moodFor(nr) {
@@ -623,6 +669,7 @@ function updateSeats() {
     const p = st.players[nr - 1];
     const el = $(`#seat-${nr}`);
     el.classList.toggle("active", st.active === nr);
+    el.classList.toggle("done", hasHadTurn(nr));
     const avatar = el.querySelector(".avatar");
     avatar.className = `avatar ${moodFor(nr)} ${st.active === nr ? "active" : ""}`;
     el.querySelector(".lead").hidden = st.leader !== nr || st.phase === "ROUND_COMPLETE" || st.phase === "GAME_OVER";

@@ -187,9 +187,37 @@ h1 { font-size: 38px; margin: 18px 0 0; letter-spacing: -.5px; text-wrap: balanc
 .avatar.sad .cheeks { opacity: 0; }
 .avatar.sad .tear { display: inline; animation: tear 1.6s infinite ease-in; }
 .avatar.sad .head { animation: droop 3s infinite ease-in-out; }
+/* Ieder reageert op zijn eigen manier als hij nat gaat */
+.avatar.sad[data-who="henk"] .tear { display: none; }
+.avatar.sad[data-who="henk"] .head { animation: head-shake 1.4s infinite ease-in-out; }
+.avatar.sad[data-who="truus"] .mouth.frown { animation: tremble .18s infinite alternate; transform-box: fill-box; transform-origin: center; }
+.avatar.sad[data-who="kees"] { box-shadow: inset 0 0 0 2px rgba(239, 83, 80, .6); }
+.avatar.sad[data-who="kees"] .tear { display: none; }
+.avatar.sad[data-who="kees"] .cheeks { opacity: .75; fill: #E53935; }
+.avatar.sad[data-who="kees"] .brow.l { transform: translateY(5px) rotate(22deg); transform-box: fill-box; transform-origin: right center; }
+.avatar.sad[data-who="kees"] .brow.r { transform: translateY(5px) rotate(-22deg); transform-box: fill-box; transform-origin: left center; }
+.avatar.sad[data-who="kees"] .brows { stroke-width: 3.4; stroke: #3A2A20; }
+.avatar.sad[data-who="kees"] .head { animation: stomp .9s infinite ease-in-out; }
+@keyframes head-shake { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-7deg); } 75% { transform: rotate(7deg); } }
+@keyframes tremble { from { transform: translateY(0) scaleX(1); } to { transform: translateY(.6px) scaleX(.94); } }
+@keyframes stomp { 0%, 60%, 100% { transform: translate(0, 0); } 10%, 30% { transform: translate(-1.5px, 1px); } 20%, 40% { transform: translate(1.5px, 1px); } }
 @keyframes tear { 0% { transform: translateY(0); opacity: 0; } 15% { opacity: 1; } 100% { transform: translateY(24px); opacity: 0; } }
 @keyframes droop { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(-4deg) translateY(2px); } }
 .avatar.active { box-shadow: 0 0 0 3px var(--gold), 0 0 18px rgba(255, 201, 77, .55); }
+/* Beurt: wie al geweest is staat in het donker, wie aan de beurt is in het licht met een pijl */
+.seat { transition: opacity .3s, filter .3s; }
+.seat.done { opacity: .42; filter: saturate(.35); }
+.seat.active .avatar { transform: scale(1.1); transition: transform .25s; }
+.turn-arrow { display: none; position: absolute; width: 22px; height: 22px; fill: none; stroke: var(--gold); stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 0 6px rgba(255, 201, 77, .7)); pointer-events: none; }
+.seat.active .turn-arrow { display: block; }
+.seat.west .turn-arrow { left: calc(100% + 4px); top: 13px; animation: point-l .7s infinite alternate ease-in-out; }
+.seat.east .turn-arrow { right: calc(100% + 4px); top: 13px; transform: rotate(180deg); animation: point-r .7s infinite alternate ease-in-out; }
+.seat.north .turn-arrow { left: 13px; top: calc(100% + 2px); transform: rotate(90deg); animation: point-u .7s infinite alternate ease-in-out; }
+.seat.south .turn-arrow { right: calc(100% + 6px); top: 6px; transform: rotate(180deg); animation: point-r .7s infinite alternate ease-in-out; }
+@keyframes point-l { to { translate: -5px 0; } }
+@keyframes point-r { to { translate: 5px 0; } }
+@keyframes point-u { to { translate: 0 -5px; } }
+@media (prefers-reduced-motion: reduce) { .turn-arrow { animation: none !important; } }
 .avatar .lead { position: absolute; right: -4px; bottom: -2px; background: var(--gold); color: var(--gold-ink); font-size: 9px; font-weight: 800; padding: 2px 5px; border-radius: 8px; letter-spacing: .3px; }
 
 .bubble {
@@ -198,7 +226,9 @@ h1 { font-size: 38px; margin: 18px 0 0; letter-spacing: -.5px; text-wrap: balanc
   padding: 6px 11px; border-radius: 14px; box-shadow: 0 6px 16px rgba(0,0,0,.35);
   animation: bubble-in .25s cubic-bezier(.2, 1.4, .4, 1) both;
 }
-.bubble b { color: #C88A00; font-size: 18px; }
+.bubble { white-space: normal; width: max-content; max-width: 200px; line-height: 1.2; display: flex; align-items: center; gap: 7px; }
+.bubble b { color: #C88A00; font-size: 22px; line-height: 1; }
+.bubble span { font-size: 14px; font-weight: 700; }
 .bubble.sad { background: #E3F2FD; }
 @keyframes bubble-in { from { transform: scale(.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
