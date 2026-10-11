@@ -1137,7 +1137,10 @@ const clientId = () => {
   return settings.clientId;
 };
 
-const tableLink = (code) => `${location.origin}${location.pathname}?spel=${code}`;
+/** In de Android-app draait de website vanuit de app zelf; gedeelde links wijzen dan naar de echte website. */
+const nativeApp = window.TienApp ?? null;
+const SITE_URL = "https://robbert-coder.github.io/10-op-en-neer/";
+const tableLink = (code) => `${nativeApp ? SITE_URL : location.origin + location.pathname}?spel=${code}`;
 
 function netEvents() {
   return {
@@ -1451,6 +1454,10 @@ $("#btn-online-start").addEventListener("click", startHostGame);
 $("#btn-leave").addEventListener("click", () => { closeOnline(); renderOnline(); renderMenu(); });
 $("#btn-share").addEventListener("click", async () => {
   const url = tableLink(online.code);
+  if (nativeApp) {
+    nativeApp.share(`Speel je mee met 10 op en neer? Code ${online.code}\n${url}`);
+    return;
+  }
   if (navigator.share) {
     try {
       await navigator.share({ title: "10 op en neer", text: `Speel je mee? Code ${online.code}`, url });
@@ -1462,7 +1469,8 @@ $("#btn-share").addEventListener("click", async () => {
 $("#btn-copy").addEventListener("click", () => copyLink(tableLink(online.code)));
 async function copyLink(url) {
   try {
-    await navigator.clipboard.writeText(url);
+    if (nativeApp) nativeApp.copy(url);
+    else await navigator.clipboard.writeText(url);
     online.status = "De link is gekopieerd. Stuur hem naar wie je wilt laten meedoen.";
   } catch {
     online.status = `Stuur deze link: ${url}`;
@@ -1649,9 +1657,20 @@ const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platfo
 const standalone = navigator.standalone === true || window.matchMedia("(display-mode: standalone)").matches;
 $("#install-hint").hidden = !(isIOS && !standalone);
 
-if ("serviceWorker" in navigator && location.protocol === "https:") {
+if ("serviceWorker" in navigator && location.protocol === "https:" && !nativeApp) {
   navigator.serviceWorker.register("sw.js").catch(() => { /* bijvoorbeeld in een voorbeeldweergave */ });
 }
+
+/** De terugknop van Android: geeft true als de app er zelf iets mee deed. */
+window.tienBack = () => {
+  if (chatOpen) { openChat(false); return true; }
+  if (menuOpen) { menuOpen = false; $("#gamemenu").hidden = true; return true; }
+  if (screen === "game" && showScores) { showScores = false; renderDialog(); return true; }
+  if (screen === "rules") { $("#rules .back").click(); return true; }
+  if (screen === "game") { leaveGame(); return true; }
+  if (screen !== "menu") { show("menu"); return true; }
+  return false;
+};
 
 // Voor de tests
 window.__tienopenneer = { get state() { return st; }, settings, get busy() { return busy; } };

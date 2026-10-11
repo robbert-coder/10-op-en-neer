@@ -1,6 +1,6 @@
 # 10 op en neer voor Android en de browser
 
-Het Nederlandse kaartspel **10 op en neer** (ook bekend als Boerenbridge, Oh Hell, Bollen of Chinees poepen) als Android-app en als webapp voor iPhone, iPad en computer. Je speelt tegen drie computerspelers.
+Het Nederlandse kaartspel **10 op en neer** (ook bekend als Boerenbridge, Oh Hell, Bollen of Chinees poepen) als Android-app en als webapp voor iPhone, iPad en computer. Je speelt tegen drie computerspelers, of samen met bekenden via internet.
 
 Deze app is een port van het Windows-spel [10 op en neer](https://sourceforge.net/projects/tienopenneer/) van A.A. Brink (Visual Basic 6, 2008). De spelregels, de puntentelling en de strategie van de computerspelers zijn één op één overgezet naar Kotlin.
 
@@ -8,16 +8,18 @@ Deze app is een port van het Windows-spel [10 op en neer](https://sourceforge.ne
 
 - Beide varianten: **10 op en neer** (1 t/m 10 t/m 1 kaarten) en **Boerenbridge** (tot 13 kaarten, strafpunten)
 - Instelbaar: rondmaken toegestaan en verplicht introeven
-- Computerspelers met dezelfde strategie als het origineel
+- Computerspelers met dezelfde strategie als het origineel, of sterkere computerspelers die vooruitrekenen
+- Samen spelen via internet met een gedeelde link, met chat; lege plaatsen worden computerspelers
+- De helpster Tineke, die uitlegt hoe het spel werkt
 - Scorelijst, laatste slag bekijken, tips, highscores per variant
 - De originele geluidjes (slag te veel, slag te weinig, goed voorspeld, medespeler nat, applaus), uit te zetten bij Instellingen
 - Het spel wordt automatisch bewaard; je kunt altijd verder waar je gebleven was
 
-Nog niet overgezet: netwerkspel, de helpster Tineke en statistieken.
+Nog niet overgezet: statistieken.
 
-De geluiden in `app/src/main/res/raw/` komen uit het installatieprogramma van het origineel en zijn omgezet naar OGG. Een deel ervan lijkt afkomstig uit oude Windows-geluidspakketten; controleer de rechten voordat je de app openbaar verspreidt.
+De geluiden in `web/static/sounds/` komen deels uit het installatieprogramma van het origineel. Een deel ervan lijkt afkomstig uit oude Windows-geluidspakketten; controleer de rechten voordat je de app openbaar verspreidt.
 
-De uitgesproken voorspellingen (`bod_*.ogg`) zijn gemaakt met de Piper-stemmen nl_NL-pim, nl_NL-ronnie, nl_BE-nathalie en nl_BE-rdh (CC0).
+De uitgesproken voorspellingen (`bod_*.mp3`, `nat_*.mp3`) zijn gemaakt met de Piper-stemmen nl_NL-pim, nl_NL-ronnie, nl_BE-nathalie en nl_BE-rdh (CC0).
 
 ## Webversie (iPhone en iPad)
 
@@ -29,7 +31,7 @@ De uitgesproken voorspellingen (`bod_*.ogg`) zijn gemaakt met de Piper-stemmen n
 
 ### Samen spelen via internet
 
-In de webversie kun je via "Samen spelen via internet" een tafel openen en de link delen. Wie de link opent,
+In de webversie en de Android-app kun je via "Samen spelen via internet" een tafel openen en de link delen. Wie de link opent,
 schuift aan; lege plaatsen worden Henk, Truus of Kees. De apparaten maken rechtstreeks verbinding met elkaar
 via WebRTC ([PeerJS](https://peerjs.com), MIT-licentie, meegeleverd in `web/static/vendor/`). De openbare
 PeerJS-server wordt alleen gebruikt om elkaar te vinden. Iedereen rekent het spel zelf uit: met dezelfde seed
@@ -40,7 +42,8 @@ en dezelfde handelingen van de mensen verloopt het spel overal precies hetzelfde
 
 - `web/` – de webversie: `src/jsMain` maakt de spelcode bruikbaar in de browser, `static/` is de pagina
 - `engine/` – de spellogica en de computerspelers in pure Kotlin, met unittests
-- `app/` – de Android-app met Jetpack Compose
+- `app/` – de Android-app: de webversie meegeleverd in de app en getoond in een WebView. Zo hebben app en
+  website precies dezelfde mogelijkheden en kunnen ze samen aan één tafel spelen en chatten.
 
 ## Bouwen
 

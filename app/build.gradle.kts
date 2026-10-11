@@ -1,7 +1,6 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
-    id("org.jetbrains.kotlin.plugin.compose")
 }
 
 android {
@@ -12,8 +11,8 @@ android {
         applicationId = "nl.tienopenneer.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "2.0"
     }
 
     buildTypes {
@@ -31,24 +30,25 @@ android {
         jvmTarget = "17"
     }
 
-    buildFeatures {
-        compose = true
-    }
+    sourceSets["main"].assets.srcDir(layout.buildDirectory.dir("generated/webassets"))
 }
 
+/**
+ * De app toont dezelfde website als de webversie, meegeleverd in de app zelf. Zo hebben beide
+ * precies dezelfde mogelijkheden en kunnen ze samen aan één tafel spelen en chatten.
+ */
+val webAssets by tasks.registering(Sync::class) {
+    dependsOn(":web:site")
+    from(rootProject.layout.projectDirectory.dir("web/build/site")) {
+        exclude("sw.js")
+    }
+    into(layout.buildDirectory.dir("generated/webassets/web"))
+}
+
+tasks.named("preBuild") { dependsOn(webAssets) }
+
 dependencies {
-    implementation(project(":engine"))
-
     implementation("androidx.core:core-ktx:1.15.0")
-    implementation("androidx.activity:activity-compose:1.9.3")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
-
-    implementation(platform("androidx.compose:compose-bom:2024.12.01"))
-    implementation("androidx.compose.ui:ui")
-    implementation("androidx.compose.ui:ui-graphics")
-    implementation("androidx.compose.ui:ui-tooling-preview")
-    implementation("androidx.compose.material3:material3")
-    implementation("androidx.compose.material:material-icons-core")
-    debugImplementation("androidx.compose.ui:ui-tooling")
+    implementation("androidx.activity:activity-ktx:1.9.3")
+    implementation("androidx.webkit:webkit:1.12.1")
 }
