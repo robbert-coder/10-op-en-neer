@@ -27,6 +27,17 @@ class SoundPlayer(context: Context) {
         Sound.ZEER_GOED_GESPEELD to R.raw.zeer_goed_gespeeld,
     ).mapValues { (_, res) -> pool.load(context, res, 1) }
 
+    /** Uitgesproken voorspellingen per speler (1..4) en aantal (0..13), elke speler met een eigen stem. */
+    private val bidIds: Map<Pair<Int, Int>, Int> = buildMap {
+        val voices = listOf("speler", "henk", "truus", "kees")
+        voices.forEachIndexed { i, voice ->
+            for (n in 0..13) {
+                val res = context.resources.getIdentifier("bod_${voice}_$n", "raw", context.packageName)
+                if (res != 0) put((i + 1) to n, pool.load(context, res, 1))
+            }
+        }
+    }
+
     private var lastStream = 0
 
     /**
@@ -36,6 +47,13 @@ class SoundPlayer(context: Context) {
     fun play(sounds: List<Sound>) {
         val sound = sounds.lastOrNull() ?: return
         val id = ids[sound] ?: return
+        if (lastStream != 0) pool.stop(lastStream)
+        lastStream = pool.play(id, 1f, 1f, 1, 0, 1f)
+    }
+
+    /** Laat speler [player] zijn voorspelling [bid] hardop zeggen. */
+    fun playBid(player: Int, bid: Int) {
+        val id = bidIds[player to bid] ?: return
         if (lastStream != 0) pool.stop(lastStream)
         lastStream = pool.play(id, 1f, 1f, 1, 0, 1f)
     }

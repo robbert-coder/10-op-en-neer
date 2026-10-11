@@ -322,6 +322,13 @@ fun SettingsScreen(vm: GameViewModel) {
             "De geluidjes uit het originele spel, bijvoorbeeld bij een slag te veel of een goede voorspelling.",
             vm.settings.sound,
         ) { vm.updateSettings(vm.settings.copy(sound = it)) }
+        if (vm.settings.sound) {
+            SwitchRow(
+                "Voorspellingen uitspreken",
+                "Iedere speler zegt zijn voorspelling hardop, met een eigen stem en een rijmpje.",
+                vm.settings.speakBids,
+            ) { vm.updateSettings(vm.settings.copy(speakBids = it)) }
+        }
     }
 }
 

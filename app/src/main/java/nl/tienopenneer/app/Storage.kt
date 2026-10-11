@@ -21,6 +21,7 @@ data class Settings(
     val speed: Int = 3,
     val sortDescending: Boolean = false,
     val sound: Boolean = true,
+    val speakBids: Boolean = true,
 )
 
 /** Bewaart het lopende spel, de instellingen en de highscores in SharedPreferences. */
@@ -32,6 +33,7 @@ class Storage(context: Context) {
         speed = prefs.getInt("snelheid", 3),
         sortDescending = prefs.getBoolean("aflopend", false),
         sound = prefs.getBoolean("geluid", true),
+        speakBids = prefs.getBoolean("voorspellingen_uitspreken", true),
     )
 
     fun saveSettings(s: Settings) {
@@ -40,6 +42,7 @@ class Storage(context: Context) {
             .putInt("snelheid", s.speed)
             .putBoolean("aflopend", s.sortDescending)
             .putBoolean("geluid", s.sound)
+            .putBoolean("voorspellingen_uitspreken", s.speakBids)
             .apply()
     }
 

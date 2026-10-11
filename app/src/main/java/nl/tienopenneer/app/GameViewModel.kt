@@ -84,6 +84,10 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private var driver: Job? = null
     private var gameOverHandled = false
 
+    /** Welke voorspellingen al zijn uitgesproken, per ronde. */
+    private var announcedRound = 0
+    private val announced = BooleanArray(5)
+
     val hasGameInProgress: Boolean get() = ui != null && ui?.phase != Phase.GAME_OVER
 
     init {
@@ -230,6 +234,22 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    private fun announceBids(g: Game) {
+        if (announcedRound != g.round) {
+            announcedRound = g.round
+            // Bij een hersteld spel de al gedane voorspellingen niet opnieuw zeggen
+            for (nr in 1..4) announced[nr] = g.player(nr).bid >= 0
+            return
+        }
+        for (nr in 1..4) {
+            val bid = g.player(nr).bid
+            if (bid >= 0 && !announced[nr]) {
+                announced[nr] = true
+                if (settings.sound && settings.speakBids) soundPlayer.playBid(nr, bid)
+            }
+        }
+    }
+
     private fun stepDelay(phase: Phase): Long {
         val factor = when (settings.speed) {
             1 -> 2.0
@@ -244,7 +264,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             Phase.TRICK_COMPLETE -> 1400
             else -> 300
         }
-        return (base * factor).toLong()
+        // Tijd om de uitgesproken voorspelling af te laten maken
+        val minimum = if (phase == Phase.BIDDING && settings.sound && settings.speakBids) (2100 * minOf(factor, 1.0)).toLong() else 0L
+        return maxOf((base * factor).toLong(), minimum)
     }
 
     private fun handleGameOver() {
@@ -280,6 +302,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         }
         val sounds = g.takeSounds()
         if (settings.sound) soundPlayer.play(sounds)
+        announceBids(g)
         val hand = g.player(1).handCards().let { cards ->
             if (settings.sortDescending) cards.sortedWith(compareBy({ it.suit }, { -it.rank })) else cards
         }
