@@ -15,4 +15,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "TienOpEnNeer"
-include(":engine", ":app")
+include(":engine", ":app", ":web")

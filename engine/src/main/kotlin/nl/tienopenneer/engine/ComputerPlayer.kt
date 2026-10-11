@@ -2,6 +2,7 @@ package nl.tienopenneer.engine
 
 import kotlin.math.max
 import kotlin.math.pow
+import kotlin.math.round
 import kotlin.math.sqrt
 
 /*
@@ -20,7 +21,7 @@ private val CARD_VALUE = DoubleArray(15) { i -> if (i < 2) 0.0 else 0.7 * (i / 1
 private fun positive(x: Double) = max(0.0, x)
 
 /** VB's CInt rondt af naar het dichtstbijzijnde even getal bij .5 */
-internal fun vbRound(x: Double): Int = Math.rint(x).toInt()
+internal fun vbRound(x: Double): Int = round(x).toInt()
 
 /** KaartenOverVoorDezeSpeler */
 internal fun Game.cardsLeftForThisPlayer(): Double =

@@ -1,0 +1,17 @@
+{
+  "name": "10 op en neer",
+  "short_name": "10 op en neer",
+  "description": "Het kaartspel 10 op en neer en Boerenbridge tegen drie computerspelers.",
+  "lang": "nl",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0E5A30",
+  "theme_color": "#0A4424",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

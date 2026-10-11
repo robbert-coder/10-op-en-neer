@@ -1,6 +1,6 @@
-# 10 op en neer voor Android
+# 10 op en neer voor Android en de browser
 
-Het Nederlandse kaartspel **10 op en neer** (ook bekend als Boerenbridge, Oh Hell, Bollen of Chinees poepen) als Android-app. Je speelt tegen drie computerspelers.
+Het Nederlandse kaartspel **10 op en neer** (ook bekend als Boerenbridge, Oh Hell, Bollen of Chinees poepen) als Android-app en als webapp voor iPhone, iPad en computer. Je speelt tegen drie computerspelers.
 
 Deze app is een port van het Windows-spel [10 op en neer](https://sourceforge.net/projects/tienopenneer/) van A.A. Brink (Visual Basic 6, 2008). De spelregels, de puntentelling en de strategie van de computerspelers zijn één op één overgezet naar Kotlin.
 
@@ -19,8 +19,17 @@ De geluiden in `app/src/main/res/raw/` komen uit het installatieprogramma van he
 
 De uitgesproken voorspellingen (`bod_*.ogg`) zijn gemaakt met de Piper-stemmen nl_NL-pim, nl_NL-ronnie, nl_BE-nathalie en nl_BE-rdh (CC0).
 
+## Webversie (iPhone en iPad)
+
+`web/` bevat dezelfde spelregels en computerspelers, omgezet naar JavaScript met Kotlin/JS, plus een webpagina die je op het beginscherm kunt zetten (PWA). Na de eerste keer openen werkt het spel ook zonder internet.
+
+- Bouwen: `./gradlew :web:site`, de site staat dan in `web/build/site`
+- Online zetten gebeurt via GitHub Pages met `.github/workflows/web.yml`. Zet daarvoor eenmalig bij *Settings > Pages* de bron op *GitHub Actions*.
+- Op de iPhone: open de site in Safari, tik op *Deel* en kies *Zet op beginscherm*.
+
 ## Opbouw
 
+- `web/` – de webversie: `src/jsMain` maakt de spelcode bruikbaar in de browser, `static/` is de pagina
 - `engine/` – de spellogica en de computerspelers in pure Kotlin, met unittests
 - `app/` – de Android-app met Jetpack Compose
 

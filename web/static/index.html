@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <title>10 op en neer</title>
+  <meta name="description" content="Het kaartspel 10 op en neer en Boerenbridge tegen drie computerspelers.">
+  <meta name="theme-color" content="#0A4424">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="10 op en neer">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main id="app">
+    <!-- Hoofdmenu -->
+    <section id="menu" class="screen center">
+      <div class="logo-cards">
+        <div class="card-slot" data-card="110" style="--w:70px; transform: translate(-50px, 8px) rotate(-8deg)"></div>
+        <div class="card-slot" data-card="410" style="--w:70px; transform: translate(0, -4px)"></div>
+        <div class="card-slot" data-card="314" style="--w:70px; transform: translate(50px, 8px) rotate(8deg)"></div>
+      </div>
+      <h1>10 op en neer</h1>
+      <p class="sub">en Boerenbridge</p>
+      <div class="buttons">
+        <button id="btn-resume" class="primary">Doorgaan met spel</button>
+        <button id="btn-new" class="primary">Nieuw spel</button>
+        <button data-go="rules">Spelregels</button>
+        <button data-go="highscores">Highscores</button>
+        <button data-go="settings">Instellingen</button>
+      </div>
+      <p id="install-hint" class="install-hint" hidden>Tip: kies in Safari <b>Deel</b> en dan <b>Zet op beginscherm</b>. Dan start het spel als een gewone app en werkt het ook zonder internet.</p>
+      <p class="credits">Gebaseerd op "10 op en neer" van A.A. Brink<br>Vrije software onder de GNU GPL v3</p>
+    </section>
+
+    <!-- Nieuw spel -->
+    <section id="newgame" class="screen page">
+      <header><button class="back" data-go="menu">‹ Terug</button><h2>Nieuw spel</h2></header>
+      <div class="content">
+        <button class="variant" data-variant="10">
+          <b>10 op en neer</b>
+          <span>1 tot en met 10 kaarten en weer terug (19 rondes). Goed voorspeld: 10 punten plus 1 per slag. Fout voorspeld: 0 punten.</span>
+        </button>
+        <button class="variant" data-variant="13">
+          <b>Boerenbridge</b>
+          <span>1 tot en met 13 kaarten en weer terug (25 rondes). Goed voorspeld: 10 punten plus 3 per slag. Fout: 10 punten min 3 per slag verschil.</span>
+        </button>
+        <label class="switch-row">
+          <span><b>Rondmaken toegestaan</b><small>Mag de laatste speler zo voorspellen dat het totaal gelijk is aan het aantal kaarten?</small></span>
+          <input type="checkbox" id="opt-rounding">
+        </label>
+        <label class="switch-row">
+          <span><b>Verplicht introeven</b><small>Moet je troef spelen als je geen kleur kunt bekennen?</small></span>
+          <input type="checkbox" id="opt-musttrump">
+        </label>
+        <p class="gold" id="variant-name"></p>
+        <button class="primary wide" id="btn-start">Start</button>
+      </div>
+    </section>
+
+    <!-- Spel -->
+    <section id="game" class="screen game">
+      <div class="topbar">
+        <div class="round-info"><b id="g-round"></b><small id="g-cards"></small></div>
+        <div class="over"><small>Slagen</small><b id="g-over"></b></div>
+        <div class="trump"><div id="g-trump"></div><small id="g-trump-label">Troef</small></div>
+        <button class="text" id="btn-scores">Scores</button>
+        <button class="text icon" id="btn-gamemenu" aria-label="Menu">⋮</button>
+        <div class="dropdown" id="gamemenu" hidden>
+          <button id="btn-lasttrick">Laatste slag tonen</button>
+          <button id="btn-rules-ingame">Spelregels</button>
+          <button id="btn-tomenu">Naar het hoofdmenu</button>
+        </div>
+      </div>
+      <div class="seat north" id="seat-3"></div>
+      <div class="middle">
+        <div class="seat west" id="seat-2"></div>
+        <div class="table" id="table">
+          <div class="tcard s1"></div><div class="tcard s2"></div><div class="tcard s3"></div><div class="tcard s4"></div>
+          <span class="table-label" id="table-label" hidden>Laatste slag</span>
+        </div>
+        <div class="seat east" id="seat-4"></div>
+      </div>
+      <div class="status"><span id="g-status"></span><button class="text" id="btn-tip">Tip</button></div>
+      <div class="bids" id="bids"></div>
+      <div class="seat south" id="seat-1"></div>
+      <div class="hand" id="hand"></div>
+    </section>
+
+    <!-- Spelregels -->
+    <section id="rules" class="screen page">
+      <header><button class="back" data-go="back">‹ Terug</button><h2>Spelregels</h2></header>
+      <div class="content" id="rules-text"></div>
+    </section>
+
+    <!-- Highscores -->
+    <section id="highscores" class="screen page">
+      <header><button class="back" data-go="menu">‹ Terug</button><h2>Highscores</h2></header>
+      <div class="content">
+        <div class="tabs" id="hs-tabs">
+          <button data-tab="10openneer">10 op en neer</button>
+          <button data-tab="boerenbridge">Boerenbridge</button>
+          <button data-tab="hybride">Hybride</button>
+        </div>
+        <div id="hs-list"></div>
+        <button id="btn-hs-clear" hidden>Highscore wissen</button>
+      </div>
+    </section>
+
+    <!-- Instellingen -->
+    <section id="settings" class="screen page">
+      <header><button class="back" data-go="menu">‹ Terug</button><h2>Instellingen</h2></header>
+      <div class="content">
+        <label class="field">Jouw naam<input type="text" id="set-name" maxlength="16" autocomplete="off"></label>
+        <label class="field">Spelsnelheid
+          <input type="range" id="set-speed" min="1" max="5" step="1">
+          <span class="range-labels"><small>Langzaam</small><small>Snel</small></span>
+        </label>
+        <label class="switch-row">
+          <span><b>Aflopend sorteren</b><small>Je kaarten van hoog naar laag sorteren (aas eerst).</small></span>
+          <input type="checkbox" id="set-desc">
+        </label>
+        <label class="switch-row">
+          <span><b>Geluid</b><small>De geluidjes uit het originele spel, bijvoorbeeld bij een slag te veel of een goede voorspelling.</small></span>
+          <input type="checkbox" id="set-sound">
+        </label>
+        <label class="switch-row" id="row-speak">
+          <span><b>Voorspellingen uitspreken</b><small>Iedere speler zegt zijn voorspelling hardop, met een eigen stem en een rijmpje.</small></span>
+          <input type="checkbox" id="set-speak">
+        </label>
+      </div>
+    </section>
+  </main>
+
+  <div class="overlay" id="dialog" hidden><div class="dialog" id="dialog-box"></div></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
