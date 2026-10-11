@@ -101,6 +101,7 @@
           </div>
           <div class="group" id="lobby-seats"></div>
           <p class="note center" id="lobby-note"></p>
+          <button class="wide chat-lobby-btn" id="btn-lobby-chat">Chat <span class="badge inline" id="lobby-chat-badge" hidden></span></button>
           <button class="primary wide" id="btn-online-start">Start het spel</button>
           <button class="text wide" id="btn-leave">Tafel verlaten</button>
         </div>
@@ -117,6 +118,10 @@
         <div class="round-info"><b id="g-round"></b><small id="g-cards"></small></div>
         <div class="pill over-pill" id="g-over-pill"><small>Slagen</small><b id="g-over"></b></div>
         <div class="trump" id="g-trump" title="Troef"></div>
+        <button class="icon-btn chat-btn" id="btn-chat" aria-label="Chat" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/></svg>
+          <span class="badge" id="chat-badge" hidden></span>
+        </button>
         <button class="icon-btn" id="btn-scores" aria-label="Scorelijst">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V10M12 20V4M19 20v-7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
         </button>
@@ -211,6 +216,15 @@
 
   <div class="overlay" id="dialog" hidden><div class="dialog" id="dialog-box"></div></div>
   <div class="flyer-layer" id="flyers"></div>
+  <div class="chat-panel" id="chat" hidden>
+    <div class="chat-head"><b>Chat</b><button class="icon-btn" id="chat-close" aria-label="Chat sluiten">✕</button></div>
+    <div class="chat-list" id="chat-list"></div>
+    <div class="chat-quick" id="chat-quick"></div>
+    <form class="chat-form" id="chat-form" autocomplete="off">
+      <input type="text" id="chat-input" maxlength="200" placeholder="Typ een bericht…" enterkeyhint="send">
+      <button class="primary" type="submit">Stuur</button>
+    </form>
+  </div>
 
   <script src="vendor/peerjs.min.js"></script>
   <script type="module" src="app.js"></script>

@@ -54,12 +54,14 @@ export class Host {
     this.conns = new Map(); // clientId -> verbinding
     this.started = null; // startgegevens zodra het spel loopt
     this.log = []; // alle handelingen van mensen, in volgorde: {seat, value}
+    this.chat = []; // laatste chatberichten: {seat, name, text, time}
     this.closed = false;
     if (saved) {
       // Na het herladen van de pagina: dezelfde tafel weer openen, de anderen verbinden vanzelf opnieuw
       this.players = saved.players.map((p) => ({ ...p, online: p.id === "host" }));
       this.started = saved.started;
       this.log = saved.log;
+      this.chat = saved.chat ?? [];
       this.restarting = true;
     }
     this.open();
@@ -67,7 +69,7 @@ export class Host {
 
   /** Wat er bewaard moet worden om de tafel na herladen weer te openen. */
   snapshot() {
-    return { code: this.code, players: this.players, started: this.started, log: this.log };
+    return { code: this.code, players: this.players, started: this.started, log: this.log, chat: this.chat };
   }
 
   open() {
@@ -112,7 +114,11 @@ export class Host {
       this.conns.set(id, conn);
       conn.send({ t: "welcome", seat: p.seat, code: this.code });
       if (this.started) conn.send({ t: "start", game: this.started, log: this.log });
+      conn.send({ t: "chatlog", messages: this.chat });
       this.lobbyChanged();
+    } else if (msg.t === "chat") {
+      const p = this.players.find((x) => x.id === conn.clientId);
+      if (p) this.addChat(p.seat, p.name, msg.text, conn);
     } else if (msg.t === "act") {
       const p = this.players.find((x) => x.id === conn.clientId);
       if (!p || !this.started || msg.seat !== p.seat) return;
@@ -160,6 +166,22 @@ export class Host {
     this.log = [];
     this.broadcast({ t: "start", game, log: [] });
     this.lobbyChanged();
+  }
+
+  /** Een chatbericht bewaren en naar iedereen (behalve de afzender) sturen. */
+  addChat(seat, name, text, from = null) {
+    const clean = String(text || "").trim().slice(0, 200);
+    if (!clean) return;
+    const m = { seat, name, text: clean, time: Date.now() };
+    this.chat.push(m);
+    if (this.chat.length > 100) this.chat.shift();
+    this.broadcast({ t: "chat", message: m }, from);
+    this.events.onChat?.(m, !from);
+  }
+
+  sendChat(text) {
+    const me = this.players.find((x) => x.id === "host");
+    this.addChat(1, me?.name ?? "", text);
   }
 
   /** Een handeling van de gastheer zelf. */
@@ -230,12 +252,21 @@ export class Guest {
     else if (msg.t === "lobby") this.events.onLobby?.(msg.players);
     else if (msg.t === "start") this.events.onStart?.(msg.game, msg.log);
     else if (msg.t === "act") this.events.onAction?.({ index: msg.index, seat: msg.seat, value: msg.value });
+    else if (msg.t === "chat") this.events.onChat?.(msg.message, false);
+    else if (msg.t === "chatlog") this.events.onChatLog?.(msg.messages || []);
     else if (msg.t === "full") { this.close(); this.events.onClosed?.(msg.text); }
     else if (msg.t === "bye") { this.close(); this.events.onClosed?.("De gastheer heeft de tafel gesloten."); }
   }
 
   sendAction(index, seat, value) {
     if (this.conn?.open) this.conn.send({ t: "act", index, seat, value });
+  }
+
+  /** Een chatbericht gaat naar de gastheer, die het doorstuurt. Geeft false zonder verbinding. */
+  sendChat(text) {
+    if (!this.conn?.open) return false;
+    this.conn.send({ t: "chat", text });
+    return true;
   }
 
   close() {

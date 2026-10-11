@@ -735,7 +735,7 @@ function showBubble(nr, html, ms, sad = false) {
   const layer = $("#flyers");
   const r = avatar.getBoundingClientRect();
   const b = document.createElement("div");
-  b.className = `bubble ${sad ? "sad" : ""}`;
+  b.className = `bubble ${sad === true ? "sad" : sad || ""}`;
   b.innerHTML = html;
   layer.appendChild(b);
   const bw = b.offsetWidth;
@@ -1046,6 +1046,8 @@ function show(name) {
   if (name === "highscores") renderHighScores();
   if (name === "settings") renderSettings();
   if (name === "online") renderOnline();
+  if (name !== "game" && name !== "online" && chatOpen) { chatOpen = false; }
+  renderChat();
   if (name === "game") {
     buildSeats();
     previousTable = [0, 0, 0, 0];
@@ -1151,6 +1153,8 @@ function netEvents() {
       saveOnline();
     },
     onStart: (g, log) => onNetStart(g, log),
+    onChat: (m, own) => onChatMessage(m, own),
+    onChatLog: (list) => { online.chat = list.slice(-100); renderChat(); },
     onAction: (a) => onNetAction(a),
     onStatus: (text) => {
       online.status = text;
@@ -1172,12 +1176,91 @@ function netEvents() {
   };
 }
 
+// Chat --------------------------------------------------------------------------------------
+
+let chatOpen = false;
+const QUICK = ["👍", "😂", "😮", "😢", "👏", "🔥", "Goed gespeeld!", "Pech!", "Haha", "Even wachten"];
+
+/** Plaats op het scherm (1 = onderaan) van een stoel in het spel. */
+const viewOfSeat = (seat) => (seat - online.seat + 4) % 4 + 1;
+
+function onChatMessage(m, own) {
+  if (!online) return;
+  online.chat.push(m);
+  if (online.chat.length > 100) online.chat.shift();
+  if (!own && !chatOpen) online.unread++;
+  if (!own && screen === "game" && online.game && online.seat) {
+    showBubble(viewOfSeat(m.seat), `<span>${esc(m.text)}</span>`, 2500 + m.text.length * 40, "chat");
+  }
+  renderChat();
+  saveOnline();
+}
+
+function sendChat(text) {
+  const clean = String(text || "").trim().slice(0, 200);
+  if (!clean || !online?.link) return;
+  if (online.role === "host") {
+    online.link.sendChat(clean); // komt via onChat terug als eigen bericht
+  } else if (online.link.sendChat(clean)) {
+    onChatMessage({ seat: online.seat, name: settings.playerName, text: clean, time: Date.now() }, true);
+  } else {
+    online.status = "Geen verbinding: het bericht is niet verstuurd.";
+    renderOnline();
+  }
+}
+
+function renderChat() {
+  const show = !!online;
+  $("#btn-chat").hidden = !show;
+  const unread = online?.unread ?? 0;
+  for (const id of ["#chat-badge", "#lobby-chat-badge"]) {
+    $(id).hidden = unread === 0;
+    $(id).textContent = unread > 9 ? "9+" : String(unread);
+  }
+  const panel = $("#chat");
+  panel.hidden = !(show && chatOpen);
+  if (panel.hidden) return;
+  const list = $("#chat-list");
+  const msgs = online.chat;
+  list.innerHTML = msgs.length === 0
+    ? `<p class="chat-empty">Nog geen berichten. Zeg iets tegen je medespelers!</p>`
+    : msgs.map((m) => {
+      const me = m.seat === online.seat;
+      return `<div class="chat-msg ${me ? "me" : ""}"><small>${esc(m.name)}</small>${esc(m.text)}</div>`;
+    }).join("");
+  list.scrollTop = list.scrollHeight;
+}
+
+function openChat(open) {
+  chatOpen = open;
+  if (open && online) online.unread = 0;
+  renderChat();
+  if (open && !matchMedia("(pointer: coarse)").matches) $("#chat-input").focus();
+}
+
+$("#chat-quick").innerHTML = QUICK.map((q) => `<button type="button" class="${q.length > 2 ? "txt" : ""}" data-q="${esc(q)}">${esc(q)}</button>`).join("");
+$("#chat-quick").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-q]");
+  if (b) sendChat(b.dataset.q);
+});
+$("#chat-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const input = $("#chat-input");
+  sendChat(input.value);
+  input.value = "";
+});
+$("#btn-chat").addEventListener("click", () => openChat(!chatOpen));
+$("#btn-lobby-chat").addEventListener("click", () => openChat(!chatOpen));
+$("#chat-close").addEventListener("click", () => openChat(false));
+
 /** Sluit de huidige tafel (als die er is). */
 function closeOnline() {
   if (!online) return;
   online.link?.close();
   if (online.game) { stopDriver(); game = null; st = null; }
   online = null;
+  chatOpen = false;
+  renderChat();
   store.remove("online");
   store.remove("online-gast");
 }
@@ -1190,7 +1273,7 @@ function openTable(rules) {
   const code = makeCode();
   online = {
     role: "host", code, seat: 1, players: [{ name: settings.playerName, seat: 1, online: true }],
-    queue: new Map(), game: null, rules, smart: settings.smart, status: "Tafel openen…", error: "",
+    queue: new Map(), game: null, rules, smart: settings.smart, status: "Tafel openen…", error: "", chat: [], unread: 0,
   };
   online.link = new Host(code, settings.playerName, netEvents());
   show("online");
@@ -1198,7 +1281,7 @@ function openTable(rules) {
 
 function joinTable(code) {
   closeOnline();
-  online = { role: "guest", code, seat: 0, players: [], queue: new Map(), game: null, status: "Verbinden met de tafel…", error: "" };
+  online = { role: "guest", code, seat: 0, players: [], queue: new Map(), game: null, status: "Verbinden met de tafel…", error: "", chat: [], unread: 0 };
   online.link = new Guest(code, settings.playerName, clientId(), netEvents());
   store.set("online-gast", { code });
   show("online");
@@ -1281,6 +1364,7 @@ function resumeOnline() {
       online = {
         role: "host", code: saved.code, seat: 1, players: saved.players, queue: new Map(), game: null,
         rules: saved.started.rules, smart: saved.started.smart, status: "", error: "",
+        chat: saved.chat ?? [], unread: 0,
       };
       online.link = new Host(saved.code, settings.playerName, netEvents(), saved);
       online.game = saved.started;
