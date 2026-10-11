@@ -1,7 +1,7 @@
 // Webversie van "10 op en neer". De spelregels en computerspelers komen uit de Kotlin-code
 // van de Android-app (tienopenneer.mjs); dit bestand tekent alleen het scherm.
 import { WebGame, describeCard, defaultNames } from "./tienopenneer.mjs";
-import { faceSvg, initialSvg, emojiSvg } from "./faces.js";
+import { faceSvg, initialSvg, emojiSvg, puppetBodySvg } from "./faces.js";
 import * as tineke from "./tineke.js";
 import { BID_LINES, WET_LINES, BID_MS } from "./voices.js";
 import { Host, Guest, makeCode, normalizeCode, AVATAR_EMOJIS, cleanAvatar } from "./net.js";
@@ -487,8 +487,41 @@ function cardSprite(code, w, dpr) {
   return c;
 }
 
+/** De winnaar(s) springen als poppetje uit het speelbord en juichen. */
+const WINNER_MODES = ["juichen", "lopen", "dansen", "salto"];
+
+function winnerStage(mode = null) {
+  if (!st) return null;
+  const winners = st.players.map((p, i) => ({ p, nr: i + 1 })).filter((x) => x.p.rank === 1);
+  if (!winners.length) return null;
+  const felt = $("#table").getBoundingClientRect();
+  const stage = document.createElement("div");
+  // Elke keer een verrassing: juichen, over het bord lopen, dansen of een salto
+  const act = WINNER_MODES.includes(mode) ? mode : WINNER_MODES[Math.floor(Math.random() * WINNER_MODES.length)];
+  stage.className = `winner-stage mode-${act}`;
+  const pw = Math.max(64, Math.min(130, (window.innerWidth * 0.3) / winners.length, felt.height * 0.32));
+  stage.style.setProperty("--pw", `${pw}px`);
+  stage.style.setProperty("--n", String(winners.length));
+  stage.style.setProperty("--walk", `${Math.max(0, felt.width / 2 - (pw * winners.length) / 2 - 6)}px`);
+  stage.style.left = `${felt.left + felt.width / 2}px`;
+  stage.style.top = `${felt.top + felt.height * 0.8}px`;
+  const me = (nr) => nr === 1 && st.players[0].human;
+  const title = winners.length === 1
+    ? (me(winners[0].nr) ? "Jij wint!" : `${esc(winners[0].p.name)} wint!`)
+    : `${winners.map((w) => (me(w.nr) ? "Jij" : esc(w.p.name))).join(", ").replace(/, ([^,]*)$/, " en $1")} winnen!`;
+  const slices = Array.from({ length: 14 }, (_, i) => `<i style="--i:${i}"></i>`).join("");
+  stage.innerHTML = `<div class="winner-banner">${title}</div><div class="nl-waving" aria-hidden="true"><span class="pole"></span><span class="cloth">${slices}</span></div><div class="puppets">${winners.map(({ p, nr }, i) => {
+    const face = faceFor(nr);
+    const head = face ? faceSvg(face) : humanAvatarHtml(customAvatar(nr), p.name);
+    return `<div class="puppet" style="--d:${i * 0.15}s"><div class="pup-inner">
+      <div class="avatar happy pup-head" data-who="${face ?? "mens"}">${head}</div>${puppetBodySvg(face ?? "mens")}</div></div>`;
+  }).join("")}</div>`;
+  document.body.appendChild(stage);
+  return stage;
+}
+
 /** Speelt de animatie af; tikken slaat hem over. Klaar als de kaarten weg zijn. */
-function celebrate() {
+function celebrate(mode = null) {
   if (celebrating || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return Promise.resolve();
   celebrating = true;
   return new Promise((resolve) => {
@@ -516,13 +549,16 @@ function celebrate() {
     let done = false;
     let started = performance.now();
 
+    const stage = winnerStage(mode);
     const finish = () => {
       if (done) return;
       done = true;
       canvas.classList.add("out");
-      setTimeout(() => { canvas.remove(); celebrating = false; resolve(); }, 450);
+      stage?.classList.add("out");
+      setTimeout(() => { canvas.remove(); stage?.remove(); celebrating = false; resolve(); }, 450);
     };
     canvas.addEventListener("pointerdown", finish);
+    stage?.addEventListener("pointerdown", finish);
 
     const launch = () => {
       const code = order[launched];
@@ -1095,13 +1131,17 @@ function roundResultHtml() {
     <button class="primary" data-action="next-round">${st.round === st.rounds ? "Uitslag" : "Volgende ronde"}</button></div>`;
 }
 
+/** Klein Nederlands vlaggetje bij de winnaar in de eindstand. */
+const NL_FLAG = `<svg class="nl-flag" viewBox="0 0 9 6" role="img" aria-label="winnaar"><rect width="9" height="2" fill="#AE1C28"/><rect y="2" width="9" height="2" fill="#FFFFFF"/><rect y="4" width="9" height="2" fill="#21468B"/></svg>`;
+const winnerFlag = (p) => (st.phase === "GAME_OVER" && p.rank === 1 ? NL_FLAG : "");
+
 function gameOverHtml() {
   const me = st.players[0];
   const title = { 1: "Gewonnen!", 2: "Tweede plaats", 3: "Derde plaats" }[me.rank] ?? "Vierde plaats";
   const ranking = st.players.map((p, i) => ({ ...p, nr: i + 1 })).sort((a, b) => a.rank - b.rank);
   const rows = ranking.map((p) => `<div class="result-row ${p.nr === 1 ? "me" : ""}">
       ${avatarHtml(p.nr, p.name, p.rank === 1 ? "happy" : p.rank === 4 ? "sad" : "")}
-      <div class="name">${esc(p.name)}</div><div class="rank">${p.rank}e</div><div class="tot">${p.total}</div></div>`).join("");
+      <div class="name">${esc(p.name)}${winnerFlag(p)}</div><div class="rank">${p.rank}e</div><div class="tot">${p.total}</div></div>`).join("");
   const hs = highScorePlace > 0 ? `<p class="gold">Je staat op plaats ${highScorePlace} in de highscore van ${esc(st.variant)}.</p>` : "";
   const say = settings.tinekeHelp || settings.tinekeComments ? endComment ??= tineke.comment("afgelopen", st) : null;
   return `<h3>${title}</h3>${say ? tinekeLine(say) : ""}<div class="result-rows">${rows}</div>${hs}
@@ -1139,7 +1179,7 @@ function scoreSheetHtml() {
 }
 
 function sheetTableHtml() {
-  const head = st.players.map((p) => `<th>${esc(p.name)}</th>`).join("");
+  const head = st.players.map((p) => `<th>${esc(p.name)}${winnerFlag(p)}</th>`).join("");
   let rows = "";
   for (let r = 1; r <= st.rounds; r++) {
     const cells = st.players.map((p) => {
@@ -1150,7 +1190,7 @@ function sheetTableHtml() {
     }).join("");
     rows += `<tr class="${r === st.round ? "current" : ""}"><td>${r} (${cardsInRound(r)})</td>${cells}</tr>`;
   }
-  const totals = st.players.map((p) => `<td>${p.total}</td>`).join("");
+  const totals = st.players.map((p) => `<td>${p.total}${winnerFlag(p)}</td>`).join("");
   return `<table><tr><th>Ronde</th>${head}</tr>${rows}<tr class="total"><td>Totaal</td>${totals}</tr></table>`;
 }
 
@@ -1410,7 +1450,7 @@ function onChatMessage(m, own) {
   if (!online) return;
   online.chat.push(m);
   if (online.chat.length > 100) online.chat.shift();
-  if (!own && !chatOpen) online.unread++;
+  if (!own && !chatOpen && !(dockShown() && settings.chatDock !== false)) online.unread++;
   if (!own && screen === "game" && online.game && online.seat) {
     showBubble(viewOfSeat(m.seat), `<span>${esc(m.text)}</span>`, 2500 + m.text.length * 40, "chat");
   }
@@ -1431,9 +1471,52 @@ function sendChat(text) {
   }
 }
 
+/** Bij samen spelen staat de chat vast onderin het spelscherm; met het pijltje klap je hem in. */
+const dockShown = () => !!online && !!online.game && screen === "game";
+
+function renderDock() {
+  const dock = $("#chat-dock");
+  const show = dockShown();
+  const wasHidden = dock.hidden;
+  dock.hidden = !show;
+  $("#game").classList.toggle("has-dock", show);
+  if (!show) { if (!wasHidden) layout(); return; }
+  const open = settings.chatDock !== false;
+  dock.classList.toggle("closed", !open);
+  $("#dock-toggle").setAttribute("aria-label", open ? "Chat verbergen" : "Chat tonen");
+  $("#dock-toggle").innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${open ? "M6 9l6 6 6-6" : "M6 15l6-6 6 6"}"/></svg>`;
+  const msgs = online.chat;
+  const last = msgs[msgs.length - 1];
+  $("#dock-last").innerHTML = open ? "<b>Chat</b>"
+    : last ? `<b>${esc(last.name)}:</b> ${esc(last.text)}` : "<b>Chat</b> <small>tik om iets te zeggen</small>";
+  const unread = online.unread ?? 0;
+  $("#dock-badge").hidden = open || unread === 0;
+  $("#dock-badge").textContent = unread > 9 ? "9+" : String(unread);
+  if (open) {
+    const list = $("#dock-list");
+    list.innerHTML = msgs.length === 0
+      ? `<p class="chat-empty">Zeg iets tegen je medespelers!</p>`
+      : msgs.slice(-30).map((m) => {
+        const me = m.seat === online.seat;
+        return `<div class="chat-msg ${me ? "me" : ""}"><small>${esc(m.name)}</small>${esc(m.text)}</div>`;
+      }).join("");
+    list.scrollTop = list.scrollHeight;
+  }
+  if (wasHidden || dock.dataset.open !== String(open)) { dock.dataset.open = String(open); layout(); }
+}
+
+function setDock(open) {
+  settings.chatDock = open;
+  saveSettings();
+  if (open && online) online.unread = 0;
+  renderChat();
+}
+
 function renderChat() {
   const show = !!online;
-  $("#btn-chat").hidden = !show;
+  $("#btn-chat").hidden = !show || dockShown();
+  if (dockShown() && chatOpen) chatOpen = false;
+  renderDock();
   const unread = online?.unread ?? 0;
   for (const id of ["#chat-badge", "#lobby-chat-badge"]) {
     $(id).hidden = unread === 0;
@@ -1472,6 +1555,18 @@ $("#chat-form").addEventListener("submit", (e) => {
   input.value = "";
 });
 $("#btn-chat").addEventListener("click", () => openChat(!chatOpen));
+$("#dock-quick").innerHTML = $("#chat-quick").innerHTML;
+$("#dock-quick").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-q]");
+  if (b) sendChat(b.dataset.q);
+});
+$("#dock-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const input = $("#dock-input");
+  sendChat(input.value);
+  input.value = "";
+});
+$(".dock-bar").addEventListener("click", () => setDock(settings.chatDock === false));
 $("#btn-lobby-chat").addEventListener("click", () => openChat(!chatOpen));
 $("#chat-close").addEventListener("click", () => openChat(false));
 

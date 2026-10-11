@@ -9,7 +9,8 @@ Deze app is een port van het Windows-spel [10 op en neer](https://sourceforge.ne
 - Beide varianten: **10 op en neer** (1 t/m 10 t/m 1 kaarten) en **Boerenbridge** (tot 13 kaarten, strafpunten)
 - Instelbaar: rondmaken toegestaan en verplicht introeven
 - Computerspelers met dezelfde strategie als het origineel, of sterkere computerspelers die vooruitrekenen
-- Samen spelen via internet met een gedeelde link, met chat; lege plaatsen worden computerspelers
+- Samen spelen via internet met een gedeelde link, met chat onderin beeld en een eigen plaatje (emoji of foto); lege plaatsen worden computerspelers
+- Aan het einde stuiteren de kaarten over het scherm en springt de winnaar juichend uit het bord, bij een wapperende Nederlandse vlag
 - De helpster Tineke, die uitlegt hoe het spel werkt
 - Scorelijst, laatste slag bekijken, tips, highscores per variant
 - De originele geluidjes (slag te veel, slag te weinig, goed voorspeld, medespeler nat, applaus), uit te zetten bij Instellingen

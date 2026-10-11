@@ -161,6 +161,21 @@
       <div class="bids" id="bids"></div>
       <div class="seat south" id="seat-1"></div>
       <div class="hand" id="hand"></div>
+      <div class="chat-dock" id="chat-dock" hidden>
+        <div class="dock-bar">
+          <span class="dock-last" id="dock-last"></span>
+          <span class="badge inline" id="dock-badge" hidden></span>
+          <button type="button" class="dock-toggle" id="dock-toggle" aria-label="Chat verbergen"></button>
+        </div>
+        <div class="dock-body" id="dock-body">
+          <div class="dock-list" id="dock-list"></div>
+          <div class="chat-quick dock-quick" id="dock-quick"></div>
+          <form class="chat-form dock-form" id="dock-form" autocomplete="off">
+            <input type="text" id="dock-input" maxlength="200" placeholder="Typ een bericht…" enterkeyhint="send">
+            <button class="primary" type="submit">Stuur</button>
+          </form>
+        </div>
+      </div>
       <aside class="sidebar sheet" id="sidebar" aria-label="Scorelijst"></aside>
     </section>
 
