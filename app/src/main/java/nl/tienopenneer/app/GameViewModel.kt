@@ -265,7 +265,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             else -> 300
         }
         // Tijd om de uitgesproken voorspelling af te laten maken
-        val minimum = if (phase == Phase.BIDDING && settings.sound && settings.speakBids) (2100 * minOf(factor, 1.0)).toLong() else 0L
+        val minimum = if (phase == Phase.BIDDING && settings.sound && settings.speakBids) (2800 * minOf(factor, 1.0)).toLong() else 0L
         return maxOf((base * factor).toLong(), minimum)
     }
 

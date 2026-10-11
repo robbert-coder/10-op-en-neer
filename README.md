@@ -17,6 +17,8 @@ Nog niet overgezet: netwerkspel, de helpster Tineke en statistieken.
 
 De geluiden in `app/src/main/res/raw/` komen uit het installatieprogramma van het origineel en zijn omgezet naar OGG. Een deel ervan lijkt afkomstig uit oude Windows-geluidspakketten; controleer de rechten voordat je de app openbaar verspreidt.
 
+De uitgesproken voorspellingen (`bod_*.ogg`) zijn gemaakt met de Piper-stemmen nl_NL-pim, nl_NL-ronnie, nl_BE-nathalie en nl_BE-rdh (CC0).
+
 ## Opbouw
 
 - `engine/` – de spellogica en de computerspelers in pure Kotlin, met unittests
