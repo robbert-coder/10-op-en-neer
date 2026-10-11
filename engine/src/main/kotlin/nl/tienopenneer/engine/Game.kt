@@ -76,11 +76,22 @@ class Player internal constructor(val number: Int, var name: String, val isHuman
  * De logica en de computerspelers zijn overgezet uit het Visual Basic-programma
  * "10 op en neer" van A.A. Brink (GPLv3).
  */
-class Game(
+class Game internal constructor(
     val rules: Rules,
     val seed: Long,
-    names: List<String> = DEFAULT_NAMES,
+    names: List<String>,
+    /** Spelen de computerspelers (en de tips) met de sterkere [SmartPlayer]? */
+    val smartComputers: Boolean,
+    /** Een rekenkopie voor de sterkere computerspeler: er wordt niet gedeeld en er is geen status of geluid. */
+    private val simulation: Boolean,
 ) {
+    constructor(
+        rules: Rules,
+        seed: Long,
+        names: List<String> = DEFAULT_NAMES,
+        smartComputers: Boolean = false,
+    ) : this(rules, seed, names, smartComputers, false)
+
     internal val p: Array<Player> = Array(5) { i ->
         Player(i, if (i == 0) "" else names.getOrElse(i - 1) { DEFAULT_NAMES[i - 1] }, i == 1)
     }
@@ -115,6 +126,13 @@ class Game(
 
     /** -3 = weg, -2 = tafel, -1 = troef, 0 = stapel, 1..4 = in handen van speler. */
     internal val whereIsCard = Array(5) { IntArray(15) }
+
+    /** Wie welke kaart in deze ronde heeft opgelegd (0 = nog niet gespeeld); dat heeft iedereen gezien. */
+    internal val playedBy = Array(5) { IntArray(15) }
+
+    /** Speler die in deze ronde als eerste voorspelde en uitkwam. */
+    internal var roundStarter = 1
+        private set
 
     /** Speler die moet uitkomen. */
     var leader = 1
@@ -155,8 +173,8 @@ class Game(
     /** Geeft de geluiden die sinds de vorige aanroep zijn ontstaan, en leegt de lijst. */
     fun takeSounds(): List<Sound> = sounds.toList().also { sounds.clear() }
 
-    private val dealtHands = Array(26) { Array(5) { Array(14) { Card.NONE } } }
-    private val dealtTrumps = Array(26) { Card.NONE }
+    private val dealtHands = Array(if (simulation) 0 else 26) { Array(5) { Array(14) { Card.NONE } } }
+    private val dealtTrumps = Array(if (simulation) 0 else 26) { Card.NONE }
     private var whoStarts = 1
 
     // Werkvariabelen van de computerspelers
@@ -169,9 +187,20 @@ class Game(
     internal val legalNonTrumps = IntArray(14)
     internal var legalNonTrumpCount = 0
 
+    /**
+     * Welke spelers de sterkere computerspeler gebruiken. Plaats 1 geldt voor de tips aan de mens.
+     * Standaard volgens [smartComputers]; de tests mengen hiermee beide sterktes aan één tafel.
+     */
+    internal val smartSeat = BooleanArray(5) { it >= 1 && smartComputers }
+
+    /** De rekenkopie waarin [SmartPlayer] rondes uitspeelt; pas aangemaakt als die nodig is. */
+    internal val simulator: Game by lazy { Game(rules, seed, DEFAULT_NAMES, false, true) }
+
     init {
-        dealWholeGame()
-        startRound()
+        if (!simulation) {
+            dealWholeGame()
+            startRound()
+        }
     }
 
     val cardsThisRound: Int get() = rules.cardsInRound(round)
@@ -207,13 +236,13 @@ class Game(
                 if (toBid == 1) return false
                 val pl = p[toBid]
                 pl.estimate = estimate(toBid)
-                pl.bid = legalBid(pl.estimate)
+                pl.bid = if (smartSeat[toBid]) smartBid(toBid) else legalBid(pl.estimate)
                 bidPlaced()
             }
             Phase.PLAYING -> {
                 if (toPlay == 1) return false
                 status = "${p[toPlay].name} is aan de beurt."
-                playCard(chooseCardComputer(toPlay))
+                playCard(if (smartSeat[toPlay]) smartCard(toPlay) else chooseCardComputer(toPlay))
             }
             Phase.TRICK_COMPLETE -> collectTrick()
             Phase.ROUND_COMPLETE -> {
@@ -280,11 +309,15 @@ class Game(
     }
 
     /** Tip voor de mens: de voorspelling die de computer zou doen. */
-    fun hintBid(): Int = legalBid(estimate(1))
+    fun hintBid(): Int = if (smartSeat[1] && phase == Phase.BIDDING && toBid == 1) smartBid(1) else legalBid(estimate(1))
 
     /** Tip voor de mens: de kaart die de computer zou spelen. */
     fun hintCard(): Card? =
-        if (phase == Phase.PLAYING && toPlay == 1) p[1].hand[chooseCardComputer(1)] else null
+        if (phase == Phase.PLAYING && toPlay == 1) {
+            p[1].hand[if (smartSeat[1]) smartCard(1) else chooseCardComputer(1)]
+        } else {
+            null
+        }
 
     /** De kaarten van de mens die nu gespeeld mogen worden. */
     fun legalCardsForHuman(): Set<Card> {
@@ -330,6 +363,7 @@ class Game(
             suitTimesLed[pl] = 0
         }
         for (row in whereIsCard) row.fill(0)
+        for (row in playedBy) row.fill(0)
 
         // Delen
         for (pl in 1..4) {
@@ -348,6 +382,7 @@ class Game(
         sortHand(1)
 
         leader = (whoStarts + round + 2) % 4 + 1
+        roundStarter = leader
         toPlay = leader
         toBid = leader
         phase = Phase.BIDDING
@@ -362,14 +397,14 @@ class Game(
         for (k in 1..cardsThisRound) p[pl].hand[k] = cards[k - 1]
     }
 
-    private fun bidPlaced() {
+    internal fun bidPlaced() {
         // Voorspeld
         val pl = p[toBid]
         totalBid += pl.bid
         tricksOver -= pl.bid
         numberBid++
         pl.roundBid[round] = pl.bid
-        status = "${pl.name} voorspelt ${pl.bid} ${if (pl.bid == 1) "slag" else "slagen"}."
+        if (!simulation) status = "${pl.name} voorspelt ${pl.bid} ${if (pl.bid == 1) "slag" else "slagen"}."
         toBid = nextPlayer(toBid)
         if (toBid == leader) {
             trickNumber = 1
@@ -380,13 +415,14 @@ class Game(
     }
 
     /** KaartLeggen */
-    private fun playCard(slot: Int) {
+    internal fun playCard(slot: Int) {
         val pl = p[toPlay]
         val card = pl.hand[slot]
         check(!card.isNone) { "Geen kaart op plaats $slot" }
         table[toPlay] = card
         pl.hand[slot] = Card.NONE
         whereIsCard[card.suit][card.rank] = -2
+        if (!simulation) playedBy[card.suit][card.rank] = toPlay
         pl.cardCount--
 
         val leadSuit = table[leader].suit
@@ -402,19 +438,19 @@ class Game(
         } else if (higherCard(table[highestOnTable], card) == 2) {
             highestOnTable = toPlay
         }
-        status = "${pl.name} legt ${card.describe()} op."
+        if (!simulation) status = "${pl.name} legt ${card.describe()} op."
 
         toPlay = nextPlayer(toPlay)
         if (toPlay == leader) {
             phase = Phase.TRICK_COMPLETE
-            status = "De slag is voor ${p[highestOnTable].name}."
+            if (!simulation) status = "De slag is voor ${p[highestOnTable].name}."
         } else {
             checkHumanDoom()
         }
     }
 
     /** SlagNaarHoogste */
-    private fun collectTrick() {
+    internal fun collectTrick() {
         cardsRemaining--
         val winner = highestOnTable
         p[winner].tricks++
@@ -427,6 +463,17 @@ class Game(
         lastTrickLeader = leader
         lastTrickWinner = winner
         trickNumber++
+        if (simulation) {
+            // In de rekenkopie telt alleen wie welke slagen haalt.
+            if (cardsRemaining == 0) {
+                phase = Phase.ROUND_COMPLETE
+            } else {
+                leader = winner
+                toPlay = winner
+                phase = Phase.PLAYING
+            }
+            return
+        }
         trickSounds(winner)
 
         if (cardsRemaining == 0) {
@@ -445,7 +492,7 @@ class Game(
 
     /** KaartKiezen: geluid als de mens zijn voorspelling onmogelijk nog kan halen. */
     private fun checkHumanDoom() {
-        if (phase != Phase.PLAYING || toPlay != 1) return
+        if (simulation || phase != Phase.PLAYING || toPlay != 1) return
         findPossibleCards(1)
         testTrickWinnable(1)
         val me = p[1]
@@ -576,6 +623,45 @@ class Game(
         }
     }
 
+    /**
+     * Neemt de openbare toestand van de lopende ronde van [src] over in deze rekenkopie.
+     * De handen worden leeggemaakt; [SmartPlayer] vult ze met de eigen hand en een getrokken verdeling.
+     */
+    internal fun loadPublicState(src: Game) {
+        check(simulation)
+        phase = src.phase
+        round = src.round
+        trump = src.trump
+        leader = src.leader
+        toPlay = src.toPlay
+        toBid = src.toBid
+        highestOnTable = src.highestOnTable
+        totalBid = src.totalBid
+        numberBid = src.numberBid
+        trickNumber = src.trickNumber
+        tricksOver = src.tricksOver
+        cardsRemaining = src.cardsRemaining
+        for (s in 0..4) suitTimesLed[s] = src.suitTimesLed[s]
+        for (nr in 1..4) {
+            val a = src.p[nr]
+            val b = p[nr]
+            table[nr] = src.table[nr]
+            b.hand.fill(Card.NONE)
+            b.cardCount = a.cardCount
+            b.tricks = a.tricks
+            b.bid = a.bid
+            b.estimate = a.estimate
+            for (s in 0..4) b.hasNoSuit[s] = a.hasNoSuit[s]
+        }
+        // Alleen wat iedereen ziet: troefkaart, tafel en weggelegde kaarten. De rest heet "op de stapel".
+        for (s in 0..4) {
+            for (r in 0..14) {
+                val w = src.whereIsCard[s][r]
+                whereIsCard[s][r] = if (w < 0) w else 0
+            }
+        }
+    }
+
     fun nextPlayer(pl: Int): Int = pl % 4 + 1
     fun previousPlayer(pl: Int): Int = (pl + 2) % 4 + 1
 
@@ -583,8 +669,14 @@ class Game(
         val DEFAULT_NAMES = listOf("Speler", "Henk", "Truus", "Kees")
 
         /** Herstelt een spel door de handelingen van de mens opnieuw af te spelen. */
-        fun restore(rules: Rules, seed: Long, names: List<String>, humanActions: List<Int>): Game {
-            val g = Game(rules, seed, names)
+        fun restore(
+            rules: Rules,
+            seed: Long,
+            names: List<String>,
+            humanActions: List<Int>,
+            smartComputers: Boolean = false,
+        ): Game {
+            val g = Game(rules, seed, names, smartComputers)
             for (action in humanActions) {
                 while (g.canAdvance) g.advance()
                 val error = if (action >= 100) g.humanPlay(Card.fromCode(action)) else g.humanBid(action)

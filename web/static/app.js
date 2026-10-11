@@ -1,9 +1,13 @@
 // Webversie van "10 op en neer". De spelregels en computerspelers komen uit de Kotlin-code
 // van de Android-app (tienopenneer.mjs); dit bestand tekent alleen het scherm.
 import { WebGame, describeCard, defaultNames } from "./tienopenneer.mjs";
+import { faceSvg, initialSvg } from "./faces.js";
+import * as tineke from "./tineke.js";
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 // ------------------------------------------------------------------------------------------
 // Opslag
@@ -27,7 +31,10 @@ const store = {
 };
 
 const settings = Object.assign(
-  { playerName: "Speler", speed: 3, sortDescending: false, sound: true, speakBids: true },
+  {
+    playerName: "Speler", speed: 3, sortDescending: false, sound: true, speakBids: true, smart: true,
+    tinekeHelp: true, tinekeComments: true, tinekeAsked: false,
+  },
   store.get("instellingen", {}),
 );
 const saveSettings = () => store.set("instellingen", settings);
@@ -41,17 +48,17 @@ const BOERENBRIDGE = {
   negativeScores: false, roundingAllowed: false, mustTrump: false,
 };
 
-function createGame(rules, seed, names, actions) {
+function createGame(rules, smart, seed, names, actions) {
   return new WebGame(
     rules.maxCards, rules.pointsPerTrick, rules.wrongScoresZero, rules.penaltyPerTrick,
-    rules.negativeScores, rules.roundingAllowed, rules.mustTrump,
+    rules.negativeScores, rules.roundingAllowed, rules.mustTrump, smart,
     seed, names, actions,
   );
 }
 
-function variantKey(st) {
-  if (st.isTienOpEnNeer) return "10openneer";
-  if (st.variant === "Boerenbridge") return "boerenbridge";
+function variantKey(s) {
+  if (s.isTienOpEnNeer) return "10openneer";
+  if (s.variant === "Boerenbridge") return "boerenbridge";
   return "hybride";
 }
 
@@ -103,11 +110,11 @@ function loadSound(name) {
   return buffers.get(name);
 }
 
-/** Een nieuw geluid onderbreekt het vorige, net als in het origineel. */
+/** Speelt een geluid; een nieuw geluid onderbreekt het vorige, net als in het origineel. Geeft de duur in ms. */
 async function playSound(name) {
-  if (!audio) return;
+  if (!audio) return 0;
   const buffer = await loadSound(name);
-  if (!buffer) return;
+  if (!buffer) return 0;
   if (currentSource) {
     try { currentSource.stop(); } catch { /* al gestopt */ }
   }
@@ -116,17 +123,24 @@ async function playSound(name) {
   src.connect(audio.destination);
   src.start();
   currentSource = src;
+  return buffer.duration * 1000;
 }
 
 // ------------------------------------------------------------------------------------------
 // Toestand
 // ------------------------------------------------------------------------------------------
 
+/** Gezicht per stoel: 1 is de mens, dan Henk (links), Truus (boven) en Kees (rechts). */
+const FACES = [null, null, "henk", "truus", "kees"];
+
 let game = null;
 let st = null; // laatste toestand uit de spelcode
+let currentRules = TIEN_OP_EN_NEER;
+let currentSmart = true;
 let screen = "menu";
 let rulesReturn = "menu";
 let driver = null;
+let busy = false; // een slag wordt binnengehaald
 let gameOverHandled = false;
 let highScorePlace = 0;
 let message = null;
@@ -138,7 +152,20 @@ let confirmDialog = null;
 let menuOpen = false;
 let announcedRound = 0;
 const announced = [false, false, false, false, false];
+const wetShown = [false, false, false, false, false];
+const talkingUntil = [0, 0, 0, 0, 0];
+const previousTricks = [0, 0, 0, 0, 0];
 let previousTable = [0, 0, 0, 0];
+let humanCardFrom = null; // plek van de kaart die de mens net speelde, voor de animatie
+let helpLevel = 0; // loopt op per slag, zodat Tineke steeds minder uitlegt
+let tinekeWaiting = null; // functie die het spel laat doorgaan na "Doorgaan"
+let tinekeTimer = null;
+let tinekeShown = null; // { text, wait, isHelp } wat Tineke nu zegt
+let tinekePending = null; // uitleg die na "Doorgaan" weer getoond moet worden
+let tinekeClick = 0;
+let tinekeOpinion = 0;
+let adviceBid = 0;
+let lastTurnKey = "";
 
 let newBase = TIEN_OP_EN_NEER;
 let newRounding = true;
@@ -148,16 +175,25 @@ let hsTab = "10openneer";
 const humanBidding = () => st && st.phase === "BIDDING" && st.active === 1;
 const humanPlaying = () => st && st.phase === "PLAYING" && st.active === 1;
 const hasGameInProgress = () => st !== null && st.phase !== "GAME_OVER";
+const speedFactor = () => ({ 1: 2.0, 2: 1.4, 3: 1.0, 4: 0.65, 5: 0.35 })[settings.speed] ?? 1.0;
+const animMs = (ms) => (reducedMotion ? 1 : ms * Math.min(1, Math.max(0.5, speedFactor())));
+
+/** Kan deze speler zijn voorspelling niet meer halen? */
+/** Nat: te veel slagen, of te weinig kaarten over om het bod nog te halen. Een slag die nog op tafel ligt telt mee. */
+const isWet = (p) => {
+  if (p.bid < 0) return false;
+  const pending = st && st.phase === "TRICK_COMPLETE" && st.players[st.trickWinner - 1] === p ? 1 : 0;
+  const tricks = p.tricks + pending;
+  return tricks > p.bid || p.bid - tricks > p.cardCount;
+};
 
 function restoreSavedGame() {
-  $$(".logo-cards .card-slot").forEach((el) => {
-  el.innerHTML = cardHtml(Number(el.dataset.card), "", "--w:70px");
-});
-
-const saved = store.get("spel", null);
-  if (!saved) return;
+  const saved = store.get("spel", null);
+  if (!saved?.rules) return;
   try {
-    game = createGame(saved.rules, saved.seed, saved.names, saved.actions);
+    currentRules = saved.rules;
+    currentSmart = saved.smart ?? false;
+    game = createGame(saved.rules, currentSmart, saved.seed, saved.names, saved.actions);
     game.setPlayerName(settings.playerName);
     refresh();
   } catch (e) {
@@ -172,21 +208,39 @@ function saveGame() {
   if (!game || !st || st.phase === "GAME_OVER") return;
   store.set("spel", {
     rules: currentRules,
+    smart: currentSmart,
     seed: game.seed,
     names: st.players.map((p) => p.name),
     actions: Array.from(game.actions()),
   });
 }
 
-let currentRules = TIEN_OP_EN_NEER;
-
 function startNewGame(rules) {
+  if (!settings.tinekeAsked) {
+    settings.tinekeAsked = true;
+    saveSettings();
+    confirmDialog = {
+      title: "Ken je 10 op en neer al?",
+      text: "Tineke kan je tijdens het eerste spel stap voor stap uitleggen hoe het werkt. Je kunt haar uitleg later altijd aan- of uitzetten bij Instellingen.",
+      yes: "Leg het me uit",
+      no: "Ik ken het, overslaan",
+      action: () => { settings.tinekeHelp = true; saveSettings(); startNewGame(rules); },
+      noAction: () => { settings.tinekeHelp = false; saveSettings(); startNewGame(rules); },
+    };
+    renderDialog();
+    return;
+  }
   stopDriver();
+  tinekeHide();
+  helpLevel = 0;
+  lastTurnKey = "";
   const names = Array.from(defaultNames());
   names[0] = settings.playerName;
   currentRules = rules;
-  game = createGame(rules, Math.floor(Math.random() * 2147483647), names, []);
+  currentSmart = settings.smart;
+  game = createGame(rules, currentSmart, Math.floor(Math.random() * 2147483647), names, []);
   gameOverHandled = false;
+  endComment = null;
   highScorePlace = 0;
   showScores = false;
   previousTable = [0, 0, 0, 0];
@@ -194,6 +248,11 @@ function startNewGame(rules) {
   refresh();
   saveGame();
   show("game");
+  if (settings.tinekeHelp) {
+    tinekeHelp("welkom").then(() => { onTurn(); drive(); });
+  } else {
+    onTurn();
+  }
   drive();
 }
 
@@ -212,54 +271,96 @@ function refresh() {
   st = JSON.parse(game.state());
   const sounds = Array.from(game.takeSounds());
   if (settings.sound && sounds.length) playSound(sounds[sounds.length - 1].toLowerCase());
+  if (sounds.includes("SLAG_TE_VEEL") && Math.random() < 1 / 3) tinekeComment("te veel");
+  else if (sounds.includes("SLAG_TE_WEINIG") && Math.random() < 1 / 3) tinekeComment("te weinig");
+  else if (sounds.includes("GOED_VOORSPELD") && Math.random() < 1 / 4) tinekeComment("goed");
   announceBids();
   if (screen === "game") renderGame();
+  if (screen === "game") onTurn();
   if (st.phase === "GAME_OVER") handleGameOver();
 }
 
+/** Spreekt nieuwe voorspellingen uit, laat het gezicht praten en toont een tekstballon. */
 function announceBids() {
   if (announcedRound !== st.round) {
     announcedRound = st.round;
     // Bij een hersteld spel de al gedane voorspellingen niet opnieuw zeggen
-    for (let nr = 1; nr <= 4; nr++) announced[nr] = st.players[nr - 1].bid >= 0;
+    for (let nr = 1; nr <= 4; nr++) {
+      announced[nr] = st.players[nr - 1].bid >= 0;
+      wetShown[nr] = isWet(st.players[nr - 1]);
+      previousTricks[nr] = st.players[nr - 1].tricks;
+    }
     return;
   }
   for (let nr = 1; nr <= 4; nr++) {
-    const bid = st.players[nr - 1].bid;
-    if (bid >= 0 && !announced[nr]) {
+    const p = st.players[nr - 1];
+    if (p.bid >= 0 && !announced[nr]) {
       announced[nr] = true;
-      if (settings.sound && settings.speakBids) playSound(`bod_${VOICES[nr - 1]}_${bid}`);
+      const speak = settings.sound && settings.speakBids;
+      if (speak) playSound(`bod_${VOICES[nr - 1]}_${p.bid}`);
+      const ms = speak ? 2400 : 1300;
+      if (nr > 1) talkingUntil[nr] = Date.now() + ms;
+      showBubble(nr, `Ik zeg <b>${p.bid}</b>!`, ms + 300);
+      setTimeout(() => { if (screen === "game") updateSeats(); }, ms + 20);
+    }
+    if (!wetShown[nr] && isWet(p) && st.phase !== "BIDDING") {
+      wetShown[nr] = true;
+      showBubble(nr, nr === 1 ? "Nat…" : ["", "", "Ach nee, nat!", "Oei, ik ga nat…", "Balen, nat!"][nr], 2200, true);
     }
   }
 }
 
 function stepDelay(phase) {
-  const factor = { 1: 2.0, 2: 1.4, 3: 1.0, 4: 0.65, 5: 0.35 }[settings.speed] ?? 1.0;
-  const base = { BIDDING: 550, PLAYING: 700, TRICK_COMPLETE: 1400 }[phase] ?? 300;
+  const factor = speedFactor();
+  const base = { BIDDING: 550, PLAYING: 700, TRICK_COMPLETE: 1200 }[phase] ?? 300;
   // Tijd om de uitgesproken voorspelling af te laten maken
   const minimum = phase === "BIDDING" && settings.sound && settings.speakBids ? 2800 * Math.min(factor, 1.0) : 0;
   return Math.max(base * factor, minimum);
 }
 
 function drive() {
-  if (driver !== null || screen !== "game" || !st) return;
+  if (driver !== null || busy || tinekeWaiting || screen !== "game" || !st) return;
   if (st.phase === "GAME_OVER" || st.phase === "ROUND_COMPLETE" || humanBidding() || humanPlaying()) return;
-  driver = setTimeout(() => {
+  driver = setTimeout(async () => {
     driver = null;
-    game.advance();
-    refresh();
-    if (humanBidding() || humanPlaying()) {
-      showLastTrick = false;
-      renderGame();
+    if (tinekeWaiting) return;
+    if (st.phase === "TRICK_COMPLETE") {
+      await collectTrick();
+    } else {
+      game.advance();
+      afterStep();
     }
-    saveGame();
     drive();
   }, stepDelay(st.phase));
+}
+
+function afterStep() {
+  refresh();
+  if (humanBidding() || humanPlaying()) {
+    showLastTrick = false;
+    renderGame();
+  }
+  saveGame();
 }
 
 function stopDriver() {
   if (driver !== null) clearTimeout(driver);
   driver = null;
+}
+
+/** De slag schuift naar de winnaar; daarna gaat het spel verder. */
+async function collectTrick() {
+  if (busy || st.phase !== "TRICK_COMPLETE") return;
+  busy = true;
+  const winner = st.trickWinner;
+  if (screen === "game" && !showLastTrick) await animateCollect(winner);
+  game.advance();
+  busy = false;
+  afterStep();
+  if (settings.tinekeHelp && st.phase === "PLAYING") {
+    await tinekeHelp("slag erbij");
+    helpLevel++;
+  }
 }
 
 function handleGameOver() {
@@ -287,21 +388,39 @@ function onBid(n) {
   const error = game.bid(n);
   clearTransient();
   if (error) message = error;
+  if (!error) {
+    tinekeHide();
+    tinekeOpinion = n <= adviceBid - 2 ? 1 : n >= adviceBid + 2 ? 2 : 0;
+    if (tinekeOpinion === 1) tinekeComment("weinig voorspeld");
+    if (tinekeOpinion === 2) tinekeComment("veel voorspeld");
+  }
   refresh();
   if (!error) saveGame();
   renderGame();
+  if (!error && settings.tinekeHelp) {
+    tinekeHelp("voorspeld").then(() => drive());
+  }
   drive();
 }
 
-function onCardTap(code) {
+function onCardTap(code, el) {
+  if (busy) return;
   if (!humanPlaying()) {
     message = st.phase === "BIDDING" ? "Je moet eerst het aantal slagen voorspellen." : "Je bent nog niet aan de beurt.";
     renderGame();
     return;
   }
+  const from = el.getBoundingClientRect();
   const error = game.play(code);
   clearTransient();
-  if (error) message = error;
+  if (error) {
+    message = error;
+    if (error.startsWith("Je moet kleur bekennen")) tinekeComment("kleur bekennen", true);
+    el.animate([{ translate: "0 0" }, { translate: "-6px 0" }, { translate: "6px 0" }, { translate: "0 0" }], { duration: 240 });
+  } else {
+    humanCardFrom = from;
+    if (tinekeShown?.isHelp && !tinekeShown.wait) tinekeHide();
+  }
   refresh();
   if (!error) saveGame();
   renderGame();
@@ -319,18 +438,15 @@ function onTip() {
   renderGame();
 }
 
-function onTableTap() {
+async function onTableTap() {
   if (showLastTrick) {
     showLastTrick = false;
     renderGame();
     return;
   }
-  if (st.phase === "TRICK_COMPLETE") {
+  if (st.phase === "TRICK_COMPLETE" && !busy && !tinekeWaiting) {
     stopDriver();
-    game.advance();
-    refresh();
-    saveGame();
-    renderGame();
+    await collectTrick();
     drive();
   }
 }
@@ -346,9 +462,108 @@ function continueAfterRound() {
 
 function leaveGame() {
   stopDriver();
+  tinekeHide();
   menuOpen = false;
   show("menu");
 }
+
+// ------------------------------------------------------------------------------------------
+// Tineke
+// ------------------------------------------------------------------------------------------
+
+/** Laat Tineke iets zeggen. Bij wait=true pauzeert het spel tot je op Doorgaan tikt. */
+function tinekeSay(text, { wait = false, isHelp = false } = {}) {
+  if (screen !== "game") return Promise.resolve();
+  if (tinekeWaiting && !wait) {
+    // Eerst de lopende uitleg afmaken
+    if (isHelp) tinekePending = { text, wait, isHelp };
+    return Promise.resolve();
+  }
+  if (wait && tinekeShown?.isHelp && !tinekeShown.wait) tinekePending = tinekeShown;
+  clearTimeout(tinekeTimer);
+  tinekeShown = { text, wait, isHelp };
+  const panel = $("#tineke-panel");
+  panel.className = `tineke-panel ${isHelp ? "" : "comment"}`;
+  $("#tineke-text").textContent = text;
+  $("#tineke-actions").hidden = !isHelp;
+  $("#tineke-ok").hidden = !wait;
+  panel.hidden = false;
+  panel.style.animation = "none";
+  void panel.offsetWidth;
+  panel.style.animation = "";
+  $("#tineke .avatar").className = "avatar talking";
+  setTimeout(() => { const a = $("#tineke .avatar"); if (a) a.className = "avatar"; }, Math.min(3000, 600 + text.length * 35));
+  if (!isHelp) tinekeTimer = setTimeout(tinekeHide, 2400 + 80 * text.length);
+  if (!wait) return Promise.resolve();
+  return new Promise((resolve) => { tinekeWaiting = resolve; });
+}
+
+function tinekeHide() {
+  clearTimeout(tinekeTimer);
+  tinekeShown = null;
+  $("#tineke-panel").hidden = true;
+}
+
+/** Doorgaan na een uitleg: het spel loopt weer, en een eerdere uitleg komt terug. */
+function tinekeContinue() {
+  const resolve = tinekeWaiting;
+  tinekeWaiting = null;
+  tinekeHide();
+  if (tinekePending && screen === "game" && (humanBidding() || humanPlaying())) {
+    const p = tinekePending;
+    tinekePending = null;
+    tinekeSay(p.text, p);
+  }
+  tinekePending = null;
+  if (resolve) resolve();
+  drive();
+}
+
+function tinekeHelp(event, extra = {}) {
+  if (!settings.tinekeHelp || !st) return Promise.resolve();
+  const h = tineke.help(event, st, helpLevel, describeCard, extra);
+  if (!h) return Promise.resolve();
+  return tinekeSay(h.text, { wait: h.wait, isHelp: true });
+}
+
+function tinekeComment(event, always = false) {
+  if (!st) return;
+  if (!always && (settings.tinekeHelp || !settings.tinekeComments)) return;
+  if (always && !settings.tinekeHelp && !settings.tinekeComments) return;
+  const text = tineke.comment(event, st, tinekeOpinion);
+  if (text) tinekeSay(text);
+}
+
+/** Uitleg zodra er iets nieuws gebeurt: jij moet bieden, een kaart kiezen, of een slag is vol. */
+function onTurn() {
+  if (!st) return;
+  const key = `${st.round}|${st.phase}|${st.active}|${st.players.map((p) => p.cardCount).join("")}|${st.trickWinner}`;
+  if (key === lastTurnKey) return;
+  lastTurnKey = key;
+  if (humanBidding()) {
+    adviceBid = game.hintBid();
+    tinekeHelp("voorspellen", { advice: adviceBid });
+  } else if (humanPlaying()) {
+    tinekeHelp("kies een kaart");
+  } else if (st.phase === "TRICK_COMPLETE") {
+    tinekeHelp("slag naar hoogste").then(() => drive());
+  }
+}
+
+$("#tineke").innerHTML = `<div class="avatar">${faceSvg("tineke")}</div>`;
+$("#tineke").addEventListener("click", () => {
+  const texts = tineke.clickTexts();
+  tinekeClick = tinekeClick % texts.length;
+  tinekeSay(texts[tinekeClick++]);
+});
+$("#tineke-ok").addEventListener("click", tinekeContinue);
+$("#tineke-skip").addEventListener("click", () => {
+  settings.tinekeHelp = false;
+  saveSettings();
+  tinekeContinue();
+  const h = tineke.help("hulp uit", st, 0, describeCard);
+  tinekeSay(h.text);
+});
 
 // ------------------------------------------------------------------------------------------
 // Tekenen
@@ -363,70 +578,191 @@ function cardHtml(code, extra = "", style = "") {
   const rank = code % 100;
   const red = suit === 2 || suit === 4 ? "red" : "";
   const label = LABEL[rank] ?? String(rank);
-  return `<div class="card ${red} ${extra}" style="${style}" data-code="${code}"><div class="rank"><b>${label}</b><i>${SUIT[suit]}</i></div><div class="pip">${SUIT[suit]}</div></div>`;
+  const sym = SUIT[suit];
+  const mid = rank >= 11 && rank <= 13 ? `<span class="mid face">${label}</span>` : `<span class="mid">${sym}</span>`;
+  return `<div class="card ${red} ${extra}" style="${style}" data-code="${code}">` +
+    `<span class="ci tl"><b>${label}</b><i>${sym}</i></span>${mid}<span class="ci br"><b>${label}</b><i>${sym}</i></span></div>`;
 }
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 
-/**
- * De rondjes uit het origineel: een rondje per voorspelde slag, gevuld als de slag binnen is,
- * rood als het een onvoorspelde slag is of als de voorspelde slag niet meer te halen is.
- */
-function dotsHtml(p) {
-  if (p.bid < 0) return `<span class="dots-text">…</span>`;
-  if (p.bid === 0 && p.tricks === 0) return `<span class="dots-text">0 slagen</span>`;
-  let html = "";
-  for (let i = 1; i <= Math.max(p.bid, p.tricks); i++) {
-    let cls = "dot";
-    if (i <= p.bid && i <= p.tricks) cls += " got";
-    else if (i <= p.bid && i - p.tricks <= p.cardCount) cls += "";
-    else if (i <= p.bid) cls += " lost";
-    else cls += " extra";
-    html += `<span class="${cls}"></span>`;
-  }
-  return `<span class="dots">${html}</span>`;
+function avatarHtml(nr, name, mood = "") {
+  const svg = FACES[nr] ? faceSvg(FACES[nr]) : initialSvg(name);
+  return `<div class="avatar ${mood}">${svg}</div>`;
 }
 
-function seatHtml(nr) {
+/** Stoelen één keer opbouwen, zodat de gezichten blijven knipperen en praten tussen de beurten door. */
+function buildSeats() {
+  for (let nr = 1; nr <= 4; nr++) {
+    const el = $(`#seat-${nr}`);
+    el.innerHTML = `
+      ${avatarHtml(nr, st.players[nr - 1].name)}
+      <div class="info">
+        <div class="who"><span class="nm"></span><small class="tot"></small></div>
+        <div class="chip"><span class="c bid"><small>bod</small><b></b></span><span class="c got"><small>slagen</small><b></b></span></div>
+        <span class="nat" hidden>nat</span>
+      </div>
+`;
+    el.querySelector(".avatar").insertAdjacentHTML("beforeend", `<span class="lead" hidden>uit</span>`);
+    el.dataset.name = st.players[nr - 1].name;
+  }
+}
+
+function moodFor(nr) {
   const p = st.players[nr - 1];
-  const lead = st.leader === nr ? `<span class="lead"></span>` : "";
-  const name = `<div class="name">${lead}<span>${esc(p.name)}</span></div>`;
-  if (nr === 1) return `${name}<span class="pts">${p.total} pt</span>${dotsHtml(p)}`;
-  const backs = p.cardCount > 0 ? `<div class="backs"><div class="card back" style="--w:22px"></div> × ${p.cardCount}</div>` : "";
-  return `${name}<span class="pts">${p.total} pt</span>${dotsHtml(p)}${backs}`;
+  if (talkingUntil[nr] > Date.now()) return "talking";
+  if (st.phase !== "BIDDING" && isWet(p)) return "sad";
+  if (st.phase === "ROUND_COMPLETE" && p.tricks === p.bid) return "happy";
+  return "";
+}
+
+function updateSeats() {
+  if (!st) return;
+  if ($("#seat-1").dataset.name !== st.players[0].name || !$("#seat-1 .avatar")) buildSeats();
+  for (let nr = 1; nr <= 4; nr++) {
+    const p = st.players[nr - 1];
+    const el = $(`#seat-${nr}`);
+    el.classList.toggle("active", st.active === nr);
+    const avatar = el.querySelector(".avatar");
+    avatar.className = `avatar ${moodFor(nr)} ${st.active === nr ? "active" : ""}`;
+    el.querySelector(".lead").hidden = st.leader !== nr || st.phase === "ROUND_COMPLETE" || st.phase === "GAME_OVER";
+    el.querySelector(".nm").textContent = p.name;
+    el.querySelector(".tot").textContent = `${p.total} pt`;
+    el.querySelector(".bid b").textContent = p.bid >= 0 ? p.bid : "–";
+    const got = el.querySelector(".got");
+    got.querySelector("b").textContent = p.tricks;
+    const wet = isWet(p);
+    got.classList.toggle("wet", wet);
+    got.classList.toggle("ok", !wet && p.bid >= 0 && p.tricks === p.bid);
+    el.querySelector(".nat").hidden = !(wet && st.phase !== "BIDDING");
+    if (p.tricks !== previousTricks[nr]) {
+      previousTricks[nr] = p.tricks;
+      const chip = el.querySelector(".chip");
+      chip.classList.remove("pop");
+      void chip.offsetWidth;
+      chip.classList.add("pop");
+    }
+  }
+}
+
+function showBubble(nr, html, ms, sad = false) {
+  if (screen !== "game") return;
+  const avatar = $(`#seat-${nr} .avatar`);
+  if (!avatar) return;
+  const layer = $("#flyers");
+  const r = avatar.getBoundingClientRect();
+  const b = document.createElement("div");
+  b.className = `bubble ${sad ? "sad" : ""}`;
+  b.innerHTML = html;
+  layer.appendChild(b);
+  const bw = b.offsetWidth;
+  const bh = b.offsetHeight;
+  let x;
+  let y;
+  if (nr === 1) { x = r.left + r.width / 2 - bw / 2; y = r.top - bh - 8; }
+  else if (nr === 2) { x = r.right + 6; y = r.top; }
+  else if (nr === 3) { x = r.left + r.width / 2 - bw / 2; y = r.bottom + 6; }
+  else { x = r.left - bw - 6; y = r.top; }
+  x = Math.max(6, Math.min(window.innerWidth - bw - 6, x));
+  b.style.left = `${x}px`;
+  b.style.top = `${y}px`;
+  setTimeout(() => {
+    b.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 200, fill: "forwards" }).finished.then(() => b.remove());
+  }, ms);
+}
+
+function seatCenter(nr) {
+  const r = $(`#seat-${nr} .avatar`).getBoundingClientRect();
+  return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+}
+
+/** Laat een nieuw opgelegde kaart van de speler naar de tafel vliegen. */
+function animateFlyIn(slotEl, nr) {
+  const card = slotEl.querySelector(".card");
+  if (!card || reducedMotion) return;
+  const to = card.getBoundingClientRect();
+  let from;
+  if (nr === 1 && humanCardFrom) {
+    from = { x: humanCardFrom.left + humanCardFrom.width / 2, y: humanCardFrom.top + humanCardFrom.height / 2, s: humanCardFrom.width / to.width };
+  } else {
+    const c = seatCenter(nr);
+    from = { ...c, s: 0.4 };
+  }
+  const dx = from.x - (to.left + to.width / 2);
+  const dy = from.y - (to.top + to.height / 2);
+  card.animate(
+    [
+      { transform: `translate(${dx}px, ${dy}px) scale(${from.s}) rotate(${nr === 1 ? 0 : (nr - 3) * 20}deg)`, opacity: nr === 1 ? 1 : 0.4 },
+      { transform: "none", opacity: 1 },
+    ],
+    { duration: animMs(360), easing: "cubic-bezier(.2,.8,.25,1)" },
+  );
+}
+
+/** De kaarten van de slag schuiven samen naar de winnaar. */
+async function animateCollect(winner) {
+  const cards = $$("#table .tcard .card:not(.empty)");
+  if (!cards.length || !winner) return;
+  const target = seatCenter(winner);
+  const felt = $("#table").getBoundingClientRect();
+  const mid = { x: felt.left + felt.width / 2, y: felt.top + felt.height / 2 };
+  const anims = cards.map((card, i) => {
+    const r = card.getBoundingClientRect();
+    const cx = r.left + r.width / 2;
+    const cy = r.top + r.height / 2;
+    return card.animate(
+      [
+        { transform: "none", opacity: 1, offset: 0 },
+        { transform: `translate(${mid.x - cx}px, ${mid.y - cy}px) rotate(${(i - 1.5) * 6}deg)`, opacity: 1, offset: 0.4 },
+        { transform: `translate(${target.x - cx}px, ${target.y - cy}px) scale(.3)`, opacity: 0, offset: 1 },
+      ],
+      { duration: animMs(650), easing: "cubic-bezier(.45,.05,.3,1)", fill: "forwards" },
+    ).finished;
+  });
+  setTimeout(() => {
+    const plus = document.createElement("div");
+    plus.className = "plus-one";
+    plus.textContent = "+1";
+    plus.style.left = `${target.x}px`;
+    plus.style.top = `${target.y - 40}px`;
+    $("#flyers").appendChild(plus);
+    setTimeout(() => plus.remove(), 1000);
+  }, animMs(420));
+  await Promise.all(anims).catch(() => {});
 }
 
 function renderGame() {
   if (!st) return;
-  $("#g-round").textContent = window.innerWidth < 380 ? `Ronde ${st.round}/${st.rounds}` : `Ronde ${st.round} van ${st.rounds}`;
+  $("#g-round").textContent = `Ronde ${st.round} van ${st.rounds}`;
   $("#g-cards").textContent = `${st.cards} ${st.cards === 1 ? "kaart" : "kaarten"} · ${st.variant}`;
   $("#g-over").textContent = st.tricksOver;
-  $("#g-trump").innerHTML = st.trump ? cardHtml(st.trump, "", "--w:30px") : `<div class="none">–</div>`;
-  $("#g-trump-label").textContent = st.trump ? "Troef" : "Geen troef";
+  $("#g-trump").innerHTML = st.trump ? cardHtml(st.trump, "small", "--w:30px") : `<div class="none">geen<br>troef</div>`;
 
-  for (let nr = 1; nr <= 4; nr++) {
-    const el = $(`#seat-${nr}`);
-    el.innerHTML = seatHtml(nr);
-    el.classList.toggle("active", st.active === nr);
-  }
+  updateSeats();
 
-  // Tafel
+  // Tafel: alleen veranderde plekken opnieuw tekenen, zodat nieuwe kaarten kunnen invliegen
   const last = showLastTrick && st.lastTrickWinner !== 0;
   const cards = last ? st.lastTrick : st.table;
   const winner = last ? st.lastTrickWinner : st.trickWinner;
   $$("#table .tcard").forEach((el, i) => {
-    const isNew = !last && cards[i] && cards[i] !== previousTable[i];
-    el.innerHTML = cardHtml(cards[i], `${winner === i + 1 ? "hl" : ""} ${isNew ? "new" : ""}`);
+    const code = cards[i];
+    const key = `${code}|${winner === i + 1 ? 1 : 0}|${last ? 1 : 0}`;
+    if (el.dataset.key === key) return;
+    const isNew = !last && code && code !== previousTable[i];
+    el.dataset.key = key;
+    el.innerHTML = cardHtml(code, winner === i + 1 ? "hl" : "");
+    if (isNew) animateFlyIn(el, i + 1);
   });
   if (!last) previousTable = st.table.slice();
+  humanCardFrom = null;
   $("#table-label").hidden = !last;
 
   // Statusregel
   let text = message;
   if (!text) {
     if (humanBidding()) text = "Hoeveel slagen denk je te halen?";
-    else if (humanPlaying()) text = "Kies een kaart.";
-    else if (st.phase === "TRICK_COMPLETE") text = st.status + " Tik op tafel om door te gaan.";
+    else if (humanPlaying()) text = "Jij bent aan de beurt. Kies een kaart.";
+    else if (st.phase === "TRICK_COMPLETE") text = `${st.status} Tik op tafel om door te gaan.`;
     else text = st.status;
   }
   const status = $("#g-status");
@@ -451,7 +787,7 @@ function renderGame() {
   }
 
   // Hand
-  let hand = st.hand.slice();
+  const hand = st.hand.slice();
   if (settings.sortDescending) {
     hand.sort((a, b) => Math.floor(a.code / 100) - Math.floor(b.code / 100) || (b.code % 100) - (a.code % 100));
   }
@@ -470,23 +806,33 @@ function renderGame() {
   renderDialog();
 }
 
-/** Kaartgroottes aanpassen aan het scherm, zoals de Android-app dat ook doet. */
+/** Kaartgroottes aanpassen aan het scherm. */
 function layout() {
   if (screen !== "game" || !st) return;
+  $("#g-round").textContent = window.innerWidth < 380 ? `Ronde ${st.round}/${st.rounds}` : `Ronde ${st.round} van ${st.rounds}`;
   const width = $("#game").clientWidth;
   const handEl = $("#hand");
   const cards = Array.from(handEl.children);
   const n = cards.length;
-  const available = width - 16;
-  const hw = n <= 1 ? 72 : Math.min(72, available / (0.56 * (n - 1) + 1));
-  const spacing = n <= 1 ? 0 : Math.min(hw + 4, (available - hw) / (n - 1));
+  const available = Math.min(width - 24, 640);
+  const hw = n <= 1 ? 74 : Math.min(74, available / (0.58 * (n - 1) + 1));
+  const spacing = n <= 1 ? 0 : Math.min(hw + 6, (available - hw) / (n - 1));
   handEl.style.setProperty("--hw", `${hw}px`);
   handEl.style.width = `${n === 0 ? 0 : hw + spacing * (n - 1)}px`;
-  cards.forEach((el, i) => { el.style.left = `${spacing * i}px`; });
+  const playing = humanPlaying();
+  const fan = Math.min(3.5, 26 / Math.max(n, 1));
+  cards.forEach((el, i) => {
+    const off = i - (n - 1) / 2;
+    const lift = el.classList.contains("up") ? 14 : 0;
+    el.style.left = `${spacing * i}px`;
+    el.style.transform = `translateY(${Math.abs(off) * Math.abs(off) * 0.9 - lift}px) rotate(${off * fan}deg)`;
+    el.style.zIndex = String(i);
+    if (!playing) el.style.cursor = "default";
+  });
 
-  const middle = $(".middle");
-  const tw = Math.max(24, Math.min(76, (middle.clientWidth - 78 * 2 - 16) / 3.3, middle.clientHeight / (1.4 * 2.35)));
-  $("#table").style.setProperty("--tw", `${tw}px`);
+  const felt = $("#table");
+  const tw = Math.max(30, Math.min(74, felt.clientWidth / 3.5, felt.clientHeight / (1.42 * 2.45)));
+  felt.style.setProperty("--tw", `${tw}px`);
 }
 window.addEventListener("resize", layout);
 
@@ -494,21 +840,27 @@ function renderDialog() {
   const overlay = $("#dialog");
   const box = $("#dialog-box");
   let html = null;
-  box.className = "dialog";
+  let cls = "dialog";
   if (confirmDialog) {
     html = `<h3>${confirmDialog.title}</h3><p>${confirmDialog.text}</p><div class="actions">
-      <button class="text" data-action="confirm-no">${confirmDialog.no}</button>
-      <button class="text" data-action="confirm-yes">${confirmDialog.yes}</button></div>`;
+      <button data-action="confirm-no">${confirmDialog.no}</button>
+      <button class="primary" data-action="confirm-yes">${confirmDialog.yes}</button></div>`;
   } else if (screen === "game" && st && showScores) {
-    box.className = "dialog sheet";
+    cls = "dialog sheet";
     html = scoreSheetHtml();
-  } else if (screen === "game" && st && st.phase === "ROUND_COMPLETE") {
+  } else if (screen === "game" && st && st.phase === "ROUND_COMPLETE" && !busy) {
     html = roundResultHtml();
   } else if (screen === "game" && st && st.phase === "GAME_OVER") {
     html = gameOverHtml();
   }
+  const key = html === null ? "" : `${cls}|${html}`;
+  if (overlay.dataset.key === key) return;
+  overlay.dataset.key = key;
   overlay.hidden = html === null;
-  if (html !== null) box.innerHTML = html;
+  if (html !== null) {
+    box.className = cls;
+    box.innerHTML = html;
+  }
 }
 
 function roundResultHtml() {
@@ -516,48 +868,53 @@ function roundResultHtml() {
   const rows = st.players.map((p, i) => {
     const [bid, tricks, score, crossed, good] = p.rounds[r];
     const pts = good ? `+${score}` : crossed ? "0" : `+${score}`;
-    return `<tr class="${i === 0 ? "me" : ""}"><td>${esc(p.name)}</td><td>${bid}</td><td>${tricks}</td>
-      <td class="${good ? "good" : "bad"}">${pts}</td><td><b>${p.total}</b></td></tr>`;
+    const mood = good ? "happy" : "sad";
+    return `<div class="result-row ${i === 0 ? "me" : ""}">${avatarHtml(i + 1, p.name, mood)}
+      <div class="name">${esc(p.name)}<small>bod ${bid} · ${tricks} ${tricks === 1 ? "slag" : "slagen"}</small></div>
+      <div class="pts ${good ? "good" : "bad"}">${pts}</div><div class="tot">${p.total}</div></div>`;
   }).join("");
-  return `<h3>Ronde ${st.round} is afgelopen</h3>
-    <table><tr><th></th><th>Gezegd</th><th>Gehaald</th><th>Punten</th><th>Totaal</th></tr>${rows}</table>
-    <div class="actions"><button class="text" data-action="scores">Scorelijst</button>
-    <button class="text" data-action="next-round">${st.round === st.rounds ? "Uitslag" : "Volgende ronde"}</button></div>`;
+  const h = settings.tinekeHelp ? tineke.help("score", st, helpLevel, describeCard) : null;
+  return `<h3>Ronde ${st.round} is afgelopen</h3>${h ? tinekeLine(h.text) : ""}<div class="result-rows">${rows}</div>
+    <div class="actions"><button data-action="scores">Scorelijst</button>
+    <button class="primary" data-action="next-round">${st.round === st.rounds ? "Uitslag" : "Volgende ronde"}</button></div>`;
 }
 
 function gameOverHtml() {
   const me = st.players[0];
   const title = { 1: "Gewonnen!", 2: "Tweede plaats", 3: "Derde plaats" }[me.rank] ?? "Vierde plaats";
   const ranking = st.players.map((p, i) => ({ ...p, nr: i + 1 })).sort((a, b) => a.rank - b.rank);
-  const list = ranking.map((p) => `<div class="${p.nr === 1 ? "me" : ""}"><span class="pos">${p.rank}.</span><span class="name">${esc(p.name)}</span><b>${p.total}</b></div>`).join("");
+  const rows = ranking.map((p) => `<div class="result-row ${p.nr === 1 ? "me" : ""}">
+      ${avatarHtml(p.nr, p.name, p.rank === 1 ? "happy" : p.rank === 4 ? "sad" : "")}
+      <div class="name">${esc(p.name)}</div><div class="rank">${p.rank}e</div><div class="tot">${p.total}</div></div>`).join("");
   const hs = highScorePlace > 0 ? `<p class="gold">Je staat op plaats ${highScorePlace} in de highscore van ${esc(st.variant)}.</p>` : "";
-  return `<h3>${title}</h3><div class="rank-list">${list}</div>${hs}
-    <div class="actions"><button class="text" data-action="scores">Scorelijst</button>
-    <button class="text" data-action="menu">Menu</button>
-    <button class="text" data-action="new-game">Nieuw spel</button></div>`;
+  const say = settings.tinekeHelp || settings.tinekeComments ? endComment ??= tineke.comment("afgelopen", st) : null;
+  return `<h3>${title}</h3>${say ? tinekeLine(say) : ""}<div class="result-rows">${rows}</div>${hs}
+    <div class="actions"><button data-action="scores">Scorelijst</button>
+    <button data-action="menu">Menu</button>
+    <button class="primary" data-action="new-game">Nieuw spel</button></div>`;
 }
+
+let endComment = null;
+const tinekeLine = (text) => `<div class="tineke-line">${faceAvatar("tineke", "happy")}<p>${esc(text)}</p></div>`;
+const faceAvatar = (who, mood = "") => `<div class="avatar ${mood}">${faceSvg(who)}</div>`;
 
 function scoreSheetHtml() {
   const head = st.players.map((p) => `<th>${esc(p.name)}</th>`).join("");
   let rows = "";
   for (let r = 1; r <= st.rounds; r++) {
-    const cards = cardsInRound(r);
     const cells = st.players.map((p) => {
       const [bid, , score, crossed, good] = p.rounds[r - 1];
-      if (score >= 0) {
-        const b = `<span class="b ${good ? "good" : "bad"}">${bid}</span>`;
-        return `<td>${b}${crossed ? "" : score}</td>`;
-      }
+      if (score >= 0) return `<td><span class="b ${good ? "good" : "bad"}">${bid}</span>${crossed ? "" : score}</td>`;
       if (r === st.round && p.bid >= 0) return `<td><span class="b open">${p.bid}</span></td>`;
       return `<td></td>`;
     }).join("");
-    rows += `<tr class="${r === st.round ? "current" : ""}"><td class="dots-text">${r} (${cards})</td>${cells}</tr>`;
+    rows += `<tr class="${r === st.round ? "current" : ""}"><td>${r} (${cardsInRound(r)})</td>${cells}</tr>`;
   }
   const totals = st.players.map((p) => `<td>${p.total}</td>`).join("");
   return `<h3>Scorelijst · ${esc(st.variant)}</h3>
-    <div class="scroll"><table><tr><th>Rnd</th>${head}</tr>${rows}<tr class="total"><td>Totaal</td>${totals}</tr></table></div>
+    <div class="scroll"><table><tr><th>Ronde</th>${head}</tr>${rows}<tr class="total"><td>Totaal</td>${totals}</tr></table></div>
     <p class="legend">Klein getal: voorspelling. Doorgestreept: fout voorspeld.</p>
-    <div class="actions"><button class="text" data-action="close-scores">Sluiten</button></div>`;
+    <div class="actions"><button class="primary" data-action="close-scores">Sluiten</button></div>`;
 }
 
 function cardsInRound(r) {
@@ -576,7 +933,13 @@ function show(name) {
   if (name === "newgame") renderNewGame();
   if (name === "highscores") renderHighScores();
   if (name === "settings") renderSettings();
-  if (name === "game") renderGame();
+  if (name === "game") {
+    buildSeats();
+    previousTable = [0, 0, 0, 0];
+    $$("#table .tcard").forEach((el) => { el.dataset.key = ""; });
+    renderGame();
+    previousTable = st.table.slice();
+  }
   renderDialog();
 }
 
@@ -599,6 +962,7 @@ const newRules = () => ({ ...newBase, roundingAllowed: newRounding, mustTrump: n
 
 function renderNewGame() {
   $$(".variant").forEach((el) => el.classList.toggle("selected", Number(el.dataset.variant) === newBase.maxCards));
+  $("#opt-smart").checked = settings.smart;
   $("#opt-rounding").checked = newRounding;
   $("#opt-musttrump").checked = newMustTrump;
   $("#variant-name").textContent = `Je speelt: ${rulesVariantName(newRules())}`;
@@ -608,8 +972,8 @@ function renderHighScores() {
   $$("#hs-tabs button").forEach((b) => b.classList.toggle("selected", b.dataset.tab === hsTab));
   const list = loadHighScores(hsTab);
   $("#hs-list").innerHTML = list.length === 0
-    ? `<p class="dots-text">Nog geen scores. Speel een spel uit om in de lijst te komen.</p>`
-    : list.map((h, i) => `<div class="hs-row"><span class="pos">${i + 1}.</span><span class="name">${esc(h.name)}</span><span class="date">${h.date}</span><span class="score">${h.score}</span></div>`).join("");
+    ? `<p class="empty-note">Nog geen scores. Speel een spel uit om in de lijst te komen.</p>`
+    : list.map((h, i) => `<div class="hs-row"><span class="pos">${i + 1}</span><span class="name">${esc(h.name)}</span><span class="date">${h.date}</span><span class="score">${h.score}</span></div>`).join("");
   $("#btn-hs-clear").hidden = list.length === 0;
 }
 
@@ -620,22 +984,25 @@ function renderSettings() {
   $("#set-sound").checked = settings.sound;
   $("#set-speak").checked = settings.speakBids;
   $("#row-speak").hidden = !settings.sound;
+  $("#set-help").checked = settings.tinekeHelp;
+  $("#set-comments").checked = settings.tinekeComments;
 }
 
 const RULES_TEXT = [
   ["Doel van het spel", "Haal zoveel mogelijk punten, en meer dan je drie tegenspelers. Het leuke van dit spel is dat je ook met slechte kaarten kunt winnen."],
   ["Ronden", "Ieder krijgt in de eerste ronde 1 kaart, in de volgende ronde 2, enzovoort tot en met 10 kaarten. Daarna weer 9, 8, enzovoort tot en met 1. Vandaar de naam: in totaal zijn er 19 ronden. Bij Boerenbridge gaat het tot 13 kaarten (25 ronden); in de ronde met 13 kaarten is er geen troef."],
   ["Troef", "Aan het begin van elke ronde wordt een kaart van de stapel omgedraaid. De kleur van die kaart is troef. Je ziet hem rechtsboven in beeld."],
-  ["Voorspellen", "Aan het begin van elke ronde zegt iedere speler hoeveel slagen hij denkt te halen. De bolletjes bij de naam laten zien hoeveel slagen iemand voorspeld heeft en hoeveel hij er al heeft. Bovenin zie je of er in totaal slagen over zijn of te weinig."],
+  ["Voorspellen", "Aan het begin van elke ronde zegt iedere speler hoeveel slagen hij denkt te halen. Bij elke speler zie je steeds twee cijfers: het bod en het aantal slagen dat hij al heeft. Wordt het slagen-cijfer rood, dan is die speler nat: hij kan zijn voorspelling niet meer halen. Bovenin zie je of er in totaal slagen over zijn of te weinig."],
   ["Rondmaken", "Als rondmaken niet is toegestaan (zoals bij Boerenbridge), mag de laatste speler niet zo voorspellen dat het totaal van alle voorspellingen gelijk is aan het aantal kaarten. Dan haalt er altijd minstens één speler zijn voorspelling niet."],
-  ["Kaarten opleggen", "De speler met het gele bolletje komt uit: hij legt als eerste een kaart op. Daarna legt de volgende speler (met de klok mee) een kaart bij. Je moet kleur bekennen: als je een kaart hebt van de kleur die is uitgekomen, moet je die spelen. Kun je geen kleur bekennen, dan mag je elke kaart spelen (bij verplicht introeven moet je dan troef spelen als je die hebt)."],
+  ["Kaarten opleggen", "De speler met het label \"uit\" komt uit: hij legt als eerste een kaart op. Daarna legt de volgende speler (met de klok mee) een kaart bij. Je moet kleur bekennen: als je een kaart hebt van de kleur die is uitgekomen, moet je die spelen. Kun je geen kleur bekennen, dan mag je elke kaart spelen (bij verplicht introeven moet je dan troef spelen als je die hebt)."],
   ["Een slag halen", "Als alle vier de spelers een kaart hebben opgelegd, krijgt de hoogste kaart de slag. De volgorde is 2 tot en met 10, boer, vrouw, heer, aas. Een kaart van een andere kleur dan die is uitgekomen is altijd lager, behalve troef: troef is hoger dan alle andere kleuren. Wie de slag haalt, moet daarna uitkomen."],
   ["Voorbeeld", "Harten is troef. Speler 1 komt uit met klaver heer. Speler 2 legt schoppen aas bij (dat mag, want hij heeft geen klaver). Speler 3 legt klaver vijf (hij heeft klaver en moet dus kleur bekennen). Speler 4 legt harten twee (een troef; dat mag, want hij heeft geen klaver). De slag gaat naar speler 4."],
   ["Punten bij 10 op en neer", "Haal je precies het aantal slagen dat je voorspeld hebt, dan krijg je 10 punten plus 1 punt per slag. Lukt dat niet, dan krijg je niets. Een score van 170 is zeer goed, boven de 200 is bijna niet te halen."],
   ["Punten bij Boerenbridge", "Goed voorspeld: 10 punten plus 3 punten per slag. Fout voorspeld: 10 punten min 3 punten per slag verschil (niet lager dan 0)."],
-  ["Tips", "Tik op Tip om te zien wat de computer zou doen. Tik op de tafel om een volle slag meteen binnen te halen. Via het menu rechtsboven (⋮) kun je de laatste slag nog eens bekijken."],
+  ["Sterke computerspelers", "Met deze instelling rekenen Henk, Truus en Kees bij elke beslissing een groot aantal mogelijke verdelingen van de kaarten door. Ze spelen dan slimmer dan in het originele spel. Zet je hem uit, dan spelen ze precies zoals in het origineel."],
+  ["Tips", "Tik op Tip om te zien wat de computer zou doen. Tik op de tafel om een volle slag meteen binnen te halen. Via het menu linksboven kun je de laatste slag nog eens bekijken."],
   ["Op je beginscherm", "Op een iPhone of iPad: open deze pagina in Safari, tik op Deel en kies Zet op beginscherm. Op Android: kies in het menu van Chrome Toevoegen aan startscherm. Daarna start het spel als een gewone app en werkt het ook zonder internet."],
-  ["Over dit spel", "Gebaseerd op het Windows-spel \"10 op en neer\" van A.A. Brink (sourceforge.net/projects/tienopenneer). De computerspelers gebruiken dezelfde strategie als het origineel. Vrije software onder de GNU General Public License versie 3."],
+  ["Over dit spel", "Gebaseerd op het Windows-spel \"10 op en neer\" van A.A. Brink (sourceforge.net/projects/tienopenneer). Vrije software onder de GNU General Public License versie 3."],
 ];
 $("#rules-text").innerHTML = RULES_TEXT.map(([h, b]) => `<h3>${h}</h3><p>${b}</p>`).join("");
 
@@ -666,6 +1033,7 @@ $$(".variant").forEach((el) => el.addEventListener("click", () => {
   newMustTrump = newBase.mustTrump;
   renderNewGame();
 }));
+$("#opt-smart").addEventListener("change", (e) => { settings.smart = e.target.checked; saveSettings(); });
 $("#opt-rounding").addEventListener("change", (e) => { newRounding = e.target.checked; renderNewGame(); });
 $("#opt-musttrump").addEventListener("change", (e) => { newMustTrump = e.target.checked; renderNewGame(); });
 $("#btn-start").addEventListener("click", () => {
@@ -674,8 +1042,8 @@ $("#btn-start").addEventListener("click", () => {
     confirmDialog = {
       title: "Nieuw spel",
       text: "Je huidige spel wordt dan beëindigd. Wil je een nieuw spel beginnen?",
-      yes: "Ja",
-      no: "Nee",
+      yes: "Nieuw spel",
+      no: "Annuleren",
       action: () => startNewGame(rules),
     };
     renderDialog();
@@ -710,6 +1078,8 @@ $("#set-speed").addEventListener("input", (e) => { settings.speed = Number(e.tar
 $("#set-desc").addEventListener("change", (e) => { settings.sortDescending = e.target.checked; saveSettings(); });
 $("#set-sound").addEventListener("change", (e) => { settings.sound = e.target.checked; saveSettings(); renderSettings(); });
 $("#set-speak").addEventListener("change", (e) => { settings.speakBids = e.target.checked; saveSettings(); });
+$("#set-help").addEventListener("change", (e) => { settings.tinekeHelp = e.target.checked; settings.tinekeAsked = true; helpLevel = 0; saveSettings(); });
+$("#set-comments").addEventListener("change", (e) => { settings.tinekeComments = e.target.checked; saveSettings(); });
 
 $("#bids").addEventListener("click", (e) => {
   const b = e.target.closest("[data-bid]");
@@ -717,7 +1087,7 @@ $("#bids").addEventListener("click", (e) => {
 });
 $("#hand").addEventListener("click", (e) => {
   const c = e.target.closest("[data-code]");
-  if (c) onCardTap(Number(c.dataset.code));
+  if (c) onCardTap(Number(c.dataset.code), c);
 });
 $("#table").addEventListener("click", onTableTap);
 $("#btn-tip").addEventListener("click", onTip);
@@ -753,10 +1123,13 @@ $("#dialog-box").addEventListener("click", (e) => {
       action();
       break;
     }
-    case "confirm-no":
+    case "confirm-no": {
+      const noAction = confirmDialog.noAction;
       confirmDialog = null;
       renderDialog();
+      if (noAction) noAction();
       break;
+    }
     case "scores":
       showScores = true;
       renderDialog();
@@ -784,9 +1157,8 @@ $("#dialog-box").addEventListener("click", (e) => {
 $$(".logo-cards .card-slot").forEach((el) => {
   el.innerHTML = cardHtml(Number(el.dataset.card), "", "--w:70px");
 });
+$("#menu-faces").innerHTML = [2, 3, 4].map((nr) => avatarHtml(nr, "")).join("");
 
-const saved = store.get("spel", null);
-if (saved?.rules) currentRules = saved.rules;
 restoreSavedGame();
 show("menu");
 
@@ -799,4 +1171,4 @@ if ("serviceWorker" in navigator && location.protocol === "https:") {
 }
 
 // Voor de tests
-window.__tienopenneer = { get state() { return st; }, settings };
+window.__tienopenneer = { get state() { return st; }, settings, get busy() { return busy; } };

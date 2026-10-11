@@ -20,6 +20,7 @@ class WebGame(
     negativeScores: Boolean,
     roundingAllowed: Boolean,
     mustTrump: Boolean,
+    smart: Boolean,
     seed: Double,
     names: Array<String>,
     actions: Array<Int>,
@@ -29,6 +30,7 @@ class WebGame(
         seed.toLong(),
         names.toList(),
         actions.toList(),
+        smart,
     )
 
     val seed: Double get() = game.seed.toDouble()
