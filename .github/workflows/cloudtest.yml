@@ -8,7 +8,12 @@ jobs:
         run: |
           U=https://llyxrwgankrsjjgwzyrh.supabase.co
           K=sb_publishable_NkO6L_jj1GevBfhplqoufA_txNrorj0
-          H=(-H "apikey: $K" -H "Content-Type: application/json" -H "Origin: https://robbert-coder.github.io")
-          echo "== put"; curl -sS -i -X POST "$U/rest/v1/rpc/put_stats" "${H[@]}" -d '{"p_code":"TESTZZZZ2222","p_data":{"v":1,"games":[{"id":"t1"}],"clearedAt":0}}'
-          echo; echo "== get"; curl -sS -i -X POST "$U/rest/v1/rpc/get_stats" "${H[@]}" -d '{"p_code":"TESTZZZZ2222"}'
-          echo; echo "== tabel direct (moet geweigerd/leeg)"; curl -sS -i "$U/rest/v1/statistiek?select=*" -H "apikey: $K"
+          H=(-H "apikey: $K" -H "Content-Type: application/json")
+          put=$(curl -sS -o /tmp/p -w "%{http_code}" -X POST "$U/rest/v1/rpc/put_stats" "${H[@]}" -d '{"p_code":"TESTZZZZ2222","p_data":{"v":1,"games":[{"id":"t1"}],"clearedAt":0}}')
+          echo "::notice title=put::$put $(head -c 300 /tmp/p)"
+          get=$(curl -sS -o /tmp/g -w "%{http_code}" -X POST "$U/rest/v1/rpc/get_stats" "${H[@]}" -d '{"p_code":"TESTZZZZ2222"}')
+          echo "::notice title=get::$get $(head -c 300 /tmp/g)"
+          tab=$(curl -sS -o /tmp/t -w "%{http_code}" "$U/rest/v1/statistiek?select=*" -H "apikey: $K")
+          echo "::notice title=tabel::$tab $(head -c 300 /tmp/t)"
+          cors=$(curl -sS -o /dev/null -D - -X OPTIONS "$U/rest/v1/rpc/get_stats" -H "Origin: https://appassets.androidplatform.net" -H "Access-Control-Request-Method: POST" -H "Access-Control-Request-Headers: apikey,content-type" | grep -i "access-control-allow-origin" | tr -d '\r')
+          echo "::notice title=cors::$cors"
