@@ -5,7 +5,7 @@ import { faceSvg, initialSvg, emojiSvg, puppetBodySvg } from "./faces.js";
 import * as tineke from "./tineke.js";
 import { BID_LINES, WET_LINES, BID_MS } from "./voices.js";
 import { cloudEnabled, makeCloudCode, normalizeCloudCode, formatCloudCode, validCloudCode, fetchStats, saveStats } from "./cloud.js";
-import { Host, Guest, makeCode, normalizeCode, AVATAR_EMOJIS, cleanAvatar, cleanStats } from "./net.js";
+import { Host, Guest, makeCode, normalizeCode, AVATAR_EMOJIS, AVATAR_FACES, cleanAvatar, cleanStats } from "./net.js";
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
@@ -603,6 +603,7 @@ function announceBids() {
       if (nr > 1) talkingUntil[nr] = Date.now() + ms;
       showBubble(nr, bidBubble(k ? line : "", p.bid), ms + 300);
       setTimeout(() => { if (screen === "game") updateSeats(); }, ms + 20);
+      reactToBid(nr, ms);
     }
     if (!wetShown[nr] && isWet(p) && st.phase !== "BIDDING") {
       wetShown[nr] = true;
@@ -619,6 +620,102 @@ function announceBids() {
       }
     }
   }
+}
+
+// Karakters van de computerspelers -------------------------------------------------------------
+// Henk: rustige, droge oude heer. Truus: uitbundig en dramatisch. Kees: nuchter en brutaal.
+// Ria: gezellige, vrolijke oma. Ze reageren af en toe op elkaar, nooit altijd.
+
+const REACTIONS = {
+  slag: {
+    henk: ["Die is voor mij.", "Netjes.", "Zo gaat dat."],
+    truus: ["Hebbes!", "Joepie!", "Kijk eens aan!"],
+    kees: ["Mooi zo.", "Pak 'm!", "Yes."],
+    ria: ["Oh, die is van mij!", "Kijk nou!", "Haha, hebbes!"],
+  },
+  hoog: {
+    henk: ["Zo, flink.", "Dat is veel.", "Hm, ambitieus."],
+    truus: ["Wauw, durf jij!", "Zo! Dat is wat!", "Nou, nou!"],
+    kees: ["Ja ja, tuurlijk.", "Dat geloof je zelf niet.", "Stoer hoor."],
+    ria: ["Oh, dat is een hoop!", "Nou, succes ermee!", "Gut, zoveel?"],
+  },
+  rond: {
+    henk: ["Rond. Jammer.", "Hm. Mooi rond.", "Dat is jammer."],
+    truus: ["Ach, rond. Saai!", "Nee hè, rond!", "Wat zonde!"],
+    kees: ["Rond? Lekker dan.", "Pff, rond.", "Flauw hoor."],
+    ria: ["Oh, rond. Jammer.", "Ach, rond. Nou ja.", "Dat had ik liever niet."],
+  },
+  over: {
+    henk: ["Te veel gevraagd. Iemand gaat nat.", "Dat past niet.", "Dat gaat niet goed."],
+    truus: ["Dat gaat mis, hoor!", "Te veel! Spannend!", "Oei, te veel!"],
+    kees: ["Dat gaat bloeden.", "Te veel, jongens.", "Wie gaat er nat?"],
+    ria: ["Oei, dat wordt dringen!", "Dat zijn er te veel!", "Daar gaat iemand nat."],
+  },
+  onder: {
+    henk: ["Er blijven slagen over.", "Te weinig. Opletten.", "Er moet nog wat weg."],
+    truus: ["Er blijven er over!", "Wie neemt die extra?", "Te weinig, spannend!"],
+    kees: ["Iemand krijgt een cadeautje.", "Te weinig, let op.", "Wie pakt de rest?"],
+    ria: ["Er is nog wat over!", "Er moet nog wat verdeeld worden.", "Wie wil er nog een?"],
+  },
+};
+
+/** Of de computerspelers nu mogen reageren: alleen in beeld en niet tijdens de uitleg van Tineke. */
+const canReact = () => screen === "game" && !inBackground();
+
+/** Een computerspeler (niet nr) die op een gebeurtenis reageert, of 0. */
+function otherComputer(nr) {
+  const list = [];
+  for (let i = 1; i <= st.players.length; i++) if (i !== nr && faceFor(i)) list.push(i);
+  return list.length ? list[Math.floor(Math.random() * list.length)] : 0;
+}
+
+function react(nr, kind, delay, mood = "") {
+  const who = faceFor(nr);
+  const lines = REACTIONS[kind]?.[who];
+  if (!lines || !canReact()) return;
+  const round = st.round;
+  setTimeout(() => {
+    if (!canReact() || st.round !== round) return;
+    const k = pickLine(`r-${kind}-${nr}`, lines.length, false);
+    showBubble(nr, `<span>${esc(lines[k])}</span>`, 1900, mood);
+    gesture(nr, mood === "sad" ? "sigh" : kind === "slag" ? "cheer" : "react");
+  }, delay);
+}
+
+/** Een kort gebaar van het gezicht, per karakter anders (zie style.css). */
+function gesture(nr, kind) {
+  const avatar = $(`#seat-${nr} .avatar`);
+  if (!avatar) return;
+  avatar.classList.remove("g-cheer", "g-react", "g-sigh");
+  void avatar.offsetWidth;
+  avatar.classList.add(`g-${kind}`);
+  setTimeout(() => avatar.classList.remove(`g-${kind}`), 1300);
+}
+
+/** Na een voorspelling: soms reageert een ander op een hoog bod, op rondmaken of op over- of onderbieden. */
+function reactToBid(nr, ms) {
+  if (!canReact()) return;
+  const done = st.players.every((p) => p.bid >= 0);
+  const p = st.players[nr - 1];
+  const other = otherComputer(nr);
+  if (!other) return;
+  const delay = ms + 250;
+  if (done) {
+    const total = st.players.reduce((n, x) => n + x.bid, 0);
+    if (total === st.cards && st.cards > 1) { if (Math.random() < 0.5) react(other, "rond", delay, "sad"); }
+    else if (total > st.cards) { if (Math.random() < 0.35) react(other, "over", delay); }
+    else if (total < st.cards) { if (Math.random() < 0.35) react(other, "onder", delay); }
+    return;
+  }
+  const fair = st.cards / st.players.length;
+  if (p.bid >= 3 && p.bid >= fair + 2 && Math.random() < 0.4) react(other, "hoog", delay);
+}
+
+/** Een computerspeler haalt een slag: soms een klein gebaar, af en toe met een opmerking. */
+function reactToTrick(nr) {
+  if (!faceFor(nr) || !canReact() || Math.random() > 0.35) return;
+  if (Math.random() < 0.35) react(nr, "slag", 350);
+  else gesture(nr, "cheer");
 }
 
 /** Kiest een variant: meestal alleen het getal (variant 0), en nooit twee keer achter elkaar hetzelfde. */
@@ -1360,6 +1457,7 @@ function customAvatar(nr) {
 
 function humanAvatarHtml(avatar, name) {
   if (avatar?.startsWith("data:image/")) return `<img class="face-img" src="${esc(avatar)}" alt="">`;
+  if (avatar && AVATAR_FACES.includes(avatar)) return faceSvg(avatar);
   if (avatar && AVATAR_EMOJIS.includes(avatar)) return emojiSvg(avatar);
   return initialSvg(name);
 }
@@ -1436,7 +1534,8 @@ function updateSeats() {
     el.classList.toggle("done", hasHadTurn(nr));
     const avatar = el.querySelector(".avatar");
     const stars = starRating(statsOfSeat(nr));
-    avatar.className = `avatar ${moodFor(nr)} ${st.active === nr ? "active" : ""} ${stars != null ? "has-stars" : ""}`;
+    const g = [...avatar.classList].filter((c) => c.startsWith("g-")).join(" ");
+    avatar.className = `avatar ${moodFor(nr)} ${st.active === nr ? "active" : ""} ${stars != null ? "has-stars" : ""} ${g}`;
     el.querySelector(".lead").hidden = st.leader !== nr || st.phase === "ROUND_COMPLETE" || st.phase === "GAME_OVER";
     el.querySelector(".nm").textContent = p.name;
     const mini = el.querySelector(".mini-stars");
@@ -1450,6 +1549,7 @@ function updateSeats() {
     got.classList.toggle("ok", !wet && p.bid >= 0 && p.tricks === p.bid);
     el.querySelector(".nat").hidden = !(wet && st.phase !== "BIDDING");
     if (p.tricks !== previousTricks[nr]) {
+      if (p.tricks > (previousTricks[nr] ?? 0) && st.phase !== "BIDDING") reactToTrick(nr);
       previousTricks[nr] = p.tricks;
       const chip = el.querySelector(".chip");
       chip.classList.remove("pop");
@@ -2014,7 +2114,7 @@ function renderAvatarPick() {
     `<button type="button" class="av-opt ${sel ? "sel" : ""}" data-av="${value}" aria-label="${label}">${html}</button>`;
   const html = [
     opt("", initialSvg(settings.playerName), !cur, "Eerste letter van je naam"),
-    ...AVATAR_EMOJIS.map((e) => opt(e, emojiSvg(e), cur === e, e)),
+    ...AVATAR_FACES.map((f, i) => opt(f, faceSvg(f), cur === f, `Gezicht ${i + 1}`)),
     opt("foto", photo ? humanAvatarHtml(cur, "") : CAMERA_SVG, photo, "Eigen foto kiezen"),
   ].join("");
   $$(".avatar-pick").forEach((el) => { el.innerHTML = html; });
@@ -2110,7 +2210,7 @@ const clientId = () => {
 
 /** In de Android-app draait de website vanuit de app zelf; gedeelde links wijzen dan naar de echte website. */
 const nativeApp = window.TienApp ?? null;
-const APP_VERSION = "2.12";
+const APP_VERSION = "2.13";
 const SITE_URL = "https://robbert-coder.github.io/10-op-en-neer/";
 const tableLink = (code) => `${nativeApp ? SITE_URL : location.origin + location.pathname}?spel=${code}`;
 

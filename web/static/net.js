@@ -14,14 +14,17 @@ export function makeCode() {
   return c;
 }
 
-/** De plaatjes die je kunt kiezen, naast een eigen foto. */
+/** Emoji's die oudere versies als plaatje gebruikten; worden nog getoond als iemand ze heeft. */
 export const AVATAR_EMOJIS = ["🦊", "🐻", "🐼", "🐸", "🐵", "🦁", "🐯", "🐨", "🐷", "🐙", "🦉", "🐧",
   "😎", "🤠", "👑", "🌷", "⚽", "🎸", "☕", "🍀"];
 
-/** Een plaatje van een ander alleen gebruiken als het een van de emoji's is of een kleine foto. */
+/** De getekende gezichten die je kunt kiezen (zie PERSONS in faces.js). */
+export const AVATAR_FACES = ["p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8", "p9", "p10", "p11", "p12"];
+
+/** Een plaatje van een ander alleen gebruiken als het een gezicht, een emoji (oudere versies) of een kleine foto is. */
 export function cleanAvatar(v) {
   if (typeof v !== "string") return null;
-  if (AVATAR_EMOJIS.includes(v)) return v;
+  if (AVATAR_FACES.includes(v) || AVATAR_EMOJIS.includes(v)) return v;
   if (v.length <= 60000 && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(v)) return v;
   return null;
 }

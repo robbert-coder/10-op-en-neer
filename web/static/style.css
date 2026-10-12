@@ -1,18 +1,20 @@
-/* Speeltafel: diep groen laken met een licht midden, glazen panelen, goudgeel als accent. */
+/* Café-thema: warm donker hout, een groen kaartkleed op een houten tafel, messing als accent. */
 :root {
-  --bg: #06301C;
-  --felt-1: #138048;
-  --felt-2: #0A5530;
-  --felt-edge: #052A18;
-  --panel: rgba(255, 255, 255, .08);
-  --panel-strong: rgba(255, 255, 255, .14);
-  --line: rgba(255, 255, 255, .16);
-  --text: #F4FFF8;
-  --muted: #A9D6BC;
-  --gold: #FFC94D;
-  --gold-ink: #3A2A00;
-  --good: #6EE7A0;
-  --bad: #FF7A7A;
+  --bg: #1C120C;
+  --felt-1: #1E7A4C;
+  --felt-2: #11512F;
+  --felt-edge: #0B3A22;
+  --wood-1: #7A4B2A;
+  --wood-2: #4E2E19;
+  --panel: rgba(255, 236, 214, .07);
+  --panel-strong: rgba(255, 236, 214, .13);
+  --line: rgba(255, 226, 196, .15);
+  --text: #FFF7EC;
+  --muted: #D6BFA3;
+  --gold: #F2B544;
+  --gold-ink: #3A2200;
+  --good: #8BE3A6;
+  --bad: #FF8A7A;
   --card: #FFFFFF;
   --card-red: #D93636;
   --card-black: #1E2430;
@@ -38,7 +40,13 @@ html, body {
 #app {
   height: 100%;
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
-  background: radial-gradient(120% 80% at 50% 40%, #0B4A2B 0%, var(--bg) 70%);
+  /* Lamplicht van boven op een donkere houten lambrisering */
+  background:
+    radial-gradient(90% 55% at 50% -8%, rgba(255, 196, 120, .28), transparent 70%),
+    radial-gradient(120% 90% at 50% 45%, transparent 55%, rgba(0, 0, 0, .45) 100%),
+    repeating-linear-gradient(90deg, rgba(0, 0, 0, .14) 0 2px, transparent 2px 64px),
+    repeating-linear-gradient(90deg, rgba(255, 220, 180, .025) 0 1px, transparent 1px 9px),
+    linear-gradient(180deg, #2C1B11, var(--bg));
 }
 
 button {
@@ -263,7 +271,12 @@ h1 { font-size: 38px; margin: 18px 0 0; letter-spacing: -.5px; text-wrap: balanc
   width: 100%; height: 100%; max-height: 420px;
   border-radius: 40px;
   background: radial-gradient(ellipse at 50% 45%, var(--felt-1), var(--felt-2) 70%);
-  box-shadow: inset 0 0 0 6px var(--felt-edge), inset 0 0 0 8px rgba(255,255,255,.06), inset 0 10px 40px rgba(0,0,0,.35), 0 10px 30px rgba(0,0,0,.35);
+  /* Kaartkleed in een houten tafelrand */
+  border: 9px solid var(--wood-2);
+  border-image: none;
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,.05), inset 0 12px 44px rgba(0,0,0,.4),
+    0 0 0 2px #2A170C, 0 0 0 3px rgba(255, 210, 160, .18), 0 18px 40px rgba(0,0,0,.55);
+  background-clip: padding-box;
   cursor: pointer;
 }
 .tcard { position: absolute; }
@@ -332,7 +345,7 @@ h1 { font-size: 38px; margin: 18px 0 0; letter-spacing: -.5px; text-wrap: balanc
 /* ---------- Dialogen ---------- */
 .overlay { position: fixed; inset: 0; background: rgba(0, 10, 5, .55); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); display: flex; align-items: flex-end; justify-content: center; z-index: 20; padding: 12px; padding-bottom: max(12px, env(safe-area-inset-bottom)); }
 .overlay[hidden] { display: none; }
-.dialog { background: #0F2A1D; border: 1px solid var(--line); border-radius: 24px; padding: 20px; width: 100%; max-width: 440px; max-height: 88vh; display: flex; flex-direction: column; box-shadow: 0 20px 50px rgba(0,0,0,.55); animation: sheet-up .3s cubic-bezier(.2, .9, .3, 1); }
+.dialog { background: #2A1B12; border: 1px solid var(--line); border-radius: 24px; padding: 20px; width: 100%; max-width: 440px; max-height: 88vh; display: flex; flex-direction: column; box-shadow: 0 20px 50px rgba(0,0,0,.55); animation: sheet-up .3s cubic-bezier(.2, .9, .3, 1); }
 @keyframes sheet-up { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
 @media (min-height: 700px) { .overlay { align-items: center; } }
 .dialog h3 { margin: 0 0 14px; font-size: 21px; }
@@ -354,7 +367,7 @@ h1 { font-size: 38px; margin: 18px 0 0; letter-spacing: -.5px; text-wrap: balanc
 .sheet { max-width: 580px; }
 .sheet .scroll { flex: 1; overflow: auto; }
 .sheet table { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
-.sheet th { color: var(--muted); font-weight: 600; font-size: 12px; position: sticky; top: 0; background: #0F2A1D; padding: 6px 2px; }
+.sheet th { color: var(--muted); font-weight: 600; font-size: 12px; position: sticky; top: 0; background: #2A1B12; padding: 6px 2px; }
 .sheet td { padding: 5px 2px; text-align: center; white-space: nowrap; }
 .sheet td:first-child, .sheet th:first-child { text-align: left; color: var(--muted); font-size: 12px; }
 .sheet td .b { font-size: 11px; margin-right: 4px; }
@@ -362,7 +375,7 @@ h1 { font-size: 38px; margin: 18px 0 0; letter-spacing: -.5px; text-wrap: balanc
 .sheet td .b.bad { color: var(--bad); text-decoration: line-through; }
 .sheet td .b.open { color: var(--gold); }
 .sheet tr.current td { background: rgba(255, 201, 77, .1); }
-.sheet .total td { color: var(--gold); font-weight: 800; border-top: 1px solid var(--line); position: sticky; bottom: 0; background: #0F2A1D; }
+.sheet .total td { color: var(--gold); font-weight: 800; border-top: 1px solid var(--line); position: sticky; bottom: 0; background: #2A1B12; }
 .sheet .legend { color: var(--muted); font-size: 11px; margin-top: 8px; }
 
 @media (prefers-reduced-motion: reduce) {
@@ -436,7 +449,7 @@ h1 { font-size: 38px; margin: 18px 0 0; letter-spacing: -.5px; text-wrap: balanc
   }
   .sidebar h3 { margin: 0 0 10px; font-size: 19px; color: var(--gold); }
   .sidebar.sheet { max-width: none; height: auto; align-self: start; max-height: calc(100% - 28px); }
-  .sidebar.sheet th, .sidebar.sheet .total td { background: #0A2A19; }
+  .sidebar.sheet th, .sidebar.sheet .total td { background: #24170F; }
   .sidebar.sheet table { font-size: 15px; }
 
   .topbar { padding: 14px 22px 6px; gap: 14px; }
@@ -500,7 +513,7 @@ h1 { font-size: 38px; margin: 18px 0 0; letter-spacing: -.5px; text-wrap: balanc
 .chat-panel {
   position: fixed; z-index: 25; left: 8px; right: 8px; bottom: max(8px, env(safe-area-inset-bottom));
   max-height: min(55vh, 560px); display: flex; flex-direction: column;
-  background: #0F2A1D; border: 1px solid var(--line); border-radius: 22px; box-shadow: 0 18px 50px rgba(0,0,0,.6);
+  background: #2A1B12; border: 1px solid var(--line); border-radius: 22px; box-shadow: 0 18px 50px rgba(0,0,0,.6);
   animation: sheet-up .25s cubic-bezier(.2, .9, .3, 1);
 }
 .chat-panel[hidden] { display: none; }
@@ -796,3 +809,38 @@ h1 { font-size: 38px; margin: 18px 0 0; letter-spacing: -.5px; text-wrap: balanc
 .advanced[open] > summary { margin-bottom: 12px; }
 .seg.two { grid-template-columns: repeat(2, 1fr); }
 .seg button small { display: block; font-weight: 400; font-size: 12px; opacity: .75; margin-top: 2px; }
+
+/* Gebaren van de computerspelers: elk karakter op zijn eigen manier */
+.avatar.g-cheer .head, .avatar.g-react .head, .avatar.g-sigh .head { transform-box: fill-box; transform-origin: 50% 90%; }
+.avatar.g-cheer .head { animation: g-hop .5s ease-out 2; }
+.avatar.g-react .head { animation: g-tilt .6s ease-in-out 2 alternate; }
+.avatar.g-sigh .head { animation: g-sigh 1.2s ease-in-out; }
+.avatar[data-who="henk"].g-cheer .head { animation: g-nod .35s ease-in-out 3 alternate; }
+.avatar[data-who="truus"].g-cheer .head { animation: g-wiggle .18s ease-in-out 6 alternate; }
+.avatar[data-who="kees"].g-cheer .head { animation: g-hop .35s ease-out 3; }
+.avatar[data-who="ria"].g-cheer .head { animation: g-tilt .3s ease-in-out 4 alternate; }
+.avatar.g-cheer .mouth.smile, .avatar.g-react .mouth.smile { display: none; }
+.avatar.g-cheer .mouth.grin { display: inline; }
+.avatar.g-react .mouth.talk { display: inline; }
+.avatar.g-sigh .mouth.smile { display: none; }
+.avatar.g-sigh .mouth.frown { display: inline; }
+@keyframes g-hop { 0%, 100% { transform: translateY(0); } 40% { transform: translateY(-9%); } }
+@keyframes g-nod { from { transform: rotate(0); } to { transform: translateY(3%) rotate(4deg); } }
+@keyframes g-wiggle { from { transform: rotate(-8deg); } to { transform: rotate(8deg); } }
+@keyframes g-tilt { from { transform: rotate(0); } to { transform: rotate(-10deg); } }
+@keyframes g-sigh { 0%, 100% { transform: translateY(0) scaleY(1); } 50% { transform: translateY(5%) scaleY(.95); } }
+
+/* Café-thema: modernere knoppen en panelen */
+button { border-radius: 16px; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+button.primary { background: linear-gradient(180deg, #F7C761, var(--gold)); box-shadow: 0 8px 22px rgba(242, 181, 68, .28), inset 0 1px 0 rgba(255,255,255,.45); }
+.group, .stat-tile, .tabs { backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); box-shadow: 0 8px 24px rgba(0,0,0,.25); }
+.felt { background:
+  radial-gradient(ellipse at 50% 40%, rgba(255, 230, 170, .14), transparent 60%),
+  repeating-linear-gradient(45deg, rgba(255,255,255,.012) 0 2px, transparent 2px 4px),
+  radial-gradient(ellipse at 50% 45%, var(--felt-1), var(--felt-2) 72%);
+  background-clip: padding-box;
+  border-color: var(--wood-1);
+  outline: 4px solid var(--wood-2); outline-offset: -1px; }
+#menu h1 { font-family: Georgia, "Times New Roman", serif; font-style: italic; letter-spacing: .5px; text-shadow: 0 2px 0 rgba(0,0,0,.35), 0 0 24px rgba(255, 196, 120, .25); }
+#menu .sub { letter-spacing: 3px; text-transform: uppercase; font-size: 12px; }
+.page header h2 { font-family: Georgia, "Times New Roman", serif; font-style: italic; }

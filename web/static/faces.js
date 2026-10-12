@@ -1,130 +1,212 @@
-// Getekende gezichten van de computerspelers. Elk gezicht kan praten (bij het voorspellen),
-// blij kijken (goed voorspeld) en zielig kijken (nat).
+// Getekende gezichten: de computerspelers, Tineke en de gezichten die je zelf als plaatje kunt kiezen.
+// Elk gezicht kan praten (bij het voorspellen), blij kijken (goed voorspeld) en zielig kijken (nat);
+// dat regelt style.css met classes op de onderdelen (.mouth, .brow, .eyes, .tear, .head).
 
-const SKIN = { henk: "#E9B98F", truus: "#F2C9A5", kees: "#D9A27A", tineke: "#F6D2B8", ria: "#F4CFB4" };
+let uid = 0;
 
+/** Kleur een tint lichter (f > 0) of donkerder (f < 0). */
+function shade(hex, f) {
+  const n = parseInt(hex.slice(1), 16);
+  const ch = (v) => Math.round(Math.max(0, Math.min(255, f >= 0 ? v + (255 - v) * f : v * (1 + f))));
+  return `#${[(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => ch(v).toString(16).padStart(2, "0")).join("")}`;
+}
+
+// Kapsels: achter het hoofd (back) en ervoor (front). h = haarkleur, d = donkerder, l = lichter.
 const HAIR = {
-  // Henk: kale glimmende kruin met één zielige spriet, grijze plukken boven de oren
-  henk: `
-    <path d="M17 54 C13 40 18 30 26 27 C24 34 25 40 28 44 C22 44 20 50 22 56 Z" fill="#C9C4BC"/>
-    <path d="M83 54 C87 40 82 30 74 27 C76 34 75 40 72 44 C78 44 80 50 78 56 Z" fill="#C9C4BC"/>
-    <path d="M50 24 C46 14 54 10 58 15 C55 13 51 16 54 22" fill="none" stroke="#9E978D" stroke-width="2" stroke-linecap="round"/>
-    <ellipse cx="40" cy="31" rx="6" ry="3" fill="#FFFFFF" opacity=".45" transform="rotate(-20 40 31)"/>`,
-  // Truus: een enorme rode krullenbos met een strik
-  truus: `
-    <g fill="#D2552F">
-      <circle cx="28" cy="20" r="13"/><circle cx="45" cy="11" r="13"/><circle cx="62" cy="11" r="13"/>
-      <circle cx="77" cy="21" r="13"/><circle cx="16" cy="34" r="12"/><circle cx="86" cy="35" r="12"/>
-      <circle cx="11" cy="51" r="11"/><circle cx="90" cy="52" r="11"/><circle cx="12" cy="67" r="10"/><circle cx="89" cy="68" r="10"/>
-      <circle cx="16" cy="81" r="8"/><circle cx="85" cy="82" r="8"/>
+  none: () => ["", ""],
+  // Kaal met grijze plukken boven de oren
+  bald: (h, d, l) => ["", `
+    <path d="M21 58 C19 46 22 38 28 34 C27 42 28 48 30 52 C25 53 23 57 24 62 Z" fill="${h}"/>
+    <path d="M79 58 C81 46 78 38 72 34 C73 42 72 48 70 52 C75 53 77 57 76 62 Z" fill="${h}"/>
+    <ellipse cx="40" cy="27" rx="9" ry="4" fill="#FFFFFF" opacity=".28" transform="rotate(-18 40 27)"/>`],
+  short: (h, d, l) => ["", `
+    <path d="M22 50 C20 26 34 15 51 15 C68 15 81 26 78 50 C76 40 72 33 66 30 C58 34 44 35 33 31 C28 36 24 42 22 50 Z" fill="${h}"/>
+    <path d="M34 22 C44 18 58 18 68 23" fill="none" stroke="${l}" stroke-width="2" opacity=".5" stroke-linecap="round"/>`],
+  spiky: (h, d, l) => ["", `
+    <path d="M22 50 C20 34 24 24 30 20 L28 10 L38 17 L42 6 L49 15 L56 5 L60 16 L69 8 L69 19 L78 16 C80 26 80 38 78 50
+      C75 40 70 34 64 31 C56 34 44 34 34 31 C28 36 24 42 22 50 Z" fill="${h}"/>`],
+  // Lang los haar langs het gezicht
+  long: (h, d, l) => [`
+    <path d="M18 50 C14 22 34 10 50 10 C66 10 86 22 82 50 L86 92 C76 98 66 96 64 88 L36 88 C34 96 24 98 14 92 Z" fill="${d}"/>`, `
+    <path d="M22 52 C20 26 34 15 50 15 C66 15 82 26 78 52 C74 38 66 30 56 27 C50 34 38 38 28 40 C25 44 23 48 22 52 Z" fill="${h}"/>
+    <path d="M56 27 C64 33 72 40 76 50" fill="none" stroke="${l}" stroke-width="1.6" opacity=".55" stroke-linecap="round"/>`],
+  // Paardenstaart
+  ponytail: (h, d, l) => [`
+    <path d="M74 30 C92 34 94 58 86 74 C84 62 82 52 74 44 Z" fill="${d}"/>`, `
+    <path d="M22 50 C20 26 34 15 51 15 C68 15 81 26 78 48 C74 36 66 29 56 27 C48 30 36 32 27 38 C24 42 23 46 22 50 Z" fill="${h}"/>
+    <path d="M36 21 C44 18 54 18 62 21" fill="none" stroke="${l}" stroke-width="1.6" opacity=".5" stroke-linecap="round"/>`],
+  // Bobkapsel met pony (Tineke)
+  bob: (h, d, l) => [`
+    <path d="M16 58 C12 26 30 11 50 11 C70 11 88 26 84 58 L84 78 C78 82 72 82 70 78 L70 58 L30 58 L30 78 C28 82 22 82 16 78 Z" fill="${d}"/>`, `
+    <path d="M21 46 C21 23 38 15 51 15 C66 15 80 24 79 46 C71 38 61 34 50 36 C40 37 30 40 21 46 Z" fill="${h}"/>
+    <path d="M30 26 C38 21 50 20 62 23" fill="none" stroke="${l}" stroke-width="2" opacity=".5" stroke-linecap="round"/>`],
+  // Knotje bovenop
+  bun: (h, d, l) => [`<circle cx="50" cy="11" r="9" fill="${d}"/>`, `
+    <path d="M22 50 C20 26 34 16 51 16 C68 16 81 26 78 50 C76 38 70 31 62 28 C54 31 44 31 36 29 C29 34 24 41 22 50 Z" fill="${h}"/>
+    <path d="M30 34 C36 26 44 22 50 22 M70 34 C64 26 56 22 50 22" fill="none" stroke="${l}" stroke-width="1.5" opacity=".5"/>`],
+  // Een bos krullen
+  curly: (h, d, l) => [`
+    <g fill="${d}">
+      <circle cx="28" cy="22" r="13"/><circle cx="45" cy="13" r="13"/><circle cx="62" cy="13" r="13"/><circle cx="76" cy="23" r="13"/>
+      <circle cx="17" cy="36" r="12"/><circle cx="85" cy="37" r="12"/><circle cx="13" cy="52" r="11"/><circle cx="88" cy="53" r="11"/>
+      <circle cx="14" cy="68" r="10"/><circle cx="87" cy="69" r="10"/><circle cx="18" cy="82" r="8"/><circle cx="83" cy="83" r="8"/>
+    </g>`, `
+    <g fill="${h}">
+      <circle cx="30" cy="28" r="8"/><circle cx="41" cy="22" r="8"/><circle cx="53" cy="21" r="8"/><circle cx="64" cy="23" r="8"/>
+      <circle cx="73" cy="30" r="7"/><circle cx="24" cy="38" r="6"/><circle cx="77" cy="40" r="6"/>
     </g>
-    <g fill="#B8432A"><circle cx="36" cy="15" r="5"/><circle cx="68" cy="16" r="5"/><circle cx="20" cy="45" r="5"/></g>
-    <path d="M58 6 L70 0 L70 14 Z M58 6 L46 0 L46 14 Z" fill="#7E57C2"/><circle cx="58" cy="7" r="3.5" fill="#9575CD"/>`,
-  // Ria: een grijs-paarse permanent met een knotje erbovenop
-  ria: `
-    <circle cx="50" cy="10" r="8" fill="#A99BC4"/><circle cx="50" cy="10" r="4" fill="#9585B5"/>
-    <g fill="#B8ABD1">
-      <circle cx="26" cy="32" r="9"/><circle cx="36" cy="24" r="9"/><circle cx="50" cy="21" r="10"/>
-      <circle cx="64" cy="24" r="9"/><circle cx="74" cy="32" r="9"/><circle cx="21" cy="43" r="7"/><circle cx="79" cy="43" r="7"/>
+    <g fill="${l}" opacity=".45"><circle cx="38" cy="19" r="2.5"/><circle cx="58" cy="18" r="2.5"/><circle cx="70" cy="25" r="2"/></g>`],
+  // Afro
+  afro: (h, d, l) => [`<ellipse cx="50" cy="38" rx="42" ry="34" fill="${d}"/>`, `
+    <path d="M21 50 C18 30 32 20 50 20 C68 20 82 30 79 50 C74 40 66 34 50 34 C36 34 26 40 21 50 Z" fill="${h}"/>`],
+  // Permanent: kleine krulletjes rond het hoofd (Ria)
+  perm: (h, d, l) => [`<circle cx="50" cy="12" r="8" fill="${d}"/>`, `
+    <g fill="${h}">
+      <circle cx="26" cy="34" r="9"/><circle cx="36" cy="25" r="9"/><circle cx="50" cy="22" r="10"/>
+      <circle cx="64" cy="25" r="9"/><circle cx="74" cy="34" r="9"/><circle cx="21" cy="45" r="7"/><circle cx="79" cy="45" r="7"/>
     </g>
-    <g fill="#9F91BD"><circle cx="40" cy="27" r="3"/><circle cx="58" cy="25" r="3"/><circle cx="72" cy="35" r="3"/><circle cx="27" cy="36" r="3"/></g>`,
-  // Kees: pet achterstevoren met een pluk haar door het gat
-  kees: `
-    <path d="M44 18 C40 8 48 6 50 12 C52 4 60 6 56 18 Z" fill="#6B4226"/>
-    <path d="M21 40 C21 16 79 16 79 40 Z" fill="#2F6FDB"/>
-    <path d="M30 26 C36 22 44 21 50 21" fill="none" stroke="#5B92F0" stroke-width="3" stroke-linecap="round"/>
-    <rect x="15" y="36" width="70" height="7" rx="3.5" fill="#2459B8"/>
-    <path d="M70 40 L94 46 C95 49 92 51 89 50 L68 44 Z" fill="#2459B8"/>
-    <circle cx="50" cy="19" r="3" fill="#FFD54F"/>`,
+    <g fill="${d}" opacity=".6"><circle cx="40" cy="28" r="3"/><circle cx="58" cy="26" r="3"/><circle cx="72" cy="37" r="3"/><circle cx="27" cy="38" r="3"/></g>`],
+  // Pet achterstevoren met een pluk haar door het gat (Kees)
+  cap: (h, d, l, cap = "#2F6FDB") => ["", `
+    <path d="M45 20 C41 10 49 8 51 14 C53 6 61 8 57 20 Z" fill="${h}"/>
+    <path d="M20 42 C20 17 80 17 80 42 Z" fill="${cap}"/>
+    <path d="M30 27 C36 23 44 22 50 22" fill="none" stroke="${shade(cap, 0.3)}" stroke-width="3" stroke-linecap="round"/>
+    <rect x="15" y="38" width="70" height="7" rx="3.5" fill="${shade(cap, -0.2)}"/>
+    <path d="M70 42 L94 48 C95 51 92 53 89 52 L68 46 Z" fill="${shade(cap, -0.2)}"/>
+    <circle cx="50" cy="21" r="3" fill="#FFD54F"/>`],
 };
 
-// Tineke: blond bobkapsel met een pony
-const TINEKE_BACK = `<path d="M14 60 C10 26 30 10 50 10 C70 10 90 26 86 60 L86 80 C80 84 74 84 70 80 L70 56 L30 56 L30 80 C26 84 20 84 14 80 Z" fill="#E8C35A"/>`;
-const TINEKE_FRONT = `<path d="M22 44 C22 22 40 16 52 16 C66 16 80 24 78 44 C70 36 60 32 50 34 C42 36 32 38 22 44 Z" fill="#F0CF6C"/>`;
-
-// Grote stripogen: wit met een pupil die een beetje scheel kijkt
-const EYES = {
-  henk: { rx: 6.5, ry: 7, px: [1.5, -1.5], pr: 3.6 },
-  truus: { rx: 6, ry: 7.5, px: [1, 1], pr: 3.2 },
-  kees: { rx: 7, ry: 8, px: [2, -2.5], pr: 3.4 },
-  tineke: { rx: 5.5, ry: 6.5, px: [0.8, 0.8], pr: 3 },
-  ria: { rx: 6, ry: 6.5, px: [-1.2, -1.2], pr: 3.2 },
-};
-
-const EARS = { henk: [6, 8], truus: [5, 7], kees: [9, 11], tineke: [5, 7], ria: [5, 7] };
-
-const NOSE = {
-  henk: `<ellipse cx="50" cy="62" rx="8" ry="7" fill="#E07A6A"/><ellipse cx="47" cy="59.5" rx="2.4" ry="1.6" fill="#FFFFFF" opacity=".6"/>`,
-  truus: `<path d="M50 56 C47 62 46 65 50 66" fill="none" stroke="#C98E6B" stroke-width="2.2" stroke-linecap="round"/>`,
-  kees: `<ellipse cx="50" cy="63" rx="5" ry="4" fill="#C98660"/>`,
-  tineke: `<path d="M50 57 C48 61 48 63 51 64" fill="none" stroke="#D9A88A" stroke-width="2" stroke-linecap="round"/>`,
-  ria: `<path d="M50 55 C46 63 45 66 51 67" fill="none" stroke="#C99478" stroke-width="2.4" stroke-linecap="round"/>`,
-};
-
-const EXTRA = {
-  tineke: `
-    <circle cx="20" cy="66" r="3" fill="#FFFFFF" stroke="#D8D8D8"/><circle cx="80" cy="66" r="3" fill="#FFFFFF" stroke="#D8D8D8"/>`,
-  henk: `
-    <g class="glasses" fill="#FFFFFF" fill-opacity=".18" stroke="#2E2E2E" stroke-width="2.6">
-      <circle cx="38" cy="51" r="10"/><circle cx="62" cy="51" r="10"/><path d="M48 50 C49 48 51 48 52 50" fill="none"/>
+/**
+ * Een gezicht uit een beschrijving.
+ * p: {skin, hair, hairColor, eyes, brows, lips, lashes, glasses, beard, wrinkles, freckles, earrings, shirt, cap, nose}
+ */
+function drawFace(p) {
+  const id = `f${uid++}`;
+  const skin = p.skin;
+  const dark = shade(skin, -0.18);
+  const darker = shade(skin, -0.32);
+  const hair = p.hairColor ?? "#5A3B24";
+  const [back, front] = (HAIR[p.hair] ?? HAIR.short)(hair, shade(hair, -0.22), shade(hair, 0.35), p.cap);
+  const lips = p.lips ?? shade(skin, -0.38);
+  const brow = p.brows ?? shade(hair, -0.1);
+  const iris = p.eyes ?? "#6B4A2E";
+  const lash = p.lashes ? `<path d="M30 49 C33 46 39 45 44 48 M30 49 L28 47 M56 48 C61 45 67 46 70 49 M70 49 L72 47" fill="none" stroke="#2A1E18" stroke-width="1.4" stroke-linecap="round"/>` : "";
+  const eye = (cx) => `
+      <path d="M${cx - 7} 52 C${cx - 4} 47.5 ${cx + 4} 47.5 ${cx + 7} 52 C${cx + 4} 55.5 ${cx - 4} 55.5 ${cx - 7} 52 Z" fill="#FBFBF8"/>
+      <circle cx="${cx}" cy="52" r="3.3" fill="${iris}"/><circle cx="${cx}" cy="52" r="1.6" fill="#1B1410"/>
+      <circle cx="${cx - 1}" cy="50.9" r=".9" fill="#FFFFFF"/>
+      <path d="M${cx - 7.2} 51.6 C${cx - 4} 47 ${cx + 4} 47 ${cx + 7.2} 51.6" fill="none" stroke="#3A2A22" stroke-width="1.3" stroke-linecap="round"/>`;
+  const glasses = p.glasses ? `
+    <g class="glasses" fill="#FFFFFF" fill-opacity=".12" stroke="${p.glasses}" stroke-width="2">
+      <rect x="28" y="45" width="19" height="14" rx="6"/><rect x="53" y="45" width="19" height="14" rx="6"/>
+      <path d="M47 50 C49 48.5 51 48.5 53 50" fill="none"/><path d="M28 50 L21 48 M72 50 L79 48" fill="none"/>
+    </g>` : "";
+  const beard = p.beard === "full" ? `
+    <path d="M23 60 C24 82 38 94 50 94 C62 94 76 82 77 60 C72 72 66 76 60 74 C56 72 44 72 40 74 C34 76 28 72 23 60 Z" fill="${p.beardColor ?? hair}"/>
+    <path d="M38 70 C44 66 56 66 62 70 C58 69 54 70 50 71 C46 70 42 69 38 70 Z" fill="${shade(p.beardColor ?? hair, -0.15)}"/>`
+    : p.beard === "moustache" ? `
+    <path class="moustache" d="M33 71 C37 65 45 65 50 69 C55 65 63 65 67 71 C68 74 64 75 62 73 C58 70 54 71 50 72 C46 71 42 70 38 73 C36 75 32 74 33 71 Z" fill="${p.beardColor ?? hair}"/>`
+    : p.beard === "stubble" ? `
+    <path d="M26 64 C28 80 40 90 50 90 C60 90 72 80 74 64 C70 74 62 80 50 80 C38 80 30 74 26 64 Z" fill="${p.beardColor ?? hair}" opacity=".22"/>
+    <path d="M38 71 C44 68 56 68 62 71" fill="none" stroke="${p.beardColor ?? hair}" stroke-width="3" opacity=".25" stroke-linecap="round"/>` : "";
+  const wrinkles = p.wrinkles ? `
+    <g fill="none" stroke="${darker}" stroke-width=".9" stroke-linecap="round" opacity=".55">
+      <path d="M36 33 C44 31 56 31 64 33"/><path d="M38 37 C45 35.5 55 35.5 62 37"/>
+      <path d="M23 52 C24 55 26 56 27 56 M77 52 C76 55 74 56 73 56"/>
+      <path d="M36 64 C34 69 35 72 38 75 M64 64 C66 69 65 72 62 75"/>
+    </g>` : "";
+  const freckles = p.freckles ? `<g fill="${darker}" opacity=".45">
+      <circle cx="33" cy="61" r=".9"/><circle cx="36" cy="63" r=".9"/><circle cx="39" cy="60.5" r=".9"/><circle cx="35" cy="59" r=".8"/>
+      <circle cx="61" cy="60.5" r=".9"/><circle cx="64" cy="63" r=".9"/><circle cx="67" cy="61" r=".9"/><circle cx="65" cy="59" r=".8"/></g>` : "";
+  const earrings = p.earrings ? `<g fill="${p.earrings}" stroke="${shade(p.earrings, -0.3)}" stroke-width=".6">
+      <circle cx="19" cy="69" r="2.6"/><circle cx="81" cy="69" r="2.6"/></g>` : "";
+  const nose = p.nose === "big"
+    ? `<path d="M49 55 C45 62 41 66 44 69 C47 71 53 71 56 69 C59 66 55 62 51 55" fill="${dark}" opacity=".55"/>
+       <ellipse cx="50" cy="66" rx="7.5" ry="5.5" fill="${shade(skin, 0.05)}"/><ellipse cx="47.5" cy="64" rx="2.2" ry="1.3" fill="#FFFFFF" opacity=".5"/>
+       <path d="M44 68 C45.5 69.5 47 69.5 47.5 68.5 M56 68 C54.5 69.5 53 69.5 52.5 68.5" fill="none" stroke="${darker}" stroke-width="1" stroke-linecap="round"/>`
+    : `<path d="M50 54 C48.5 59 46.5 63 46.5 65 C46.5 67 48 67.5 50 67.5 C52 67.5 53.5 67 53.5 65" fill="none" stroke="${dark}" stroke-width="1.5" stroke-linecap="round"/>
+       <path d="M45.5 66.5 C46.5 67.5 47.5 67.5 48 67 M54.5 66.5 C53.5 67.5 52.5 67.5 52 67" fill="none" stroke="${darker}" stroke-width="1" stroke-linecap="round"/>
+       <ellipse cx="50" cy="61" rx="1.5" ry="3" fill="#FFFFFF" opacity=".18"/>`;
+  const teeth = `<path class="teeth" d="M41 76.5 C46 78.5 54 78.5 59 76.5 L58 79.5 C54 80.5 46 80.5 42 79.5 Z" fill="#FFFFFF"/>`;
+  return `
+<svg class="face-svg" viewBox="0 0 100 100" aria-hidden="true">
+  <defs>
+    <radialGradient id="${id}s" cx="45%" cy="40%" r="62%"><stop offset="0" stop-color="${shade(skin, 0.12)}"/><stop offset=".7" stop-color="${skin}"/><stop offset="1" stop-color="${dark}"/></radialGradient>
+    <linearGradient id="${id}n" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${darker}"/><stop offset="1" stop-color="${dark}"/></linearGradient>
+    <clipPath id="${id}c"><circle cx="50" cy="50" r="48"/></clipPath>
+  </defs>
+  <g clip-path="url(#${id}c)">
+    <path d="M10 104 C12 90 26 84 38 82 L62 82 C74 84 88 90 90 104 Z" fill="${p.shirt ?? "#546E7A"}"/>
+    <path d="M38 82 C42 88 58 88 62 82" fill="none" stroke="${shade(p.shirt ?? "#546E7A", -0.25)}" stroke-width="2"/>
+  </g>
+  <g class="head">
+    ${back}
+    <path d="M40 76 L40 86 C44 89 56 89 60 86 L60 76 Z" fill="url(#${id}n)"/>
+    <ellipse cx="21" cy="58" rx="5" ry="8" fill="${dark}"/><ellipse cx="79" cy="58" rx="5" ry="8" fill="${dark}"/>
+    <ellipse cx="21.5" cy="58" rx="2.4" ry="4.5" fill="${darker}" opacity=".5"/><ellipse cx="78.5" cy="58" rx="2.4" ry="4.5" fill="${darker}" opacity=".5"/>
+    <path d="M23 50 C23 30 35 20 50 20 C65 20 77 30 77 50 C77 66 72 78 62 85 C56 89 44 89 38 85 C28 78 23 66 23 50 Z" fill="url(#${id}s)"/>
+    ${wrinkles}${freckles}
+    <g class="cheeks" fill="#E57373" opacity=".22"><ellipse cx="31" cy="65" rx="6" ry="4"/><ellipse cx="69" cy="65" rx="6" ry="4"/></g>
+    ${beard}
+    ${front}
+    <g class="brows" stroke="${brow}" stroke-width="${p.thickBrows ? 3.4 : 2.2}" stroke-linecap="round" fill="none">
+      <path class="brow l" d="M30 43 Q37 39.5 44 42"/><path class="brow r" d="M56 42 Q63 39.5 70 43"/>
     </g>
-    <path class="moustache" d="M30 72 C34 64 44 64 50 69 C56 64 66 64 70 72 C72 76 66 78 64 74 C60 70 54 72 50 73 C46 72 40 70 36 74 C34 78 28 76 30 72 Z" fill="#E6E2DC" stroke="#B5AEA4" stroke-width="1"/>`,
-  truus: `
-    <g stroke="#2B2B2B" stroke-width="1.8" stroke-linecap="round">
-      <path d="M31 46 L28 42 M34 44.5 L33 40 M37.5 44 L38 39.5"/><path d="M69 46 L72 42 M66 44.5 L67 40 M62.5 44 L62 39.5"/>
-    </g>
-    <circle cx="65" cy="68" r="1.4" fill="#5A3A2A"/>
-    <g fill="#FFD54F" stroke="#E0A800" stroke-width="1"><circle cx="19" cy="68" r="4.5"/><circle cx="81" cy="68" r="4.5"/></g>`,
-  ria: `
-    <g fill="none" stroke="#C2185B" stroke-width="2.2"><circle cx="38" cy="51" r="9.5"/><circle cx="62" cy="51" r="9.5"/><path d="M47.5 50 h5"/></g>
-    <g fill="#FFFFFF" stroke="#D6D0C4" stroke-width=".6"><circle cx="34" cy="90" r="2.6"/><circle cx="40" cy="92" r="2.6"/><circle cx="46" cy="93" r="2.6"/>
-      <circle cx="52" cy="93" r="2.6"/><circle cx="58" cy="92" r="2.6"/><circle cx="64" cy="90" r="2.6"/></g>
-    <g fill="#E91E63"><circle cx="19" cy="68" r="3.5"/><circle cx="81" cy="68" r="3.5"/></g>`,
-  kees: `
-    <g fill="#B87A55" opacity=".6"><circle cx="31" cy="64" r="1.3"/><circle cx="35" cy="67" r="1.3"/><circle cx="38" cy="63" r="1.3"/>
-      <circle cx="62" cy="63" r="1.3"/><circle cx="65" cy="67" r="1.3"/><circle cx="69" cy="64" r="1.3"/></g>`,
+    <g class="eyes">${eye(37)}${eye(63)}${lash}</g>
+    ${nose}
+    ${glasses}${earrings}
+    <path class="mouth smile" d="M40 75 C45 79 55 79 60 75 C56 77.5 44 77.5 40 75 Z" fill="${lips}" stroke="${lips}" stroke-width="1.6" stroke-linejoin="round"/>
+    <g class="mouth grin"><path d="M38 73.5 C44 76 56 76 62 73.5 C60 82 54 85 50 85 C46 85 40 82 38 73.5 Z" fill="#5A1F1A"/>
+      <path d="M40 74.5 C46 76.5 54 76.5 60 74.5 L59 77.5 C54 78.5 46 78.5 41 77.5 Z" fill="#FFFFFF"/>
+      <path d="M38 73.5 C44 76 56 76 62 73.5" fill="none" stroke="${lips}" stroke-width="1.8" stroke-linecap="round"/></g>
+    ${p.teeth ? teeth : ""}
+    <g class="mouth talk"><ellipse cx="50" cy="77.5" rx="6" ry="4.6" fill="#5A1F1A"/><path d="M45 74.6 C48 74 52 74 55 74.6 L54.4 76.2 C51 75.6 49 75.6 45.6 76.2 Z" fill="#FFFFFF"/>
+      <ellipse cx="50" cy="77.5" rx="6" ry="4.6" fill="none" stroke="${lips}" stroke-width="1.6"/></g>
+    <path class="mouth frown" d="M41 79 C45 74.5 55 74.5 59 79" fill="none" stroke="${lips}" stroke-width="2.2" stroke-linecap="round"/>
+    <path class="tear" d="M30 57 C28 61 27 63 27 65 A3 3 0 0 0 33 65 C33 63 32 61 30 57 Z" fill="#64B5F6" opacity=".9"/>
+  </g>
+</svg>`;
+}
+
+// De vaste karakters aan tafel
+const PEOPLE = {
+  // Henk: rustige oude heer, kaal met grijze plukken, bril en snor
+  henk: { skin: "#E6B48C", hair: "bald", hairColor: "#C9C4BC", brows: "#B9B1A6", thickBrows: true, eyes: "#5B7A8C",
+    glasses: "#2E2E2E", beard: "moustache", beardColor: "#DDD8D0", wrinkles: true, nose: "big", shirt: "#8D6E63" },
+  // Truus: uitbundig, rode krullenbos, wimpers, oorbellen
+  truus: { skin: "#F2C9A5", hair: "curly", hairColor: "#D2552F", brows: "#9C3D22", eyes: "#3F8A5A", lashes: true,
+    lips: "#C2185B", earrings: "#FFD54F", freckles: true, shirt: "#AB47BC" },
+  // Kees: brutaal, pet achterstevoren, stoppelbaard
+  kees: { skin: "#D9A27A", hair: "cap", hairColor: "#6B4226", cap: "#2F6FDB", brows: "#4A3020", thickBrows: true,
+    eyes: "#5C3B22", beard: "stubble", beardColor: "#4A3020", teeth: true, shirt: "#E53935" },
+  // Ria: gezellige oma met een paarsgrijze permanent en een roze bril
+  ria: { skin: "#F4CFB4", hair: "perm", hairColor: "#B8ABD1", brows: "#9C90B5", eyes: "#6E8FB5", lashes: true,
+    glasses: "#C2185B", lips: "#D84367", earrings: "#E91E63", wrinkles: true, shirt: "#EC8FB0" },
+  // Tineke: de uitleg, blond bobkapsel
+  tineke: { skin: "#F6D2B8", hair: "bob", hairColor: "#E8C35A", brows: "#B8913A", eyes: "#4F86C6", lashes: true,
+    lips: "#D0476A", earrings: "#FFFFFF", shirt: "#26A69A" },
 };
 
-const LIPS = { henk: "#7A3B2E", truus: "#D81B60", kees: "#7A3B2E", tineke: "#D0476A", ria: "#E53950" };
+/** Gezichten die je zelf als plaatje kunt kiezen. */
+export const PERSONS = {
+  p1: { skin: "#F1C6A3", hair: "short", hairColor: "#6B4426", eyes: "#4F7FA8", shirt: "#3F6FB5" },
+  p2: { skin: "#F6D5BC", hair: "long", hairColor: "#E3C16F", eyes: "#4F86C6", lashes: true, lips: "#C9566A", shirt: "#E07A5F" },
+  p3: { skin: "#8D5A3B", hair: "short", hairColor: "#1E1612", eyes: "#3B2416", beard: "full", beardColor: "#1E1612", shirt: "#2A9D8F" },
+  p4: { skin: "#7A4B30", hair: "afro", hairColor: "#21170F", eyes: "#3B2416", lashes: true, lips: "#7A2E36", earrings: "#FFD54F", shirt: "#F4A261" },
+  p5: { skin: "#E8B996", hair: "short", hairColor: "#BDBDBD", eyes: "#5B7A8C", glasses: "#3E3E3E", beard: "full", beardColor: "#D6D6D6", wrinkles: true, shirt: "#6D4C41" },
+  p6: { skin: "#EDBE98", hair: "ponytail", hairColor: "#7A4A26", eyes: "#3F8A5A", lashes: true, lips: "#B84A5E", freckles: true, shirt: "#8E7CC3" },
+  p7: { skin: "#F3CBAA", hair: "spiky", hairColor: "#E6C25C", eyes: "#4F86C6", shirt: "#43A047" },
+  p8: { skin: "#EFCBA6", hair: "bob", hairColor: "#1F1A17", eyes: "#3B2A1E", lashes: true, lips: "#C2185B", shirt: "#E53935" },
+  p9: { skin: "#C98E66", hair: "bald", hairColor: "#3A2A20", eyes: "#4A3020", beard: "full", beardColor: "#2E2018", shirt: "#455A64" },
+  p10: { skin: "#F2CDB2", hair: "bun", hairColor: "#CFCFCF", eyes: "#6E8FB5", lashes: true, glasses: "#7B5BA6", wrinkles: true, lips: "#C2566E", shirt: "#5C6BC0" },
+  p11: { skin: "#F7D7C2", hair: "long", hairColor: "#B5462A", eyes: "#3F8A5A", lashes: true, freckles: true, lips: "#C2185B", shirt: "#26A69A" },
+  p12: { skin: "#B47A55", hair: "curly", hairColor: "#2A1C14", eyes: "#3B2416", beard: "stubble", beardColor: "#2A1C14", shirt: "#FFB300" },
+};
 
 /** SVG van een gezicht; de toestand (praten, blij, zielig) wordt met een class op het element gezet. */
 export function faceSvg(who) {
-  if (!EYES[who]) return initialSvg("?");
-  const skin = SKIN[who];
-  const lips = LIPS[who];
-  const e = EYES[who];
-  const [earX, earY] = EARS[who];
-  const lipWidth = who === "truus" ? 4.2 : 3;
-  // Kees heeft twee grote voortanden die je ziet als hij lacht
-  const teeth = who === "kees" ? `<path class="teeth" d="M45.5 77 h9 v5.5 a1 1 0 0 1 -1 1 h-3 v-3 h-1 v3 h-3 a1 1 0 0 1 -1 -1 Z" fill="#FFFFFF" stroke="#C9C9C9" stroke-width=".6"/>` : "";
-  return `
-<svg class="face-svg" viewBox="0 0 100 100" aria-hidden="true">
-  <g class="head">
-    ${who === "truus" ? HAIR.truus : ""}${who === "tineke" ? TINEKE_BACK : ""}
-    <ellipse cx="${50 - 30 - earX / 2}" cy="58" rx="${earX}" ry="${earY}" fill="${skin}"/>
-    <ellipse cx="${50 + 30 + earX / 2}" cy="58" rx="${earX}" ry="${earY}" fill="${skin}"/>
-    <ellipse cx="50" cy="56" rx="30" ry="33" fill="${skin}"/>
-    ${who === "truus" || who === "tineke" ? "" : HAIR[who] ?? ""}${who === "tineke" ? TINEKE_FRONT : ""}
-    <g class="brows" stroke="${who === "henk" ? "#BDB6AC" : "#5A4636"}" stroke-width="${who === "henk" ? 4.5 : 2.8}" stroke-linecap="round">
-      <path class="brow l" d="M30 ${who === "henk" ? 38 : 41} Q37 ${who === "henk" ? 34 : 38} 44 40"/><path class="brow r" d="M56 40 Q63 ${who === "henk" ? 34 : 38} 70 ${who === "henk" ? 38 : 41}"/>
-    </g>
-    <g class="eyes">
-      <ellipse cx="38" cy="51" rx="${e.rx}" ry="${e.ry}" fill="#FFFFFF" stroke="#3A3A3A" stroke-width="1"/>
-      <ellipse cx="62" cy="51" rx="${e.rx}" ry="${e.ry}" fill="#FFFFFF" stroke="#3A3A3A" stroke-width="1"/>
-      <circle cx="${38 + e.px[0]}" cy="52" r="${e.pr}" fill="#2B2B2B"/><circle cx="${62 + e.px[1]}" cy="52" r="${e.pr}" fill="#2B2B2B"/>
-      <circle cx="${37 + e.px[0]}" cy="50.5" r="1.1" fill="#FFFFFF"/><circle cx="${61 + e.px[1]}" cy="50.5" r="1.1" fill="#FFFFFF"/>
-    </g>
-    <g class="cheeks" fill="#E57373" opacity=".4"><circle cx="28" cy="65" r="5.5"/><circle cx="72" cy="65" r="5.5"/></g>
-    ${NOSE[who]}
-    ${EXTRA[who]}
-    <path class="mouth smile" d="M38 76 Q50 84 62 76" fill="none" stroke="${lips}" stroke-width="${lipWidth}" stroke-linecap="round"/>
-    <path class="mouth grin" d="M35 73 Q50 92 65 73 Z" fill="${lips}"/>
-    ${teeth}
-    <ellipse class="mouth talk" cx="50" cy="78" rx="6.5" ry="5.5" fill="${lips}"/>
-    <path class="mouth frown" d="M39 82 Q50 73 61 82" fill="none" stroke="${lips}" stroke-width="${lipWidth}" stroke-linecap="round"/>
-    <path class="tear" d="M31 58 C29 62 28 64 28 66 A3 3 0 0 0 34 66 C34 64 33 62 31 58 Z" fill="#64B5F6"/>
-  </g>
-</svg>`;
+  const p = PEOPLE[who] ?? PERSONS[who];
+  return p ? drawFace(p) : initialSvg("?");
 }
 
 /** Avatar voor de mens: een cirkel met de eerste letter van de naam. */
@@ -137,7 +219,7 @@ export function initialSvg(name) {
   </svg>`;
 }
 
-/** Avatar met een gekozen emoji. */
+/** Avatar met een emoji (van oudere versies, die nog emoji's als plaatje hadden). */
 export function emojiSvg(emoji) {
   return `<svg class="face-svg" viewBox="0 0 100 100" aria-hidden="true">
     <circle cx="50" cy="50" r="46" fill="#2F6B4F"/>
@@ -145,12 +227,11 @@ export function emojiSvg(emoji) {
   </svg>`;
 }
 
-const SHIRT = { henk: "#8D6E63", truus: "#AB47BC", kees: "#E53935", tineke: "#26A69A", ria: "#EC8FB0" };
-
 /** Lijf voor het juichende poppetje van de winnaar: armen omhoog, benen die meespringen. */
 export function puppetBodySvg(who) {
-  const skin = SKIN[who] ?? "#F2C9A5";
-  const shirt = SHIRT[who] ?? "#FFC94D";
+  const p = PEOPLE[who] ?? PERSONS[who];
+  const skin = p?.skin ?? "#F2C9A5";
+  const shirt = p?.shirt ?? "#FFC94D";
   const pants = who === "truus" ? "#5E35B1" : who === "ria" ? "#6D4C41" : "#37474F";
   const arm = (side) => {
     const x = side === "l" ? 30 : 70;
