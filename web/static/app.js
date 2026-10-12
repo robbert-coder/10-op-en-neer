@@ -2230,9 +2230,41 @@ const clientId = () => {
 
 /** In de Android-app draait de website vanuit de app zelf; gedeelde links wijzen dan naar de echte website. */
 const nativeApp = window.TienApp ?? null;
-const APP_VERSION = "2.15";
+const APP_VERSION = "2.16";
 const SITE_URL = "https://robbert-coder.github.io/10-op-en-neer/";
 const tableLink = (code) => `${nativeApp ? SITE_URL : location.origin + location.pathname}?spel=${code}`;
+
+/** "v2.16" tegenover "2.15": is de eerste nieuwer? */
+function isNewerVersion(tag, installed) {
+  const parts = (v) => String(v).replace(/^v/, "").split(".").map((n) => parseInt(n, 10) || 0);
+  const a = parts(tag), b = parts(installed);
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    if ((a[i] ?? 0) !== (b[i] ?? 0)) return (a[i] ?? 0) > (b[i] ?? 0);
+  }
+  return false;
+}
+
+/**
+ * In de app (die als losse APK geïnstalleerd kan zijn) kijken we op GitHub of er een nieuwere
+ * versie is; dan komt er een knop in het menu om die te downloaden. De website werkt zichzelf al bij.
+ */
+async function checkForUpdate() {
+  if (!nativeApp && !new URLSearchParams(location.search).has("updatecheck")) return;
+  try {
+    const res = await fetch("https://api.github.com/repos/robbert-coder/10-op-en-neer/releases/latest", { headers: { Accept: "application/vnd.github+json" } });
+    if (!res.ok) return;
+    const rel = await res.json();
+    const installed = nativeApp?.appVersion?.() ?? APP_VERSION;
+    if (!rel.tag_name || !isNewerVersion(rel.tag_name, installed)) return;
+    const apk = (rel.assets ?? []).find((a) => a.name?.endsWith(".apk"));
+    const banner = $("#update-banner");
+    banner.href = apk?.browser_download_url ?? rel.html_url;
+    banner.innerHTML = `Nieuwe versie ${esc(rel.tag_name.replace(/^v/, ""))} beschikbaar<small>Tik om te downloaden en daarna te installeren</small>`;
+    banner.hidden = false;
+  } catch {
+    // Geen internet: dan later nog eens
+  }
+}
 
 function netEvents() {
   return {
@@ -2917,6 +2949,7 @@ if (joinCode.length === 5 && !(online?.code === joinCode)) {
 }
 
 $("#install-hint").hidden = !(isIOS && !standalone);
+checkForUpdate();
 
 if ("serviceWorker" in navigator && location.protocol === "https:" && !nativeApp) {
   navigator.serviceWorker.register("sw.js").catch(() => { /* bijvoorbeeld in een voorbeeldweergave */ });

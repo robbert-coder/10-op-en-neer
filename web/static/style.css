@@ -88,6 +88,9 @@ h1 { font-size: 38px; margin: 18px 0 0; letter-spacing: -.5px; text-wrap: balanc
 .buttons > button { font-size: 18px; padding: 15px; }
 .button-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .button-row button { font-size: 14px; padding: 12px 4px; }
+.update-banner { display: block; margin-top: 18px; padding: 10px 16px; border-radius: 12px; background: var(--gold); color: #1C120C; font-weight: 600; text-decoration: none; max-width: 380px; line-height: 1.35; }
+.update-banner[hidden] { display: none; }
+.update-banner small { display: block; font-weight: 400; }
 .install-hint { color: var(--gold); font-size: 13px; max-width: 380px; margin-top: 20px; line-height: 1.4; }
 .credits { color: var(--muted); opacity: .8; font-size: 11px; margin-top: 26px; }
 

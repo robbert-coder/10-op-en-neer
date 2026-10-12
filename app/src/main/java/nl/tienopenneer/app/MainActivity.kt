@@ -182,6 +182,7 @@ class MainActivity : ComponentActivity() {
         })
 
         if (savedInstanceState == null || !restoreWeb(savedInstanceState)) web.loadUrl(startUrl(intent))
+        UpdateCheck.schedule(this)
     }
 
     private fun restoreWeb(state: Bundle): Boolean = web.restoreState(state) != null
@@ -273,6 +274,10 @@ class MainActivity : ComponentActivity() {
         fun clearNotification() {
             runOnUiThread { NotificationManagerCompat.from(this@MainActivity).cancel(TURN_NOTIFICATION) }
         }
+
+        /** De geïnstalleerde versie van de app, bv. "2.15". */
+        @JavascriptInterface
+        fun appVersion(): String = UpdateCheck.installedVersion(this@MainActivity)
 
         @JavascriptInterface
         fun copy(text: String) {
