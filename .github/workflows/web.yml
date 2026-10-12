@@ -27,6 +27,13 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      - name: Versienummers van app en website gelijk
+        run: |
+          web=$(sed -n 's/^const APP_VERSION = "\(.*\)";/\1/p' web/static/app.js)
+          app=$(sed -n 's/^ *versionName = "\(.*\)"/\1/p' app/build.gradle.kts)
+          echo "website $web, app $app"
+          [ -n "$web" ] && [ "$web" = "$app" ]
+
       - name: Website bouwen
         run: ./gradlew :web:site
 
