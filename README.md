@@ -13,14 +13,12 @@ Deze app is een port van het Windows-spel [10 op en neer](https://sourceforge.ne
 - Aan het einde stuiteren de kaarten over het scherm en springt de winnaar juichend uit het bord, bij een wapperende Nederlandse vlag
 - De helpster Tineke, die uitlegt hoe het spel werkt
 - Scorelijst, laatste slag bekijken, tips, highscores per variant
-- De originele geluidjes (slag te veel, slag te weinig, goed voorspeld, medespeler nat, applaus), uit te zetten bij Instellingen
+- Geluidjes (slag te veel, slag te weinig, goed voorspeld, medespeler nat, fanfare en applaus), uit te zetten bij Instellingen
 - Het spel wordt automatisch bewaard; je kunt altijd verder waar je gebleven was
 
-Nog niet overgezet: statistieken.
+De geluidjes in `web/static/sounds/` zijn zelf gemaakt met klanksynthese (`tools/geluiden.py`); er zitten geen opnames van anderen in.
 
-De geluiden in `web/static/sounds/` komen deels uit het installatieprogramma van het origineel. Een deel ervan lijkt afkomstig uit oude Windows-geluidspakketten; controleer de rechten voordat je de app openbaar verspreidt.
-
-De uitgesproken voorspellingen (`bod_*.mp3`, `nat_*.mp3`) zijn gemaakt met de Piper-stemmen nl_NL-pim, nl_NL-ronnie, nl_BE-nathalie en nl_BE-rdh (CC0).
+De uitgesproken voorspellingen (`bod_*.mp3`, `nat_*.mp3`, `tools/stemmen.py`) zijn gemaakt met de Piper-stemmen nl_NL-pim, nl_NL-ronnie, nl_BE-nathalie en nl_BE-rdh (CC0).
 
 ## Webversie (iPhone en iPad)
 

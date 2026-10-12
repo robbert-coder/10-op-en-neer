@@ -1,6 +1,7 @@
 // Wat de spelers zeggen bij hun voorspelling en als ze nat gaan. Bij elke tekst hoort een geluid:
-// sounds/bod_<speler>_<bod>_<variant>.mp3 en sounds/nat_<speler>_<variant>.mp3.
-// Variant 0 is alleen het getal; die wordt het vaakst gekozen.
+// sounds/bod_<speler>_<bod>_<variant>.mp3 en sounds/nat_<speler>_<variant>.mp3, gemaakt met Piper-stemmen (CC0).
+// Variant 0 is alleen het getal; die wordt het vaakst gekozen. Voorspellingen zijn kort en rijmen niet;
+// bij nat gaan balt elke computerspeler op zijn eigen manier.
 
 export const BID_LINES = {
  "speler": [
@@ -78,246 +79,337 @@ export const BID_LINES = {
  "henk": [
   [
    "Nul.",
-   "Niks. Ik kijk wel even.",
-   "Nul. Ik hou me koest."
+   "Nul, denk ik.",
+   "Doe maar nul."
   ],
   [
    "Eén.",
-   "Doe mij maar één.",
-   "Ik denk één. Ja, één."
+   "Eén, denk ik.",
+   "Doe maar één."
   ],
   [
    "Twee.",
-   "Eens kijken... Twee.",
-   "Hmm, twee slagen, denk ik."
+   "Twee, denk ik.",
+   "Doe maar twee."
   ],
   [
    "Drie.",
-   "Hmm. Laat eens kijken. Drie.",
-   "Rustig aan. Drie."
+   "Drie, denk ik.",
+   "Doe maar drie."
   ],
   [
    "Vier.",
-   "Doe mij maar vier.",
-   "Ik denk vier. Ja, vier."
+   "Vier, denk ik.",
+   "Doe maar vier."
   ],
   [
    "Vijf.",
-   "Eens kijken... Vijf.",
-   "Hmm, vijf slagen, denk ik."
+   "Vijf, denk ik.",
+   "Doe maar vijf."
   ],
   [
    "Zes.",
-   "Hmm. Laat eens kijken. Zes.",
-   "Rustig aan. Zes."
+   "Zes, denk ik.",
+   "Doe maar zes."
   ],
   [
    "Zeven.",
-   "Doe mij maar zeven.",
-   "Ik denk zeven. Ja, zeven."
+   "Zeven, denk ik.",
+   "Doe maar zeven."
   ],
   [
    "Acht.",
-   "Eens kijken... Acht.",
-   "Hmm, acht slagen, denk ik."
+   "Acht, denk ik.",
+   "Doe maar acht."
   ],
   [
    "Negen.",
-   "Hmm. Laat eens kijken. Negen.",
-   "Rustig aan. Negen."
+   "Negen, denk ik.",
+   "Doe maar negen."
   ],
   [
    "Tien.",
-   "Doe mij maar tien.",
-   "Ik denk tien. Ja, tien."
+   "Tien, denk ik.",
+   "Doe maar tien."
   ],
   [
    "Elf.",
-   "Eens kijken... Elf.",
-   "Hmm, elf slagen, denk ik."
+   "Elf, denk ik.",
+   "Doe maar elf."
   ],
   [
    "Twaalf.",
-   "Hmm. Laat eens kijken. Twaalf.",
-   "Rustig aan. Twaalf."
+   "Twaalf, denk ik.",
+   "Doe maar twaalf."
   ],
   [
    "Dertien.",
-   "Doe mij maar dertien.",
-   "Ik denk dertien. Ja, dertien."
+   "Dertien, denk ik.",
+   "Doe maar dertien."
   ]
  ],
  "truus": [
   [
-   "Nul.",
-   "Nul! Ik hou me netjes.",
-   "Oei, nul hoor."
+   "Nul!",
+   "Ik zeg nul!",
+   "Nul, hoor."
   ],
   [
-   "Eén.",
-   "Eén, gezellig!",
-   "Komaan, één!"
+   "Eén!",
+   "Ik zeg één!",
+   "Eén, hoor."
   ],
   [
-   "Twee.",
-   "Twee, schat!",
-   "Ik zeg twee, en daar blijf ik bij!"
+   "Twee!",
+   "Ik zeg twee!",
+   "Twee, hoor."
   ],
   [
-   "Drie.",
-   "Oeh, drie!",
-   "Ik ga voor drie!"
+   "Drie!",
+   "Ik zeg drie!",
+   "Drie, hoor."
   ],
   [
-   "Vier.",
-   "Vier, gezellig!",
-   "Komaan, vier!"
+   "Vier!",
+   "Ik zeg vier!",
+   "Vier, hoor."
   ],
   [
    "Vijf!",
-   "Vijf, schat!",
-   "Ik zeg vijf, en daar blijf ik bij!"
+   "Ik zeg vijf!",
+   "Vijf, hoor."
   ],
   [
    "Zes!",
-   "Oeh, zes!",
-   "Ik ga voor zes!"
+   "Ik zeg zes!",
+   "Zes, hoor."
   ],
   [
    "Zeven!",
-   "Zeven, gezellig!",
-   "Komaan, zeven!"
+   "Ik zeg zeven!",
+   "Zeven, hoor."
   ],
   [
    "Acht!",
-   "Acht, schat!",
-   "Ik zeg acht, en daar blijf ik bij!"
+   "Ik zeg acht!",
+   "Acht, hoor."
   ],
   [
    "Negen!",
-   "Oeh, negen!",
-   "Ik ga voor negen!"
+   "Ik zeg negen!",
+   "Negen, hoor."
   ],
   [
    "Tien!",
-   "Tien, gezellig!",
-   "Komaan, tien!"
+   "Ik zeg tien!",
+   "Tien, hoor."
   ],
   [
    "Elf!",
-   "Elf, schat!",
-   "Ik zeg elf, en daar blijf ik bij!"
+   "Ik zeg elf!",
+   "Elf, hoor."
   ],
   [
    "Twaalf!",
-   "Oeh, twaalf!",
-   "Ik ga voor twaalf!"
+   "Ik zeg twaalf!",
+   "Twaalf, hoor."
   ],
   [
    "Dertien!",
-   "Dertien, gezellig!",
-   "Komaan, dertien!"
+   "Ik zeg dertien!",
+   "Dertien, hoor."
   ]
  ],
  "kees": [
   [
-   "Nul.",
-   "Nul. Slim, toch?",
-   "Nul. Ik laat jullie maar."
+   "Nul!",
+   "Gewoon nul.",
+   "Nul, man."
   ],
   [
-   "Eén.",
-   "Let op: één.",
-   "Eén. Kom maar op!"
+   "Eén!",
+   "Gewoon één.",
+   "Eén, man."
   ],
   [
-   "Twee.",
-   "Yes, twee!",
-   "Twee. Eitje."
+   "Twee!",
+   "Gewoon twee.",
+   "Twee, man."
   ],
   [
-   "Drie.",
-   "Drie. Makkelijk.",
-   "Drie, en ik haal ze ook."
+   "Drie!",
+   "Gewoon drie.",
+   "Drie, man."
   ],
   [
-   "Vier.",
-   "Let op: vier.",
-   "Vier. Kom maar op!"
+   "Vier!",
+   "Gewoon vier.",
+   "Vier, man."
   ],
   [
    "Vijf!",
-   "Yes, vijf!",
-   "Vijf. Eitje."
+   "Gewoon vijf.",
+   "Vijf, man."
   ],
   [
    "Zes!",
-   "Zes. Makkelijk.",
-   "Zes, en ik haal ze ook."
+   "Gewoon zes.",
+   "Zes, man."
   ],
   [
    "Zeven!",
-   "Let op: zeven.",
-   "Zeven. Kom maar op!"
+   "Gewoon zeven.",
+   "Zeven, man."
   ],
   [
    "Acht!",
-   "Yes, acht!",
-   "Acht. Eitje."
+   "Gewoon acht.",
+   "Acht, man."
   ],
   [
    "Negen!",
-   "Negen. Makkelijk.",
-   "Negen, en ik haal ze ook."
+   "Gewoon negen.",
+   "Negen, man."
   ],
   [
    "Tien!",
-   "Let op: tien.",
-   "Tien. Kom maar op!"
+   "Gewoon tien.",
+   "Tien, man."
   ],
   [
    "Elf!",
-   "Yes, elf!",
-   "Elf. Eitje."
+   "Gewoon elf.",
+   "Elf, man."
   ],
   [
    "Twaalf!",
-   "Twaalf. Makkelijk.",
-   "Twaalf, en ik haal ze ook."
+   "Gewoon twaalf.",
+   "Twaalf, man."
   ],
   [
    "Dertien!",
-   "Let op: dertien.",
-   "Dertien. Kom maar op!"
+   "Gewoon dertien.",
+   "Dertien, man."
+  ]
+ ],
+ "ria": [
+  [
+   "Nul.",
+   "Nul graag.",
+   "Ik waag nul."
+  ],
+  [
+   "Eén.",
+   "Eén graag.",
+   "Ik waag één."
+  ],
+  [
+   "Twee.",
+   "Twee graag.",
+   "Ik waag twee."
+  ],
+  [
+   "Drie.",
+   "Drie graag.",
+   "Ik waag drie."
+  ],
+  [
+   "Vier.",
+   "Vier graag.",
+   "Ik waag vier."
+  ],
+  [
+   "Vijf.",
+   "Vijf graag.",
+   "Ik waag vijf."
+  ],
+  [
+   "Zes.",
+   "Zes graag.",
+   "Ik waag zes."
+  ],
+  [
+   "Zeven.",
+   "Zeven graag.",
+   "Ik waag zeven."
+  ],
+  [
+   "Acht.",
+   "Acht graag.",
+   "Ik waag acht."
+  ],
+  [
+   "Negen.",
+   "Negen graag.",
+   "Ik waag negen."
+  ],
+  [
+   "Tien.",
+   "Tien graag.",
+   "Ik waag tien."
+  ],
+  [
+   "Elf.",
+   "Elf graag.",
+   "Ik waag elf."
+  ],
+  [
+   "Twaalf.",
+   "Twaalf graag.",
+   "Ik waag twaalf."
+  ],
+  [
+   "Dertien.",
+   "Dertien graag.",
+   "Ik waag dertien."
   ]
  ]
 };
 
 export const WET_LINES = {
  "henk": [
+  "Pfoe.",
   "Hè, verdorie.",
-  "Tja. Dat had ik niet gedacht.",
-  "Nou ja, volgende ronde beter."
+  "Dat had ik niet verwacht.",
+  "Zo. Daar ga ik.",
+  "Tja. Jammer dan.",
+  "Hmpf. Nat.",
+  "Dat is balen.",
+  "Ach, wat een kaarten."
  ],
  "truus": [
   "Oh nee, toch!",
-  "Ach, wat jammer nou!",
-  "Nee hè, ik ben nat!"
+  "Nee hè!",
+  "Dat meen je niet!",
+  "Oh, wat jammer nou!",
+  "Bah! Nat!",
+  "Hè, wat flauw!",
+  "Nou moe!",
+  "Dat is nou pech!"
  ],
  "kees": [
+  "Pfoe, zeg.",
   "Balen, man!",
-  "Pff. Nat.",
-  "Dat telt niet, hoor!"
+  "Ach, kom op!",
+  "Dat slaat nergens op.",
+  "Nat. Lekker.",
+  "Wat een rotkaarten!",
+  "Jemig.",
+  "Ja hoor. Nat."
+ ],
+ "ria": [
+  "Oei!",
+  "Oh jee, daar ga ik!",
+  "Nou ja zeg!",
+  "Hè bah!",
+  "Ach, mijn hemel.",
+  "Dat valt tegen!",
+  "Zucht.",
+  "Dat had ik niet zien aankomen!"
  ]
 };
 
 // Duur van elk geluid in milliseconden
-export const BID_MS = {"speler": [[470, 888, 1071], [548, 966, 1097], [496, 966, 1018], [496, 862, 1071], [548, 966, 1097], [626, 1097, 1227], [574, 966, 1175], [731, 1149, 1253], [470, 914, 1149], [705, 1071, 1306], [417, 940, 862], [496, 1018, 1123], [600, 1044, 1227], [705, 1071, 1201]], "henk": [[417, 1906, 1724], [417, 1097, 1828], [444, 1306, 2011], [417, 2586, 1410], [548, 1253, 2168], [731, 1436, 2220], [522, 2638, 1567], [705, 1227, 2403], [470, 1071, 2063], [626, 2612, 1724], [417, 1097, 1854], [365, 1201, 2194], [705, 2612, 1750], [653, 1201, 2168]], "truus": [[391, 1488, 1097], [574, 1175, 940], [365, 966, 1802], [444, 888, 914], [417, 1175, 1175], [444, 1044, 1985], [470, 888, 992], [548, 1253, 1175], [417, 992, 1906], [574, 940, 1071], [313, 992, 940], [444, 1044, 1959], [522, 809, 1175], [626, 1253, 1018]], "kees": [[391, 1044, 1306], [365, 835, 1097], [365, 626, 835], [104, 600, 1201], [208, 992, 914], [391, 679, 966], [391, 757, 1227], [417, 1201, 1253], [235, 966, 862], [444, 1018, 1332], [287, 809, 940], [235, 809, 862], [287, 914, 1097], [548, 1149, 1175]]};
+export const BID_MS = {"speler":[[470,888,1071],[548,966,1097],[496,966,1018],[496,862,1071],[548,966,1097],[626,1097,1227],[574,966,1175],[731,1149,1253],[470,914,1149],[705,1071,1306],[417,940,862],[496,1018,1123],[600,1044,1227],[705,1071,1201]],"henk":[[444,940,731],[470,1019,810],[366,914,967],[418,967,888],[575,1045,1123],[705,940,967],[496,1019,993],[653,1228,1071],[470,993,914],[601,1097,993],[392,940,940],[444,993,993],[653,1019,1045],[653,1149,1071]],"truus":[[418,758,784],[470,758,888],[392,758,810],[444,705,888],[444,810,914],[444,784,888],[496,784,784],[549,862,1019],[418,836,810],[522,862,1019],[366,784,810],[418,810,810],[522,888,914],[653,967,1045]],"kees":[[627,705,836],[522,888,758],[392,705,731],[418,679,836],[261,836,888],[522,784,914],[601,862,862],[575,862,940],[418,862,731],[679,862,914],[392,758,653],[575,784,758],[392,836,836],[601,967,1019]],"ria":[[366,731,653],[522,627,731],[340,653,731],[392,679,653],[392,627,758],[418,601,627],[418,549,705],[496,758,784],[366,575,679],[470,653,784],[287,470,627],[392,522,758],[444,575,810],[549,810,836]]};
 
-export const WET_MS = {"henk": [1097, 2011, 2089], "truus": [1071, 1253, 1044], "kees": [757, 1044, 1018]};
-
-// Ria, de vijfde computerspeler (alleen bij vijf spelers aan tafel)
-BID_LINES.ria = [["Nul.", "Nul, ik doe gezellig mee.", "Nul. Ik kijk de kat uit de boom."], ["Eén.", "Jaja, één!", "Eén, let maar op!"], ["Twee.", "Ik waag het erop: twee.", "Twee, wie weet!"], ["Drie.", "Nou, doe maar drie.", "Ach, drie dan maar."], ["Vier.", "Jaja, vier!", "Vier, let maar op!"], ["Vijf.", "Ik waag het erop: vijf.", "Vijf, wie weet!"], ["Zes.", "Nou, doe maar zes.", "Ach, zes dan maar."], ["Zeven.", "Jaja, zeven!", "Zeven, let maar op!"], ["Acht.", "Ik waag het erop: acht.", "Acht, wie weet!"], ["Negen.", "Nou, doe maar negen.", "Ach, negen dan maar."], ["Tien.", "Jaja, tien!", "Tien, let maar op!"], ["Elf.", "Ik waag het erop: elf.", "Elf, wie weet!"], ["Twaalf.", "Nou, doe maar twaalf.", "Ach, twaalf dan maar."], ["Dertien.", "Jaja, dertien!", "Dertien, let maar op!"]];
-WET_LINES.ria = ["Oh jee, daar ga ik!", "Nou ja zeg!", "Hè bah, nat!"];
-BID_MS.ria = [[340, 1228, 1646], [470, 758, 993], [340, 1071, 914], [366, 1202, 1071], [392, 993, 1071], [418, 1071, 1045], [418, 1202, 993], [496, 914, 1228], [366, 1071, 1045], [522, 1280, 1123], [287, 914, 914], [366, 967, 1045], [418, 1280, 993], [575, 1045, 1123]];
-WET_MS.ria = [1176, 914, 940];
+export const WET_MS = {"henk":[470,1123,1411,1541,1228,1358,1097,1411],"truus":[1045,601,967,1254,836,1123,653,1071],"kees":[967,1071,1097,1411,1437,1306,627,1254],"ria":[340,1306,888,549,967,862,444,1463]};
