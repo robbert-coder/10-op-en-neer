@@ -31,8 +31,10 @@ export function cleanStats(v) {
   if (!v || typeof v !== "object") return null;
   const n = (x, max) => (Number.isFinite(x) ? Math.max(0, Math.min(max, Math.round(x))) : 0);
   const g = n(v.g, 100000);
-  if (!g) return null;
-  return { g, w: Math.min(g, n(v.w, 100000)), r: n(v.r, 10000000), ok: Math.min(n(v.r, 10000000), n(v.ok, 10000000)), f: n(v.f, 100) };
+  // a: alle spellen (ook korte); g en de rest: alleen volledige spellen. Oudere versies stuurden geen a.
+  const all = Math.max(g, n(v.a ?? v.g, 100000));
+  if (!all) return null;
+  return { a: all, g, w: Math.min(g, n(v.w, 100000)), r: n(v.r, 10000000), ok: Math.min(n(v.r, 10000000), n(v.ok, 10000000)), f: n(v.f, 100) };
 }
 
 export const normalizeCode = (s) => String(s || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 5);

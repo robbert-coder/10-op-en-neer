@@ -64,6 +64,10 @@ function variantKey(s) {
   return "hybride";
 }
 
+/** Spelsoort van een kort spel uit de naam ("10 op en neer tot 3"): de regels zelf wijken dan af van het volledige spel. */
+const shortVariantKey = (name) =>
+  name.startsWith("10 op en neer") ? "10openneer" : name.startsWith("Boerenbridge") ? "boerenbridge" : "hybride";
+
 const MAX_HIGHSCORES = 10;
 
 // Statistieken ---------------------------------------------------------------------------
@@ -97,18 +101,24 @@ function recordStats() {
   shareStats();
 }
 
+/** Een spel dat helemaal tot het hoogste aantal kaarten ging (niet "… tot 3"). */
+const isFullGame = (g) => !/ tot \d+$/.test(g.variant);
+
 /** Kort overzicht van al je spellen, om met de anderen aan tafel te delen. */
 function statsSummary() {
-  const list = loadStats();
-  if (!list.length) return null;
+  const all = loadStats();
+  if (!all.length) return null;
+  // Alleen volledige spellen tellen mee: korte spellen zeggen te weinig over hoe goed je speelt
+  const list = all.filter(isFullGame);
   // Plaats omgerekend naar 0 (laatste) .. 100 (eerste), zodat tafels van 2 en 5 spelers te vergelijken zijn
   const place = (g) => (g.players > 1 ? (g.players - g.rank) / (g.players - 1) : 1);
   return {
+    a: all.length,
     g: list.length,
     w: list.filter((g) => g.won).length,
     r: list.reduce((n, g) => n + g.rounds, 0),
     ok: list.reduce((n, g) => n + g.good, 0),
-    f: Math.round((100 * list.reduce((n, g) => n + place(g), 0)) / list.length),
+    f: list.length ? Math.round((100 * list.reduce((n, g) => n + place(g), 0)) / list.length) : 0,
   };
 }
 
@@ -148,14 +158,14 @@ function playerCardHtml() {
   const pct = (a, b) => (b ? Math.round((100 * a) / b) : 0);
   const body = computer
     ? `<p>Een computerspeler. Die houdt geen statistiek bij.</p>`
-    : !stats
-      ? `<p>${esc(name)} heeft nog geen spel helemaal uitgespeeld, dus er is nog geen statistiek.</p>`
+    : !stats?.g
+      ? `<p>${esc(name)} heeft nog geen volledig spel uitgespeeld${stats?.a ? ` (wel ${stats.a} ${stats.a === 1 ? "kort spel" : "korte spellen"})` : ""}, dus er zijn nog geen sterren.</p>`
       : `${starsHtml(starRating(stats), "big")}
         <div class="stat-tiles three">
           <div class="stat-tile"><b>${stats.g}</b><small>gespeeld</small></div>
           <div class="stat-tile"><b>${pct(stats.w, stats.g)}%</b><small>gewonnen (${stats.w})</small></div>
           <div class="stat-tile"><b>${pct(stats.ok, stats.r)}%</b><small>goed voorspeld</small></div>
-        </div>`;
+        </div><p class="pcard-note">Over ${stats.g} volledige ${stats.g === 1 ? "spel" : "spellen"}${stats.a > stats.g ? `; daarnaast ${stats.a - stats.g} kort` : ""}.</p>`;
   return `<div class="pcard">${face}<h3>${esc(name)}</h3>${body}</div>
     <div class="actions"><button class="primary" data-action="close-card">Sluiten</button></div>`;
 }
@@ -203,7 +213,7 @@ function renderStats() {
       <span class="num place">${g.rank === 1 ? `${NL_FLAG} 1e` : `${g.rank}e`}</span><span class="num best">${g.score}</span></div>`).join("");
   const mine = statsTab === "alles" ? starRating(statsSummary()) : null;
   $("#stats-body").innerHTML = `
-    ${mine != null ? `<div class="my-rating">${starsHtml(mine, "big")}<small>Dit zien de anderen als je samen speelt</small></div>` : ""}
+    ${mine != null ? `<div class="my-rating">${starsHtml(mine, "big")}<small>Uit je volledige spellen. Dit zien de anderen als je samen speelt.</small></div>` : ""}
     <div class="stat-tiles">
       ${tile(list.length, "gespeeld")}
       ${tile(`${pct(won, list.length)}%`, `gewonnen (${won})`)}
@@ -218,14 +228,14 @@ $$("#stats-tabs button").forEach((b) => b.addEventListener("click", () => { stat
 const loadHighScores = (key) => store.get("highscore." + key, []);
 
 /** Voegt een score toe en geeft de plaats (1..10), of 0 als de score de lijst niet haalt. */
-function addHighScore(key, name, score) {
+function addHighScore(key, name, score, detail = "") {
   const list = loadHighScores(key);
   const d = new Date();
   const date = `${String(d.getDate()).padStart(2, "0")}-${String(d.getMonth() + 1).padStart(2, "0")}-${d.getFullYear()}`;
   let pos = list.findIndex((h) => score > h.score);
   if (pos < 0) pos = list.length;
   if (pos >= MAX_HIGHSCORES) return 0;
-  list.splice(pos, 0, { name, score, date });
+  list.splice(pos, 0, detail ? { name, score, date, detail } : { name, score, date });
   store.set("highscore." + key, list.slice(0, MAX_HIGHSCORES));
   return pos + 1;
 }
@@ -340,6 +350,9 @@ let newMustTrump = false;
 let newPlayers = 4;
 let newMax = null;
 let hsTab = "10openneer";
+let hsShort = false; // de lijst van korte spellen tonen
+let highScoreShort = false;
+const hsKey = () => (hsShort ? `${hsTab}.kort` : hsTab);
 
 /** De stoel (in het spel) van een andere mens die nu aan de beurt is, of 0. */
 function remoteTurn() {
@@ -600,9 +613,13 @@ function handleGameOver() {
   if (online?.role === "host") saveOnline();
   else if (online) store.remove("online-gast");
   const me = st.players[0];
-  // Highscores alleen voor een volledig spel met vier spelers, anders zijn de scores niet te vergelijken
-  const full = st.players.length === 4 && !/ tot \d+$/.test(st.variant);
-  highScorePlace = full ? addHighScore(variantKey(st), me.name, me.total) : 0;
+  // Volledige spellen met vier spelers hebben een eigen lijst; korte spellen komen in de lijst "kort",
+  // met erbij tot hoeveel kaarten en met hoeveel spelers, want die scores zijn onderling minder te vergelijken
+  const short = st.variant.match(/ tot (\d+)$/);
+  highScoreShort = !!short;
+  if (!short && st.players.length === 4) highScorePlace = addHighScore(variantKey(st), me.name, me.total);
+  else if (short) highScorePlace = addHighScore(`${shortVariantKey(st.variant)}.kort`, me.name, me.total, `tot ${short[1]} · ${st.players.length} spelers`);
+  else highScorePlace = 0;
   // AfgelopenCommentaar: applaus bij een goed resultaat
   const aloneFirst = me.rank === 1 && st.players.filter((p) => p.rank === 1).length === 1;
   let applause = null;
@@ -1704,7 +1721,8 @@ function gameOverHtml() {
   const rows = ranking.map((p) => `<div class="result-row ${p.nr === 1 ? "me" : ""}">
       ${avatarHtml(p.nr, p.name, p.rank === 1 ? "happy" : p.rank === st.players.length ? "sad" : "")}
       <div class="name">${esc(p.name)}${winnerFlag(p)}</div><div class="rank">${p.rank}e</div><div class="tot">${p.total}</div></div>`).join("");
-  const hs = highScorePlace > 0 ? `<p class="gold">Je staat op plaats ${highScorePlace} in de highscore van ${esc(st.variant)}.</p>` : "";
+  const hs = highScorePlace > 0
+    ? `<p class="gold">Je staat op plaats ${highScorePlace} in de highscore van ${highScoreShort ? "korte spellen " : ""}${esc(st.variant.replace(/ tot \d+$/, ""))}.</p>` : "";
   const say = settings.tinekeHelp ? endComment ??= tineke.comment("afgelopen", st) : null;
   return `<h3>${title}</h3>${say ? tinekeLine(say) : ""}<div class="result-rows">${rows}</div>${hs}
     <div class="actions"><button data-action="scores">Scorelijst</button>
@@ -1865,10 +1883,14 @@ function renderNewGame() {
 
 function renderHighScores() {
   $$("#hs-tabs button").forEach((b) => b.classList.toggle("selected", b.dataset.tab === hsTab));
-  const list = loadHighScores(hsTab);
+  $$("#hs-length button").forEach((b) => b.classList.toggle("selected", (b.dataset.len === "kort") === hsShort));
+  $("#hs-note").textContent = hsShort
+    ? "Spellen die niet tot het hoogste aantal kaarten gaan. Erbij staat tot hoeveel kaarten en met hoeveel spelers."
+    : "Spellen die helemaal tot het hoogste aantal kaarten gaan, met vier spelers.";
+  const list = loadHighScores(hsKey());
   $("#hs-list").innerHTML = list.length === 0
     ? `<p class="empty-note">Nog geen scores. Speel een spel uit om in de lijst te komen.</p>`
-    : list.map((h, i) => `<div class="hs-row"><span class="pos">${i + 1}</span><span class="name">${esc(h.name)}</span><span class="date">${h.date}</span><span class="score">${h.score}</span></div>`).join("");
+    : list.map((h, i) => `<div class="hs-row"><span class="pos">${i + 1}</span><span class="name">${esc(h.name)}${h.detail ? `<small>${esc(h.detail)}</small>` : ""}</span><span class="date">${h.date}</span><span class="score">${h.score}</span></div>`).join("");
   $("#btn-hs-clear").hidden = list.length === 0;
 }
 
@@ -1985,7 +2007,7 @@ const clientId = () => {
 
 /** In de Android-app draait de website vanuit de app zelf; gedeelde links wijzen dan naar de echte website. */
 const nativeApp = window.TienApp ?? null;
-const APP_VERSION = "2.10";
+const APP_VERSION = "2.11";
 const SITE_URL = "https://robbert-coder.github.io/10-op-en-neer/";
 const tableLink = (code) => `${nativeApp ? SITE_URL : location.origin + location.pathname}?spel=${code}`;
 
@@ -2347,7 +2369,7 @@ function renderOnline() {
     if (p) {
       const me = seat === online.seat;
       const stats = me ? statsSummary() : p.stats;
-      const games = stats ? `${stats.g} ${stats.g === 1 ? "spel" : "spellen"}` : "nog geen spellen";
+      const games = stats?.a ? `${stats.a} ${stats.a === 1 ? "spel" : "spellen"}` : "nog geen spellen";
       return `<div class="lobby-seat" data-seat="${seat}" role="button" tabindex="0"><div class="avatar">${humanAvatarHtml(p.avatar, p.name)}</div>
         <div class="nm">${esc(p.name)}${me ? " (jij)" : ""}<small>${seat === 1 ? "Gastheer" : "Speler"} · ${games}</small>${starsHtml(starRating(stats))}</div>
         <span class="dot ${p.online === false ? "off" : ""}"></span></div>`;
@@ -2490,6 +2512,7 @@ $("#btn-start").addEventListener("click", () => {
 });
 
 $$("#hs-tabs button").forEach((b) => b.addEventListener("click", () => { hsTab = b.dataset.tab; renderHighScores(); }));
+$$("#hs-length button").forEach((b) => b.addEventListener("click", () => { hsShort = b.dataset.len === "kort"; renderHighScores(); }));
 $("#btn-stats-clear").addEventListener("click", () => {
   confirmDialog = {
     title: "Statistieken wissen",
@@ -2501,13 +2524,13 @@ $("#btn-stats-clear").addEventListener("click", () => {
   renderDialog();
 });
 $("#btn-hs-clear").addEventListener("click", () => {
-  const name = $(`#hs-tabs [data-tab="${hsTab}"]`).textContent;
+  const name = `${hsShort ? "korte spellen " : ""}${$(`#hs-tabs [data-tab="${hsTab}"]`).textContent}`;
   confirmDialog = {
     title: "Highscore wissen",
     text: `Weet je zeker dat je de highscore van ${name} wilt wissen?`,
     yes: "Wissen",
     no: "Annuleren",
-    action: () => { store.remove("highscore." + hsTab); renderHighScores(); },
+    action: () => { store.remove("highscore." + hsKey()); renderHighScores(); },
   };
   renderDialog();
 });

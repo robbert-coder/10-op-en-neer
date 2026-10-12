@@ -770,3 +770,7 @@ h1 { font-size: 38px; margin: 18px 0 0; letter-spacing: -.5px; text-wrap: balanc
 .my-rating small { color: var(--muted); font-size: 12px; }
 .seat .avatar.has-stars { margin-bottom: 13px; }
 @media (min-width: 1000px) and (min-height: 640px) { .seat .avatar.has-stars { margin-bottom: 16px; } }
+#hs-length { margin-top: 8px; }
+.hs-note { color: var(--muted); font-size: 13px; margin: 8px 4px; }
+.hs-row .name small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+.pcard-note { color: var(--muted); font-size: 13px; margin: 6px 0 0; }
