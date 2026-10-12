@@ -4,8 +4,8 @@
 
 /** Het Supabase-project (Project Settings > API). De sleutel is de openbare "anon"-sleutel. */
 const CONFIG = {
-  url: "",
-  key: "",
+  url: "https://llyxrwgankrsjjgwzyrh.supabase.co",
+  key: "sb_publishable_NkO6L_jj1GevBfhplqoufA_txNrorj0",
 };
 
 const params = new URLSearchParams(location.search);

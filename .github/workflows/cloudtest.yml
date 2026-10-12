@@ -1,0 +1,14 @@
+name: Cloudtest
+on: workflow_dispatch
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Statistiek opslaan en teruglezen
+        run: |
+          U=https://llyxrwgankrsjjgwzyrh.supabase.co
+          K=sb_publishable_NkO6L_jj1GevBfhplqoufA_txNrorj0
+          H=(-H "apikey: $K" -H "Content-Type: application/json" -H "Origin: https://robbert-coder.github.io")
+          echo "== put"; curl -sS -i -X POST "$U/rest/v1/rpc/put_stats" "${H[@]}" -d '{"p_code":"TESTZZZZ2222","p_data":{"v":1,"games":[{"id":"t1"}],"clearedAt":0}}'
+          echo; echo "== get"; curl -sS -i -X POST "$U/rest/v1/rpc/get_stats" "${H[@]}" -d '{"p_code":"TESTZZZZ2222"}'
+          echo; echo "== tabel direct (moet geweigerd/leeg)"; curl -sS -i "$U/rest/v1/statistiek?select=*" -H "apikey: $K"
