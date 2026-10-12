@@ -33,7 +33,7 @@
         <button id="btn-online" class="online-btn">Nieuw multiplayer spel tegen andere mensen</button>
         <div class="button-row">
           <button data-go="rules">Spelregels</button>
-          <button data-go="highscores">Highscores</button>
+          <button data-go="highscores">Hall of Fame</button>
           <button data-go="stats">Statistieken</button>
           <button data-go="settings">Instellingen</button>
         </div>
@@ -254,8 +254,12 @@
     </section>
 
     <section id="highscores" class="screen page">
-      <header><button class="back" data-go="menu" aria-label="Terug">‹</button><h2>Highscores</h2></header>
+      <header><button class="back" data-go="menu" aria-label="Terug">‹</button><h2>Hall of Fame</h2></header>
       <div class="content">
+        <div class="tabs" id="hs-scope">
+          <button data-scope="hof">Hall of Fame</button>
+          <button data-scope="local">Op dit apparaat</button>
+        </div>
         <div class="tabs" id="hs-tabs">
           <button data-tab="10openneer">10 op en neer</button>
           <button data-tab="boerenbridge">Boerenbridge</button>
@@ -267,6 +271,7 @@
         </div>
         <p class="hs-note" id="hs-note"></p>
         <div id="hs-list" class="group"></div>
+        <div id="hof-players"></div>
         <button id="btn-hs-clear" hidden>Highscore wissen</button>
       </div>
     </section>
@@ -293,6 +298,10 @@
             <input type="checkbox" id="set-notify" class="switch">
           </label>
           <p class="notify-status" id="notify-status"></p>
+          <label class="switch-row" id="row-hof">
+            <span><b>Meedoen aan de Hall of Fame</b><small>Je naam, getekende gezicht en scores van uitgespeelde spellen zijn dan voor iedereen te zien. Een eigen foto gaat niet mee.</small></span>
+            <input type="checkbox" id="set-hof" class="switch">
+          </label>
         </div>
         <div class="group">
           <label class="switch-row">

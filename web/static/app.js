@@ -4,7 +4,7 @@ import { WebGame, describeCard, defaultNames } from "./tienopenneer.mjs";
 import { faceSvg, initialSvg, emojiSvg, puppetBodySvg } from "./faces.js";
 import * as tineke from "./tineke.js";
 import { BID_LINES, WET_LINES, BID_MS } from "./voices.js";
-import { cloudEnabled, makeCloudCode, normalizeCloudCode, formatCloudCode, validCloudCode, fetchStats, saveStats } from "./cloud.js";
+import { cloudEnabled, makeCloudCode, normalizeCloudCode, formatCloudCode, validCloudCode, fetchStats, saveStats, fetchHallOfFame, sendHofScore, sendHofPlayer } from "./cloud.js";
 import { Host, Guest, makeCode, normalizeCode, AVATAR_EMOJIS, AVATAR_FACES, cleanAvatar, cleanStats } from "./net.js";
 
 const $ = (sel) => document.querySelector(sel);
@@ -337,6 +337,58 @@ function addHighScore(key, name, score, detail = "") {
   return pos + 1;
 }
 
+// Hall of Fame ------------------------------------------------------------------------------
+
+/** Doe je mee aan de Hall of Fame (je naam, plaatje en scores zijn dan voor iedereen te zien)? */
+const hofOn = () => cloudEnabled() && settings.hof !== false;
+
+/** Je vaste, willekeurige nummer in de Hall of Fame (los van de geheime statistiekcode). */
+function hofId() {
+  if (!/^[A-Za-z0-9]{16}$/.test(settings.hofId ?? "")) {
+    const abc = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    settings.hofId = Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => abc[b % abc.length]).join("");
+    saveSettings();
+  }
+  return settings.hofId;
+}
+
+/** Alleen een getekend gezicht of een emoji gaat mee; een eigen foto blijft op je apparaat. */
+const hofAvatar = () => { const a = myAvatar(); return a && a.length <= 16 ? a : ""; };
+const hofName = () => (settings.playerName || "Speler").trim().slice(0, 24) || "Speler";
+
+/** Scores die nog naar de Hall of Fame moeten (bijvoorbeeld omdat er geen internet was). */
+let hofBusy = null;
+function flushHof() {
+  if (!hofOn()) return Promise.resolve();
+  if (hofBusy) return hofBusy;
+  const run = async () => {
+    try {
+      for (const e of store.get("hof-wachtrij", [])) {
+        await sendHofScore(hofId(), hofName(), hofAvatar(), e);
+        store.set("hof-wachtrij", store.get("hof-wachtrij", []).filter((x) => x.game !== e.game));
+      }
+      const sum = statsSummary();
+      if (sum?.g) await sendHofPlayer(hofId(), hofName(), hofAvatar(), sum);
+      hofCache.clear();
+    } catch {
+      // Geen verbinding of de Hall of Fame is nog niet ingesteld: later opnieuw
+    }
+  };
+  // Pas na het starten opruimen: zonder iets te versturen is run() meteen klaar
+  hofBusy = run().finally(() => { hofBusy = null; });
+  return hofBusy;
+}
+
+function queueHof(entry) {
+  if (!hofOn()) return;
+  const q = store.get("hof-wachtrij", []).filter((x) => x.game !== entry.game);
+  q.push(entry);
+  store.set("hof-wachtrij", q.slice(-50));
+  flushHof();
+}
+
+const hofCache = new Map();
+
 // ------------------------------------------------------------------------------------------
 // Geluid
 // ------------------------------------------------------------------------------------------
@@ -450,6 +502,7 @@ let newMax = null;
 const SHORT_MAX = 5;
 let hsTab = "10openneer";
 let hsShort = false; // de lijst van korte spellen tonen
+let hsScope = "hof"; // "hof": Hall of Fame van iedereen, "local": op dit apparaat
 let highScoreShort = false;
 const hsKey = () => (hsShort ? `${hsTab}.kort` : hsTab);
 
@@ -816,6 +869,8 @@ function handleGameOver() {
   if (!short && st.players.length === 4) highScorePlace = addHighScore(variantKey(st), me.name, me.total);
   else if (short) highScorePlace = addHighScore(`${shortVariantKey(st.variant)}.kort`, me.name, me.total, `tot ${short[1]} · ${st.players.length} spelers`);
   else highScorePlace = 0;
+  if (!short && st.players.length === 4) queueHof({ game: `${game.seed}|${game.actionCount()}|${st.variant}`, list: variantKey(st), score: me.total });
+  else if (short) queueHof({ game: `${game.seed}|${game.actionCount()}|${st.variant}`, list: `${shortVariantKey(st.variant)}.kort`, score: me.total, detail: `tot ${short[1]} · ${st.players.length} spelers` });
   // AfgelopenCommentaar: applaus bij een goed resultaat
   const aloneFirst = me.rank === 1 && st.players.filter((p) => p.rank === 1).length === 1;
   let applause = null;
@@ -2104,8 +2159,13 @@ function renderNewGame() {
 }
 
 function renderHighScores() {
+  $("#hs-scope").hidden = !cloudEnabled();
+  if (!cloudEnabled()) hsScope = "local";
+  $$("#hs-scope button").forEach((b) => b.classList.toggle("selected", b.dataset.scope === hsScope));
   $$("#hs-tabs button").forEach((b) => b.classList.toggle("selected", b.dataset.tab === hsTab));
   $$("#hs-length button").forEach((b) => b.classList.toggle("selected", (b.dataset.len === "kort") === hsShort));
+  if (hsScope === "hof") { renderHallOfFame(); return; }
+  $("#hof-players").innerHTML = "";
   $("#hs-note").textContent = hsShort
     ? "Spellen die niet tot het hoogste aantal kaarten gaan. Erbij staat tot hoeveel kaarten en met hoeveel spelers."
     : "Spellen die helemaal tot het hoogste aantal kaarten gaan, met vier spelers.";
@@ -2114,6 +2174,49 @@ function renderHighScores() {
     ? `<p class="empty-note">Nog geen scores. Speel een spel uit om in de lijst te komen.</p>`
     : list.map((h, i) => `<div class="hs-row"><span class="pos">${i + 1}</span><span class="name">${esc(h.name)}${h.detail ? `<small>${esc(h.detail)}</small>` : ""}</span><span class="date">${h.date}</span><span class="score">${h.score}</span></div>`).join("");
   $("#btn-hs-clear").hidden = list.length === 0;
+}
+
+const hofDate = (d) => (/^\d{4}-\d\d-\d\d$/.test(d ?? "") ? `${d.slice(8, 10)}-${d.slice(5, 7)}-${d.slice(0, 4)}` : "");
+const hofFace = (p) => `<span class="hof-face">${humanAvatarHtml(cleanAvatar(p.avatar), String(p.name ?? "?"))}</span>`;
+
+/** De Hall of Fame: de beste score van iedereen in deze lijst, en bij volledige spellen de beste spelers. */
+async function renderHallOfFame() {
+  const key = hsKey();
+  $("#btn-hs-clear").hidden = true;
+  $("#hs-note").textContent = (hsShort
+    ? "De beste korte spellen van alle spelers, met erbij tot hoeveel kaarten en met hoeveel spelers."
+    : "De beste volledige spellen met vier spelers van alle spelers. Iedereen staat er één keer in, met zijn beste score.")
+    + (settings.hof === false ? " Je doet zelf niet mee; dat zet je aan bij Instellingen." : "");
+  const cached = hofCache.get(key);
+  if (!cached) { $("#hs-list").innerHTML = `<p class="empty-note">Hall of Fame laden…</p>`; $("#hof-players").innerHTML = ""; }
+  let data = cached?.data;
+  if (!cached || Date.now() - cached.time > 60000) {
+    try {
+      await flushHof();
+      data = await fetchHallOfFame(key);
+      hofCache.set(key, { time: Date.now(), data });
+    } catch {
+      if (!data) {
+        if (hsScope === "hof" && hsKey() === key) $("#hs-list").innerHTML = `<p class="empty-note">De Hall of Fame is nu niet bereikbaar. Probeer het later nog eens.</p>`;
+        return;
+      }
+    }
+  }
+  if (hsScope !== "hof" || hsKey() !== key) return; // intussen naar een andere lijst gegaan
+  const me = settings.hofId;
+  $("#hs-list").innerHTML = data.scores.length === 0
+    ? `<p class="empty-note">Nog niemand in deze lijst. Speel een spel uit en kom er als eerste in!</p>`
+    : data.scores.map((h, i) => `<div class="hs-row hof${h.p === me ? " me" : ""}"><span class="pos">${i + 1}</span>${hofFace(h)}<span class="name">${esc(String(h.name ?? ""))}${h.detail ? `<small>${esc(String(h.detail))}</small>` : ""}</span><span class="date">${hofDate(h.date)}</span><span class="score">${Number(h.score) || 0}</span></div>`).join("");
+  if (hsShort) { $("#hof-players").innerHTML = ""; return; }
+  const players = data.players
+    .map((p) => ({ ...p, s: cleanStats(p.stats) }))
+    .map((p) => ({ ...p, stars: starRating(p.s) }))
+    .filter((p) => p.stars != null)
+    .sort((a, b) => b.stars - a.stars || b.s.f - a.s.f || b.s.g - a.s.g)
+    .slice(0, 25);
+  $("#hof-players").innerHTML = players.length === 0 ? "" : `<h3 class="stat-head">Beste spelers</h3>
+    <p class="hs-note">Op sterren: hoe hoog je eindigt en hoe vaak je goed voorspelt, over minstens vijf volledige spellen.</p>
+    <div class="group">${players.map((p, i) => `<div class="hs-row hof${p.p === me ? " me" : ""}"><span class="pos">${i + 1}</span>${hofFace(p)}<span class="name">${esc(String(p.name ?? ""))}<small>${p.s.g} spellen · ${p.s.w} gewonnen · ${p.s.r ? Math.round((100 * p.s.ok) / p.s.r) : 0}% goed</small></span>${starsHtml(p.stars)}</div>`).join("")}</div>`;
 }
 
 // ------------------------------------------------------------------------------------------
@@ -2195,6 +2298,8 @@ function renderSettings() {
   $("#app-version").textContent = `Versie ${APP_VERSION}${nativeApp ? " (app)" : ""}`;
   $("#set-help").checked = settings.tinekeHelp;
   $("#set-notify").checked = settings.notify !== false;
+  $("#row-hof").hidden = !cloudEnabled();
+  $("#set-hof").checked = settings.hof !== false;
   renderNotifyStatus();
 }
 
@@ -2230,7 +2335,7 @@ const clientId = () => {
 
 /** In de Android-app draait de website vanuit de app zelf; gedeelde links wijzen dan naar de echte website. */
 const nativeApp = window.TienApp ?? null;
-const APP_VERSION = "2.17";
+const APP_VERSION = "2.18";
 const SITE_URL = "https://robbert-coder.github.io/10-op-en-neer/";
 const tableLink = (code) => `${nativeApp ? SITE_URL : location.origin + location.pathname}?spel=${code}`;
 
@@ -2775,6 +2880,7 @@ $("#btn-start").addEventListener("click", () => {
 
 $$("#hs-tabs button").forEach((b) => b.addEventListener("click", () => { hsTab = b.dataset.tab; renderHighScores(); }));
 $$("#hs-length button").forEach((b) => b.addEventListener("click", () => { hsShort = b.dataset.len === "kort"; renderHighScores(); }));
+$$("#hs-scope button").forEach((b) => b.addEventListener("click", () => { hsScope = b.dataset.scope; renderHighScores(); }));
 $("#btn-stats-clear").addEventListener("click", () => {
   confirmDialog = {
     title: "Statistieken wissen",
@@ -2827,6 +2933,12 @@ $("#set-desc").addEventListener("change", (e) => { settings.sortDescending = e.t
 $("#set-sound").addEventListener("change", (e) => { settings.sound = e.target.checked; saveSettings(); renderSettings(); });
 $("#set-speak-humans").addEventListener("change", (e) => { settings.speakHumans = e.target.checked; saveSettings(); });
 $("#set-speak").addEventListener("change", (e) => { settings.speakBids = e.target.checked; saveSettings(); renderSettings(); });
+$("#set-hof").addEventListener("change", (e) => {
+  settings.hof = e.target.checked;
+  saveSettings();
+  hofCache.clear();
+  if (settings.hof) flushHof();
+});
 $("#set-notify").addEventListener("change", (e) => {
   settings.notify = e.target.checked;
   saveSettings();
@@ -2936,6 +3048,7 @@ $("#menu-faces").innerHTML = [2, 3, 4].map((nr) => avatarHtml(nr, "")).join("");
 const joinCode = normalizeCode(new URLSearchParams(location.search).get("spel"));
 if (!resumeOnline()) restoreSavedGame();
 if (settings.cloudCode) syncStats();
+flushHof();
 if (joinCode.length === 5 && !(online?.code === joinCode)) {
   // Geopend via een gedeelde link: meteen aanschuiven
   show("online");

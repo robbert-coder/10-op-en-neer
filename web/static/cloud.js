@@ -53,3 +53,20 @@ export async function fetchStats(code) {
 export function saveStats(code, games, clearedAt) {
   return rpc("put_stats", { p_code: code, p_data: { v: 1, games, clearedAt } });
 }
+
+// Hall of Fame ------------------------------------------------------------------------------
+
+/** De beste score per speler in een lijst, en de spelers met hun overzicht. */
+export async function fetchHallOfFame(list) {
+  const data = await rpc("hof_get", { p_list: list });
+  return {
+    scores: Array.isArray(data?.scores) ? data.scores : [],
+    players: Array.isArray(data?.players) ? data.players : [],
+  };
+}
+
+export const sendHofScore = (player, name, avatar, e) =>
+  rpc("hof_put_score", { p_player: player, p_game: e.game, p_name: name, p_avatar: avatar, p_list: e.list, p_score: e.score, p_detail: e.detail ?? "" });
+
+export const sendHofPlayer = (player, name, avatar, stats) =>
+  rpc("hof_put_player", { p_player: player, p_name: name, p_avatar: avatar, p_stats: stats });
