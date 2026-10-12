@@ -1495,6 +1495,8 @@ const newRules = () => ({
 let newOnline = false; // wordt het nieuwe spel een tafel voor samen spelen?
 
 function renderNewGame() {
+  $("#ng-name").value = settings.playerName;
+  renderAvatarPick();
   $("#newgame h2").textContent = newOnline ? "Tafel openen" : "Nieuw spel";
   $("#btn-start").textContent = newOnline ? "Tafel openen" : "Start";
   $$(".variant").forEach((el) => el.classList.toggle("selected", (el.dataset.variant === "13") === (newBase === BOERENBRIDGE)));
@@ -1638,7 +1640,7 @@ const clientId = () => {
 
 /** In de Android-app draait de website vanuit de app zelf; gedeelde links wijzen dan naar de echte website. */
 const nativeApp = window.TienApp ?? null;
-const APP_VERSION = "2.8";
+const APP_VERSION = "2.9";
 const SITE_URL = "https://robbert-coder.github.io/10-op-en-neer/";
 const tableLink = (code) => `${nativeApp ? SITE_URL : location.origin + location.pathname}?spel=${code}`;
 
@@ -2150,6 +2152,13 @@ $("#btn-hs-clear").addEventListener("click", () => {
   renderDialog();
 });
 
+$("#ng-name").addEventListener("input", (e) => {
+  settings.playerName = e.target.value.trim() || "Speler";
+  renderAvatarPick();
+  saveSettings();
+});
+// Staat er nog "Speler", dan is het in één keer te vervangen
+for (const id of ["#ng-name", "#on-name", "#set-name"]) $(id).addEventListener("focus", (e) => e.target.select());
 $("#set-name").addEventListener("input", (e) => {
   settings.playerName = e.target.value.trim() || "Speler";
   renderAvatarPick();

@@ -727,3 +727,6 @@ h1 { font-size: 38px; margin: 18px 0 0; letter-spacing: -.5px; text-wrap: balanc
 .notify-row p { margin: 0 0 10px; color: var(--muted); font-size: 14px; text-align: center; }
 .notify-row[hidden] { display: none; }
 .version { margin-top: 18px; font-size: 12px; opacity: .7; }
+/* Nieuw spel: de plaatjes in één rij om door te schuiven, zodat de spelkeuze in beeld blijft */
+#newgame .avatar-pick { display: flex; overflow-x: auto; gap: 8px; padding: 4px 2px 6px; scrollbar-width: thin; }
+#newgame .av-opt { flex: 0 0 46px; width: 46px; height: 46px; }
