@@ -9,7 +9,7 @@ const EVENTS = [
   "medespeler_nat", "goed_gespeeld", "zeer_goed_gespeeld",
 ];
 const FILES = [
-  "./", "index.html", "style.css", "app.js", "faces.js", "tineke.js", "voices.js", "net.js", "vendor/mqtt.min.js", "tienopenneer.mjs", "kotlin-kotlin-stdlib.mjs",
+  "./", "index.html", "style.css", "app.js", "faces.js", "tineke.js", "voices.js", "net.js", "cloud.js", "vendor/mqtt.min.js", "tienopenneer.mjs", "kotlin-kotlin-stdlib.mjs",
   "kotlin_org_jetbrains_kotlin_kotlin_dom_api_compat.mjs",
   "manifest.webmanifest", "icons/icon.svg", "icons/icon-180.png", "icons/icon-192.png", "icons/icon-512.png",
   ...EVENTS.map((e) => `sounds/${e}.mp3`),

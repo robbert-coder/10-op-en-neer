@@ -4,6 +4,7 @@ import { WebGame, describeCard, defaultNames } from "./tienopenneer.mjs";
 import { faceSvg, initialSvg, emojiSvg, puppetBodySvg } from "./faces.js";
 import * as tineke from "./tineke.js";
 import { BID_LINES, WET_LINES, BID_MS } from "./voices.js";
+import { cloudEnabled, makeCloudCode, normalizeCloudCode, formatCloudCode, validCloudCode, fetchStats, saveStats } from "./cloud.js";
 import { Host, Guest, makeCode, normalizeCode, AVATAR_EMOJIS, cleanAvatar, cleanStats } from "./net.js";
 
 const $ = (sel) => document.querySelector(sel);
@@ -99,6 +100,7 @@ function recordStats() {
   });
   store.set("statistiek", list.slice(0, MAX_STATS));
   shareStats();
+  syncStats();
 }
 
 /** Een spel dat helemaal tot het hoogste aantal kaarten ging (niet "… tot 3"). */
@@ -174,6 +176,101 @@ function openPlayerCard(card) {
   playerCard = card;
   renderDialog();
 }
+
+// Online bewaren ------------------------------------------------------------------------------
+
+let cloudBusy = null; // lopende synchronisatie
+let cloudStatus = "";
+let cloudError = false;
+
+/** Twee lijsten spellen samenvoegen (op id), zonder spellen van voor het laatste wissen. */
+function mergeGames(a, b, clearedAt) {
+  const byId = new Map();
+  for (const g of [...a, ...b]) if (g.time > clearedAt && !byId.has(g.id)) byId.set(g.id, g);
+  return [...byId.values()].sort((x, y) => y.time - x.time).slice(0, MAX_STATS);
+}
+
+/**
+ * Statistieken van dit apparaat en van de server samenvoegen en terugschrijven.
+ * De eerste keer krijgt dit apparaat een eigen code; met de code van een ander apparaat deel je ze.
+ */
+function syncStats() {
+  if (!cloudEnabled()) return Promise.resolve();
+  if (cloudBusy) return cloudBusy.then(() => syncStats());
+  if (!settings.cloudCode) { settings.cloudCode = makeCloudCode(); saveSettings(); }
+  const code = settings.cloudCode;
+  cloudStatus = "Bijwerken…";
+  cloudError = false;
+  renderCloud();
+  cloudBusy = (async () => {
+    try {
+      const remote = await fetchStats(code);
+      const clearedAt = Math.max(store.get("statistiek-gewist", 0), remote?.clearedAt ?? 0);
+      const local = loadStats();
+      const merged = mergeGames(local, remote?.games ?? [], clearedAt);
+      store.set("statistiek", merged);
+      store.set("statistiek-gewist", clearedAt);
+      const same = (list) => list.length === merged.length && list.every((g, i) => g.id === merged[i].id);
+      if (!remote || !same(remote.games) || remote.clearedAt !== clearedAt) await saveStats(code, merged, clearedAt);
+      cloudStatus = `Bijgewerkt om ${new Date().toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" })}`;
+      if (!same(local)) {
+        shareStats();
+        if (screen === "stats") renderStats();
+      }
+    } catch {
+      cloudStatus = "Kon de statistieken niet online bijwerken. Ze staan wel op dit apparaat en gaan later mee.";
+      cloudError = true;
+    } finally {
+      cloudBusy = null;
+      renderCloud();
+    }
+  })();
+  return cloudBusy;
+}
+
+function renderCloud() {
+  const box = $("#stats-cloud");
+  box.hidden = !cloudEnabled();
+  if (box.hidden) return;
+  const code = settings.cloudCode;
+  $("#cloud-text").textContent = code
+    ? "Je statistieken worden online bewaard bij deze code. Vul hem in de app of op een ander apparaat in om overal dezelfde statistieken te zien."
+    : "Je statistieken worden online bewaard zodra je een spel hebt uitgespeeld.";
+  $("#cloud-code").textContent = code ? formatCloudCode(code) : "";
+  $("#cloud-code").hidden = !code;
+  $("#btn-cloud-copy").parentElement.hidden = !code;
+  const status = $("#cloud-status");
+  status.textContent = cloudStatus;
+  status.classList.toggle("error", cloudError);
+}
+
+$("#btn-cloud-copy").addEventListener("click", async () => {
+  const text = formatCloudCode(settings.cloudCode ?? "");
+  try {
+    if (nativeApp?.copy) nativeApp.copy(text);
+    else await navigator.clipboard.writeText(text);
+    cloudStatus = "Code gekopieerd.";
+  } catch {
+    cloudStatus = `Kopiëren lukte niet. Je code is ${text}.`;
+  }
+  cloudError = false;
+  renderCloud();
+});
+
+$("#btn-cloud-use").addEventListener("click", () => {
+  const code = normalizeCloudCode($("#cloud-input").value);
+  if (!validCloudCode(code)) {
+    cloudStatus = "Dat is geen geldige code. Een code heeft twaalf letters en cijfers, zoals ABCD-EFGH-JKLM.";
+    cloudError = true;
+    renderCloud();
+    return;
+  }
+  settings.cloudCode = code;
+  saveSettings();
+  $("#cloud-input").value = "";
+  $("#cloud-other").open = false;
+  syncStats();
+});
 
 let statsTab = "alles";
 
@@ -349,6 +446,8 @@ let newMustTrump = false;
 /** Aantal spelers en tot hoeveel kaarten; null = zo lang als de variant normaal is. */
 let newPlayers = 4;
 let newMax = null;
+/** Een kort spel gaat tot zoveel kaarten (9 rondes). */
+const SHORT_MAX = 5;
 let hsTab = "10openneer";
 let hsShort = false; // de lijst van korte spellen tonen
 let highScoreShort = false;
@@ -1816,7 +1915,7 @@ function show(name) {
   if (name === "menu") renderMenu();
   if (name === "newgame") renderNewGame();
   if (name === "highscores") renderHighScores();
-  if (name === "stats") renderStats();
+  if (name === "stats") { renderStats(); renderCloud(); syncStats(); }
   if (name === "settings") renderSettings();
   if (name === "online") renderOnline();
   if (name === "online" || name === "settings") renderAvatarPick();
@@ -1869,6 +1968,10 @@ function renderNewGame() {
     : newPlayers === 5
       ? `Ria doet als vijfde mee.${newBase === BOERENBRIDGE ? " Boerenbridge gaat dan tot hoogstens 10 kaarten." : ""}`
       : newPlayers === 2 ? "Jij tegen Henk." : newPlayers === 3 ? "Jij tegen Henk en Truus." : "";
+  const full = maxCardsFor(newBase, newPlayers);
+  $$("#opt-length button").forEach((b) => b.classList.toggle("selected", (b.dataset.length === "normaal") === (newMax == null)));
+  $("#len-normaal").textContent = `${2 * full - 1} rondes`;
+  $("#len-kort").textContent = newMax == null ? `${2 * SHORT_MAX - 1} rondes` : `${2 * newMax - 1} rondes`;
   const slider = $("#opt-max");
   slider.max = String(maxCardsFor(newBase, newPlayers));
   slider.value = String(newMaxCards());
@@ -1878,7 +1981,7 @@ function renderNewGame() {
   $("#opt-smart").checked = settings.smart;
   $("#opt-rounding").checked = newRounding;
   $("#opt-musttrump").checked = newMustTrump;
-  $("#variant-name").textContent = `Je speelt: ${rulesVariantName(newRules())}`;
+  $("#variant-name").textContent = `Je speelt: ${rulesVariantName(newRules())} met ${newPlayers} spelers`;
 }
 
 function renderHighScores() {
@@ -2485,6 +2588,13 @@ $("#opt-players").addEventListener("click", (e) => {
   newPlayers = Number(b.dataset.players);
   renderNewGame();
 });
+$("#opt-length").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-length]");
+  if (!b) return;
+  if (b.dataset.length === "normaal") newMax = null;
+  else if (newMax == null) newMax = Math.min(SHORT_MAX, maxCardsFor(newBase, newPlayers) - 1);
+  renderNewGame();
+});
 $("#opt-max").addEventListener("input", (e) => {
   const v = Number(e.target.value);
   newMax = v >= maxCardsFor(newBase, newPlayers) ? null : v;
@@ -2516,10 +2626,18 @@ $$("#hs-length button").forEach((b) => b.addEventListener("click", () => { hsSho
 $("#btn-stats-clear").addEventListener("click", () => {
   confirmDialog = {
     title: "Statistieken wissen",
-    text: "Weet je zeker dat je al je statistieken op dit apparaat wilt wissen?",
+    text: cloudEnabled() && settings.cloudCode
+      ? "Weet je zeker dat je al je statistieken wilt wissen? Ze verdwijnen ook online en op je andere apparaten."
+      : "Weet je zeker dat je al je statistieken op dit apparaat wilt wissen?",
     yes: "Wissen",
     no: "Annuleren",
-    action: () => { store.remove("statistiek"); renderStats(); },
+    action: () => {
+      store.remove("statistiek");
+      store.set("statistiek-gewist", Date.now());
+      renderStats();
+      shareStats();
+      syncStats();
+    },
   };
   renderDialog();
 });
@@ -2652,6 +2770,7 @@ $("#menu-faces").innerHTML = [2, 3, 4].map((nr) => avatarHtml(nr, "")).join("");
 
 const joinCode = normalizeCode(new URLSearchParams(location.search).get("spel"));
 if (!resumeOnline()) restoreSavedGame();
+if (settings.cloudCode) syncStats();
 if (joinCode.length === 5 && !(online?.code === joinCode)) {
   // Geopend via een gedeelde link: meteen aanschuiven
   show("online");

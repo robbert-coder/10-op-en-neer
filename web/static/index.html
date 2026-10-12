@@ -50,6 +50,16 @@
           <label class="field">Jouw naam<input type="text" id="ng-name" maxlength="16" autocomplete="off"></label>
           <div class="field">Jouw plaatje<div class="avatar-pick"></div></div>
         </div>
+        <div class="group">
+          <div class="field">Lengte van het spel
+            <div class="seg two" id="opt-length">
+              <button type="button" data-length="normaal">Normaal<small id="len-normaal"></small></button>
+              <button type="button" data-length="kort">Kort<small id="len-kort"></small></button>
+            </div>
+          </div>
+        </div>
+        <details class="advanced" id="ng-advanced">
+        <summary>Geavanceerde instellingen<small>Spelsoort, aantal spelers, lengte en regels</small></summary>
         <div class="variants">
           <button class="variant" data-variant="10">
             <b>10 op en neer</b>
@@ -90,6 +100,7 @@
             <input type="checkbox" id="opt-musttrump" class="switch">
           </label>
         </div>
+        </details>
         <p class="variant-name" id="variant-name"></p>
         <button class="primary wide" id="btn-start">Start</button>
       </div>
@@ -225,6 +236,18 @@
           <button data-tab="samen">Samen</button>
         </div>
         <div id="stats-body"></div>
+        <div class="group cloud" id="stats-cloud" hidden>
+          <h3>Op al je apparaten</h3>
+          <p id="cloud-text"></p>
+          <div class="cloud-code" id="cloud-code"></div>
+          <div class="button-row"><button id="btn-cloud-copy">Code kopiëren</button></div>
+          <details id="cloud-other">
+            <summary>Code van een ander apparaat invullen</summary>
+            <p class="small-note">Vul de code in die je in de app of op je andere apparaat ziet. De spellen van hier komen erbij.</p>
+            <div class="cloud-enter"><input id="cloud-input" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABCD-EFGH-JKLM" maxlength="16"><button class="primary" id="btn-cloud-use">Gebruiken</button></div>
+          </details>
+          <p class="cloud-status" id="cloud-status"></p>
+        </div>
         <button id="btn-stats-clear" hidden>Statistieken wissen</button>
       </div>
     </section>
