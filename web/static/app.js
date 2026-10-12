@@ -2404,7 +2404,7 @@ const clientId = () => {
 
 /** In de Android-app draait de website vanuit de app zelf; gedeelde links wijzen dan naar de echte website. */
 const nativeApp = window.TienApp ?? null;
-const APP_VERSION = "2.25";
+const APP_VERSION = "2.26";
 const SITE_URL = "https://robbert-coder.github.io/10-op-en-neer/";
 const tableLink = (code) => `${nativeApp ? SITE_URL : location.origin + location.pathname}?spel=${code}`;
 
@@ -3055,7 +3055,7 @@ function renderOnline() {
         <div class="nm">${esc(p.name)}${me ? " (jij)" : ""}<small>${seat === 1 ? "Gastheer" : "Speler"} · ${games}</small>${starsHtml(starRating(stats))}</div>
         <span class="dot ${p.online === false ? "off" : ""}"></span></div>`;
     }
-    return `<div class="lobby-seat waiting"><div class="avatar">${faceSvg(SEAT_FACE[seat])}</div>
+    return `<div class="lobby-seat waiting"><div class="avatar happy">${faceSvg(SEAT_FACE[seat])}</div>
       <div class="nm">Nog vrij<small>Anders speelt ${names[seat - 1]} hier</small></div></div>`;
   }).join("");
   $("#lobby-seats").innerHTML = rows;
@@ -3409,7 +3409,8 @@ $("#dialog-box").addEventListener("click", (e) => {
 $$(".logo-cards .card-slot").forEach((el) => {
   el.innerHTML = cardHtml(Number(el.dataset.card), "", "--w:70px");
 });
-$("#menu-faces").innerHTML = [2, 3, 4].map((nr) => avatarHtml(nr, "")).join("");
+// Op het startscherm kijken de spelers blij: zin in een potje
+$("#menu-faces").innerHTML = [2, 3, 4].map((nr) => avatarHtml(nr, "", "happy")).join("");
 
 const joinCode = normalizeCode(new URLSearchParams(location.search).get("spel"));
 if (!resumeOnline()) restoreSavedGame();
