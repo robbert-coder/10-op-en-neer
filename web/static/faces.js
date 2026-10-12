@@ -19,6 +19,15 @@ const HAIR = {
     <path d="M21 58 C19 46 22 38 28 34 C27 42 28 48 30 52 C25 53 23 57 24 62 Z" fill="${h}"/>
     <path d="M79 58 C81 46 78 38 72 34 C73 42 72 48 70 52 C75 53 77 57 76 62 Z" fill="${h}"/>
     <ellipse cx="40" cy="27" rx="9" ry="4" fill="#FFFFFF" opacity=".28" transform="rotate(-18 40 27)"/>`],
+  // Vol grijs haar met een scheiding, netjes opzij gekamd (Henk)
+  wavy: (h, d, l) => ["", `
+    <path d="M21 56 C17 30 30 14 50 14 C70 14 84 28 79 56 C77 45 74 38 69 33 C62 31 54 28 47 23 C43 30 37 33 30 35 C25 40 22 47 21 56 Z" fill="${h}"/>
+    <path d="M47 23 C58 22 66 26 72 33" fill="none" stroke="${l}" stroke-width="2.2" opacity=".55" stroke-linecap="round"/>
+    <path d="M47 23 C44 19 39 17 33 19" fill="none" stroke="${d}" stroke-width="1.6" opacity=".7" stroke-linecap="round"/>`],
+  // Kuif: het haar voorop omhoog gekamd
+  quiff: (h, d, l) => ["", `
+    <path d="M22 52 C19 32 26 22 35 18 C39 7 57 3 69 10 C79 15 82 27 78 52 C76 42 72 35 66 31 C58 34 44 34 34 31 C28 36 24 43 22 52 Z" fill="${h}"/>
+    <path d="M39 14 C49 7 62 8 71 15" fill="none" stroke="${l}" stroke-width="2" opacity=".5" stroke-linecap="round"/>`],
   short: (h, d, l) => ["", `
     <path d="M22 50 C20 26 34 15 51 15 C68 15 81 26 78 50 C76 40 72 33 66 30 C58 34 44 35 33 31 C28 36 24 42 22 50 Z" fill="${h}"/>
     <path d="M34 22 C44 18 58 18 68 23" fill="none" stroke="${l}" stroke-width="2" opacity=".5" stroke-linecap="round"/>`],
@@ -191,8 +200,8 @@ function drawFace(p) {
 
 // De vaste karakters aan tafel
 const PEOPLE = {
-  // Henk: rustige oude heer, kaal met grijze plukken, bril en snor
-  henk: { skin: "#F5D6C1", hair: "bald", hairColor: "#C9C4BC", brows: "#B9B1A6", thickBrows: true, eyes: "#5B7A8C",
+  // Henk: rustige oude heer, grijs opzij gekamd haar, bril en snor
+  henk: { skin: "#F5D6C1", hair: "wavy", hairColor: "#C9C4BC", brows: "#B9B1A6", thickBrows: true, eyes: "#5B7A8C",
     glasses: "#2E2E2E", beard: "moustache", beardColor: "#DDD8D0", wrinkles: true, nose: "big", shirt: "#8D6E63" },
   // Truus: uitbundig, rode krullenbos, wimpers, oorbellen
   truus: { skin: "#FADFCD", hair: "curly", hairColor: "#D2552F", brows: "#9C3D22", eyes: "#3F8A5A", lashes: true,
@@ -218,7 +227,7 @@ export const PERSONS = {
   p6: { skin: "#F7D9C5", hair: "ponytail", hairColor: "#7A4A26", eyes: "#3F8A5A", lashes: true, lips: "#B84A5E", freckles: true, shirt: "#8E7CC3" },
   p7: { skin: "#F8DCCA", hair: "spiky", hairColor: "#E6C25C", eyes: "#4F86C6", shirt: "#43A047" },
   p8: { skin: "#F6DCC6", hair: "bob", hairColor: "#1F1A17", eyes: "#3B2A1E", lashes: true, lips: "#C2185B", shirt: "#E53935" },
-  p9: { skin: "#F1CDB4", hair: "bald", hairColor: "#3A2A20", eyes: "#4A3020", beard: "full", beardColor: "#2E2018", shirt: "#455A64" },
+  p9: { skin: "#F1CDB4", hair: "quiff", hairColor: "#3A2A20", eyes: "#4A3020", beard: "full", beardColor: "#2E2018", shirt: "#455A64" },
   p10: { skin: "#F8E0D0", hair: "bun", hairColor: "#CFCFCF", eyes: "#6E8FB5", lashes: true, glasses: "#7B5BA6", wrinkles: true, lips: "#C2566E", shirt: "#5C6BC0" },
   p11: { skin: "#FCE6D8", hair: "long", hairColor: "#B5462A", eyes: "#3F8A5A", lashes: true, freckles: true, lips: "#C2185B", shirt: "#26A69A" },
   p12: { skin: "#EFC9AE", hair: "curly", hairColor: "#2A1C14", eyes: "#3B2416", beard: "stubble", beardColor: "#2A1C14", shirt: "#FFB300" },
