@@ -4,7 +4,7 @@ import { WebGame, describeCard, defaultNames } from "./tienopenneer.mjs";
 import { faceSvg, initialSvg, emojiSvg, puppetBodySvg } from "./faces.js";
 import * as tineke from "./tineke.js";
 import { BID_LINES, WET_LINES, BID_MS } from "./voices.js";
-import { Host, Guest, makeCode, normalizeCode, AVATAR_EMOJIS, cleanAvatar } from "./net.js";
+import { Host, Guest, makeCode, normalizeCode, AVATAR_EMOJIS, cleanAvatar, cleanStats } from "./net.js";
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
@@ -65,6 +65,156 @@ function variantKey(s) {
 }
 
 const MAX_HIGHSCORES = 10;
+
+// Statistieken ---------------------------------------------------------------------------
+
+/** Elk uitgespeeld spel van jezelf, nieuwste eerst (op dit apparaat). */
+const MAX_STATS = 1000;
+const loadStats = () => store.get("statistiek", []);
+
+/** Een afgelopen spel bewaren; een spel dat al bewaard is (bijvoorbeeld na herladen) telt niet nog eens. */
+function recordStats() {
+  if (!st || !game) return;
+  const me = st.players[0];
+  const id = `${game.seed}|${game.actionCount()}|${st.variant}`;
+  const list = loadStats();
+  if (list.some((g) => g.id === id)) return;
+  const played = me.rounds.filter((r) => r[2] >= 0);
+  list.unshift({
+    id,
+    time: Date.now(),
+    variant: st.variant,
+    players: st.players.length,
+    online: !!online?.game,
+    score: me.total,
+    rank: me.rank,
+    won: me.rank === 1,
+    rounds: played.length,
+    good: played.filter((r) => r[4]).length,
+    others: st.players.slice(1).map((p) => p.name),
+  });
+  store.set("statistiek", list.slice(0, MAX_STATS));
+  shareStats();
+}
+
+/** Kort overzicht van al je spellen, om met de anderen aan tafel te delen. */
+function statsSummary() {
+  const list = loadStats();
+  if (!list.length) return null;
+  // Plaats omgerekend naar 0 (laatste) .. 100 (eerste), zodat tafels van 2 en 5 spelers te vergelijken zijn
+  const place = (g) => (g.players > 1 ? (g.players - g.rank) / (g.players - 1) : 1);
+  return {
+    g: list.length,
+    w: list.filter((g) => g.won).length,
+    r: list.reduce((n, g) => n + g.rounds, 0),
+    ok: list.reduce((n, g) => n + g.good, 0),
+    f: Math.round((100 * list.reduce((n, g) => n + place(g), 0)) / list.length),
+  };
+}
+
+/**
+ * Sterren (0,5 tot 5, in halve stappen) uit hoe hoog je eindigt en hoe vaak je goed voorspelt.
+ * Met weinig spellen trekt de waardering naar het midden, zodat één gelukje geen vijf sterren geeft.
+ */
+function starRating(s) {
+  if (!s?.g) return null;
+  const raw = 0.6 * (s.f / 100) + 0.4 * (s.r ? s.ok / s.r : 0.5);
+  const sure = (raw * s.g + 0.45 * 3) / (s.g + 3);
+  return Math.max(0.5, Math.min(5, Math.round((1 + (4 * (sure - 0.15)) / 0.6) * 2) / 2));
+}
+
+function starsHtml(stars, cls = "") {
+  if (stars == null) return "";
+  const one = (i) => `<i class="${stars >= i ? "full" : stars >= i - 0.5 ? "half" : ""}">★</i>`;
+  return `<span class="stars ${cls}" title="${String(stars).replace(".", ",")} van 5 sterren" aria-label="${String(stars).replace(".", ",")} van 5 sterren">${[1, 2, 3, 4, 5].map(one).join("")}</span>`;
+}
+
+/** Je eigen overzicht naar de tafel sturen (bij aanschuiven en na elk uitgespeeld spel). */
+const shareStats = () => online?.link?.setStats?.(statsSummary());
+
+/** De statistiek van speler nr in het spel: van jezelf uit je eigen lijst, van anderen zoals ze het delen. */
+function statsOfSeat(nr) {
+  const p = st?.players[nr - 1];
+  if (!p?.human) return null;
+  if (!online) return nr === 1 ? statsSummary() : null;
+  if (p.seat === online.seat) return statsSummary();
+  return online.players.find((x) => x.seat === p.seat)?.stats ?? null;
+}
+
+let playerCard = null; // {name, avatar, stats, computer} als je op iemand hebt getikt
+
+function playerCardHtml() {
+  const { name, avatarHtml: face, stats, computer } = playerCard;
+  const pct = (a, b) => (b ? Math.round((100 * a) / b) : 0);
+  const body = computer
+    ? `<p>Een computerspeler. Die houdt geen statistiek bij.</p>`
+    : !stats
+      ? `<p>${esc(name)} heeft nog geen spel helemaal uitgespeeld, dus er is nog geen statistiek.</p>`
+      : `${starsHtml(starRating(stats), "big")}
+        <div class="stat-tiles three">
+          <div class="stat-tile"><b>${stats.g}</b><small>gespeeld</small></div>
+          <div class="stat-tile"><b>${pct(stats.w, stats.g)}%</b><small>gewonnen (${stats.w})</small></div>
+          <div class="stat-tile"><b>${pct(stats.ok, stats.r)}%</b><small>goed voorspeld</small></div>
+        </div>`;
+  return `<div class="pcard">${face}<h3>${esc(name)}</h3>${body}</div>
+    <div class="actions"><button class="primary" data-action="close-card">Sluiten</button></div>`;
+}
+
+function openPlayerCard(card) {
+  playerCard = card;
+  renderDialog();
+}
+
+let statsTab = "alles";
+
+function renderStats() {
+  $$("#stats-tabs button").forEach((b) => b.classList.toggle("selected", b.dataset.tab === statsTab));
+  const all = loadStats();
+  const list = all.filter((g) => statsTab === "alles" || (statsTab === "samen") === g.online);
+  $("#btn-stats-clear").hidden = all.length === 0;
+  if (!list.length) {
+    $("#stats-body").innerHTML = `<div class="group"><p class="empty-note">${all.length
+      ? "Nog geen spellen in deze lijst."
+      : "Nog geen spellen. Speel een spel helemaal uit, dan zie je hier hoe je het doet."}</p></div>`;
+    return;
+  }
+  const pct = (a, b) => (b ? Math.round((100 * a) / b) : 0);
+  const won = list.filter((g) => g.won).length;
+  const rounds = list.reduce((n, g) => n + g.rounds, 0);
+  const good = list.reduce((n, g) => n + g.good, 0);
+  const avgRank = list.reduce((n, g) => n + g.rank, 0) / list.length;
+  const tile = (value, label) => `<div class="stat-tile"><b>${value}</b><small>${label}</small></div>`;
+  // Per spelsoort: alleen spellen met dezelfde regels en lengte zijn te vergelijken
+  const byVariant = new Map();
+  for (const g of list) {
+    const key = `${g.variant} · ${g.players} spelers`;
+    if (!byVariant.has(key)) byVariant.set(key, []);
+    byVariant.get(key).push(g);
+  }
+  const variants = [...byVariant.entries()].sort((a, b) => b[1].length - a[1].length).map(([key, gs]) => {
+    const avg = Math.round(gs.reduce((n, g) => n + g.score, 0) / gs.length);
+    const best = Math.max(...gs.map((g) => g.score));
+    return `<div class="stat-row"><span class="name">${esc(key)}<small>${gs.length} gespeeld · ${gs.filter((g) => g.won).length} gewonnen</small></span>
+      <span class="num"><small>gem.</small>${avg}</span><span class="num best"><small>beste</small>${best}</span></div>`;
+  }).join("");
+  const date = (t) => new Date(t).toLocaleDateString("nl-NL", { day: "numeric", month: "short" });
+  const recent = list.slice(0, 15).map((g) => `<div class="stat-row">
+      <span class="name">${esc(g.variant)}<small>${date(g.time)} · ${g.online ? "samen" : "tegen de computer"} · ${g.players} spelers</small></span>
+      <span class="num place">${g.rank === 1 ? `${NL_FLAG} 1e` : `${g.rank}e`}</span><span class="num best">${g.score}</span></div>`).join("");
+  const mine = statsTab === "alles" ? starRating(statsSummary()) : null;
+  $("#stats-body").innerHTML = `
+    ${mine != null ? `<div class="my-rating">${starsHtml(mine, "big")}<small>Dit zien de anderen als je samen speelt</small></div>` : ""}
+    <div class="stat-tiles">
+      ${tile(list.length, "gespeeld")}
+      ${tile(`${pct(won, list.length)}%`, `gewonnen (${won})`)}
+      ${tile(`${pct(good, rounds)}%`, "goed voorspeld")}
+      ${tile(avgRank.toFixed(1).replace(".", ","), "gem. plaats")}
+    </div>
+    <h3 class="stat-head">Per spelsoort</h3><div class="group">${variants}</div>
+    <h3 class="stat-head">Laatste spellen</h3><div class="group">${recent}</div>`;
+}
+
+$$("#stats-tabs button").forEach((b) => b.addEventListener("click", () => { statsTab = b.dataset.tab; renderStats(); }));
 const loadHighScores = (key) => store.get("highscore." + key, []);
 
 /** Voegt een score toe en geeft de plaats (1..10), of 0 als de score de lijst niet haalt. */
@@ -444,6 +594,7 @@ async function collectTrick() {
 function handleGameOver() {
   if (gameOverHandled) return;
   gameOverHandled = true;
+  recordStats();
   if (online?.game) turnNotice("Het spel is afgelopen. Kijk wie er gewonnen heeft!");
   // Een afgelopen online spel niet meer automatisch openen na het herladen
   if (online?.role === "host") saveOnline();
@@ -538,8 +689,19 @@ function winnerStage(mode = null) {
   return stage;
 }
 
-/** Speelt de animatie af; tikken slaat hem over. Klaar als de kaarten weg zijn. */
-function celebrate(mode = null) {
+/** De eindanimaties met hun kans; de tienen die op en neer gaan komen het vaakst. */
+const CELEBRATIONS = [["tien", 4], ["stuiter", 2], ["sneeuw", 2], ["weg", 2], ["vliegtuig", 2]];
+
+function pickCelebration() {
+  const forced = new URLSearchParams(location.search).get("anim");
+  if (CELEBRATIONS.some(([k]) => k === forced)) return forced;
+  let r = Math.random() * CELEBRATIONS.reduce((n, [, w]) => n + w, 0);
+  for (const [kind, weight] of CELEBRATIONS) if ((r -= weight) < 0) return kind;
+  return "tien";
+}
+
+/** Speelt een eindanimatie af (elke keer een andere); tikken slaat hem over. */
+function celebrate(mode = null, kind = pickCelebration()) {
   if (celebrating || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return Promise.resolve();
   celebrating = true;
   return new Promise((resolve) => {
@@ -548,6 +710,7 @@ function celebrate(mode = null) {
     const H = window.innerHeight;
     const canvas = document.createElement("canvas");
     canvas.className = "celebrate";
+    canvas.dataset.kind = kind;
     canvas.width = W * dpr;
     canvas.height = H * dpr;
     document.body.appendChild(canvas);
@@ -555,15 +718,14 @@ function celebrate(mode = null) {
     g.scale(dpr, dpr);
     const w = Math.round(Math.max(46, Math.min(90, W / 8)));
     const h = Math.round(w * 1.42);
-    // Vier stapels bovenaan, zoals de azen bij Patience; de kaarten springen er om de beurt af
-    const piles = [0, 1, 2, 3].map((i) => (W - w) * (0.14 + 0.24 * i));
-    const order = [];
-    for (let rank = 14; rank >= 2; rank--) for (let suit = 1; suit <= 4; suit++) order.push(suit * 100 + rank);
     const sprites = new Map();
-    const active = [];
-    const gravity = H / 1400;
-    let launched = 0;
-    let last = 0;
+    const sprite = (code) => {
+      if (!sprites.has(code)) sprites.set(code, cardSprite(code, w, dpr));
+      return sprites.get(code);
+    };
+    const deck = [];
+    for (let rank = 14; rank >= 2; rank--) for (let suit = 1; suit <= 4; suit++) deck.push(suit * 100 + rank);
+    const randomCard = () => deck[Math.floor(Math.random() * deck.length)];
     let done = false;
     let started = performance.now();
 
@@ -578,32 +740,208 @@ function celebrate(mode = null) {
     canvas.addEventListener("pointerdown", finish);
     stage?.addEventListener("pointerdown", finish);
 
-    const launch = () => {
-      const code = order[launched];
-      if (!sprites.has(code)) sprites.set(code, cardSprite(code, w, dpr));
-      const pile = launched % 4;
-      const dir = piles[pile] + w / 2 < W / 2 ? 1 : -1;
-      const speed = W / 260 + Math.random() * W / 160;
-      active.push({
-        sprite: sprites.get(code), x: piles[pile], y: H * 0.08,
-        vx: (Math.random() < 0.8 ? dir : -dir) * speed, vy: -Math.random() * H / 120,
-      });
-      launched++;
+    /** Tekent een kaart gedraaid rond zijn midden; sx < 1 knijpt hem smal (omdraaien). */
+    const drawCard = (img, x, y, angle = 0, scale = 1, sx = 1) => {
+      g.save();
+      g.translate(x, y);
+      g.rotate(angle);
+      g.scale(scale * sx, scale);
+      g.drawImage(img, -w / 2, -h / 2, w, h);
+      g.restore();
     };
 
+    const kinds = {
+      // Vier stapels bovenaan, zoals de azen bij Patience; de kaarten stuiteren en laten een spoor na
+      stuiter() {
+        const piles = [0, 1, 2, 3].map((i) => (W - w) * (0.14 + 0.24 * i));
+        const active = [];
+        const gravity = H / 1400;
+        let launched = 0;
+        let last = 0;
+        return (now) => {
+          if (launched < deck.length && now - last > 260 && active.length < 6) {
+            const pile = launched % 4;
+            const dir = piles[pile] + w / 2 < W / 2 ? 1 : -1;
+            const speed = W / 260 + Math.random() * W / 160;
+            active.push({
+              img: sprite(deck[launched]), x: piles[pile], y: H * 0.08,
+              vx: (Math.random() < 0.8 ? dir : -dir) * speed, vy: -Math.random() * H / 120,
+            });
+            launched++;
+            last = now;
+          }
+          for (let i = active.length - 1; i >= 0; i--) {
+            const c = active[i];
+            c.vy += gravity;
+            c.x += c.vx;
+            c.y += c.vy;
+            if (c.y + h > H) { c.y = H - h; c.vy = -c.vy * 0.82; }
+            g.drawImage(c.img, c.x, c.y, w, h);
+            if (c.x < -w || c.x > W) active.splice(i, 1);
+          }
+          return launched >= deck.length && active.length === 0;
+        };
+      },
+
+      // Kaarten dwarrelen als sneeuwvlokken naar beneden, heen en weer wiegend
+      sneeuw() {
+        const flakes = Array.from({ length: 34 }, (_, i) => ({
+          img: sprite(randomCard()), x: Math.random() * W, delay: i * 110 + Math.random() * 300,
+          speed: H / (3000 + Math.random() * 1800), sway: 20 + Math.random() * 50,
+          phase: Math.random() * 6.3, spin: (Math.random() - 0.5) * 0.002, scale: 0.45 + Math.random() * 0.45,
+        }));
+        return (now, t) => {
+          g.clearRect(0, 0, W, H);
+          let falling = 0;
+          for (const f of flakes) {
+            const age = t - f.delay;
+            if (age < 0) { falling++; continue; }
+            const y = -h + age * f.speed;
+            if (y > H + h) continue;
+            falling++;
+            const x = f.x + Math.sin(age / 700 + f.phase) * f.sway;
+            drawCard(f.img, x, y, Math.sin(age / 900 + f.phase) * 0.6 + age * f.spin, f.scale, Math.cos(age / 600 + f.phase));
+          }
+          return falling === 0;
+        };
+      },
+
+      // Een stapel in het midden; de kaarten vliegen draaiend alle kanten op uit beeld
+      weg() {
+        const cards = deck.map((code, i) => {
+          const a = Math.random() * Math.PI * 2;
+          const v = Math.hypot(W, H) / (900 + Math.random() * 700);
+          return { img: sprite(code), delay: 600 + i * 55, vx: Math.cos(a) * v, vy: Math.sin(a) * v,
+            spin: (Math.random() - 0.5) * 0.02, jitter: (Math.random() - 0.5) * 0.3 };
+        });
+        return (now, t) => {
+          g.clearRect(0, 0, W, H);
+          let left = 0;
+          for (let i = cards.length - 1; i >= 0; i--) {
+            const c = cards[i];
+            const age = Math.max(0, t - c.delay);
+            const x = W / 2 + c.vx * age;
+            const y = H / 2 + c.vy * age;
+            const scale = 1 + age / 900;
+            if (x < -w * 3 || x > W + w * 3 || y < -h * 3 || y > H + h * 3) continue;
+            left++;
+            drawCard(c.img, x, y - (age ? 0 : i * 0.4), c.jitter + c.spin * age, scale);
+          }
+          return left === 0;
+        };
+      },
+
+      // Kaarten vouwen zich op tot papieren vliegtuigjes die rondjes vliegen
+      vliegtuig() {
+        const colors = ["#FFFFFF", "#FFE7A3", "#CFE8FF", "#FFD1D1", "#D7F5D0"];
+        const planes = Array.from({ length: 7 }, (_, i) => {
+          const code = randomCard();
+          return { img: sprite(code), red: [2, 4].includes(Math.floor(code / 100)),
+            hx: W * (0.12 + 0.76 * (i / 6)), hy: H * (0.3 + 0.3 * Math.random()),
+            cx: W * (0.2 + 0.6 * (i / 6)), cy: H * (0.3 + 0.35 * Math.random()),
+            r: Math.min(W, H) * (0.12 + 0.2 * Math.random()), dir: Math.random() < 0.5 ? 1 : -1,
+            phase: Math.random() * 6.3, color: colors[i % colors.length], delay: i * 120 };
+        });
+        const pw = w * 0.9;
+        const drawPlane = (p, x, y, angle, fold) => {
+          g.save();
+          g.translate(x, y);
+          g.rotate(angle);
+          g.scale(1, 1 - 0.35 * fold);
+          // Romp: twee vleugels en de vouw in het midden
+          g.beginPath();
+          g.moveTo(pw * 0.55, 0);
+          g.lineTo(-pw * 0.45, -pw * 0.38);
+          g.lineTo(-pw * 0.3, 0);
+          g.lineTo(-pw * 0.45, pw * 0.38);
+          g.closePath();
+          g.fillStyle = p.color;
+          g.fill();
+          g.strokeStyle = "rgba(0,0,0,.3)";
+          g.lineWidth = 1;
+          g.stroke();
+          g.beginPath();
+          g.moveTo(pw * 0.55, 0);
+          g.lineTo(-pw * 0.3, 0);
+          g.lineTo(-pw * 0.42, pw * 0.08);
+          g.closePath();
+          g.fillStyle = "rgba(0,0,0,.15)";
+          g.fill();
+          g.fillStyle = p.red ? "#D93636" : "#1E2430";
+          g.beginPath();
+          g.arc(-pw * 0.12, -pw * 0.14, pw * 0.05, 0, Math.PI * 2);
+          g.fill();
+          g.restore();
+        };
+        const FOLD = 1100;
+        const FLY = 6200;
+        return (now, t) => {
+          g.clearRect(0, 0, W, H);
+          let flying = 0;
+          for (const p of planes) {
+            const age = t - p.delay;
+            if (age < 0) { flying++; continue; }
+            if (age < FOLD) {
+              // Eerst de kaart, die dichtvouwt: smaller en platter, en dan het vliegtuigje
+              flying++;
+              const k = age / FOLD;
+              if (k < 0.55) drawCard(p.img, p.hx, p.hy, 0, 1 - k * 0.4, 1 - k / 0.55 * 0.85);
+              else drawPlane(p, p.hx, p.hy, -Math.PI / 2, 1 - (k - 0.55) / 0.45);
+              continue;
+            }
+            const f = age - FOLD;
+            const a = p.phase + p.dir * f / 900;
+            // Rondjes rond een eigen middelpunt; na afloop vliegt hij weg naar boven
+            const out = Math.max(0, f - FLY);
+            const x = p.cx + Math.cos(a) * p.r + (p.hx - p.cx) * Math.max(0, 1 - f / 600);
+            const y = p.cy + Math.sin(a) * p.r * 0.6 - out * H / 1200 + (p.hy - p.cy) * Math.max(0, 1 - f / 600);
+            if (y < -pw * 2) continue;
+            flying++;
+            const angle = out > 0 ? -Math.PI / 2 : a + p.dir * Math.PI / 2;
+            drawPlane(p, x, y, angle, 0);
+          }
+          return flying === 0;
+        };
+      },
+
+      // Alle kaarten draaien om tot een tien en gaan in een golf op en neer
+      tien() {
+        const cols = Math.max(4, Math.min(9, Math.floor(W / (w * 1.25))));
+        const rows = Math.max(2, Math.min(4, Math.floor((H * 0.75) / (h * 1.2))));
+        const gapX = W / cols;
+        const gapY = (H * 0.8) / rows;
+        const cards = [];
+        for (let r = 0; r < rows; r++) {
+          for (let c = 0; c < cols; c++) {
+            const suit = 1 + ((r + c) % 4);
+            cards.push({ from: sprite(randomCard()), ten: sprite(suit * 100 + 10),
+              x: gapX * (c + 0.5), y: H * 0.12 + gapY * (r + 0.5), wave: c * 0.55 + r * 0.3,
+              flip: 400 + (c + r) * 90 });
+          }
+        }
+        const END = 7600;
+        return (now, t) => {
+          g.clearRect(0, 0, W, H);
+          for (const c of cards) {
+            const appear = Math.min(1, t / 350);
+            const k = Math.min(1, Math.max(0, (t - c.flip) / 500));
+            const img = k < 0.5 ? c.from : c.ten;
+            const sx = Math.abs(Math.cos(k * Math.PI));
+            // Op en neer: na het omdraaien springen de tienen in een golf
+            const bounce = k >= 1 ? Math.abs(Math.sin((t - c.flip - 500) / 330 - c.wave)) * gapY * 0.35 : 0;
+            const leave = Math.max(0, t - END + 900) / 900;
+            const y = c.y - bounce + leave * leave * H;
+            drawCard(img, c.x, y, 0, 0.8 * appear, Math.max(0.02, sx));
+          }
+          return t > END;
+        };
+      },
+    };
+
+    const step = kinds[kind]();
     const frame = (now) => {
       if (done) return;
-      if (launched < order.length && now - last > 260 && active.length < 6) { launch(); last = now; }
-      for (let i = active.length - 1; i >= 0; i--) {
-        const c = active[i];
-        c.vy += gravity;
-        c.x += c.vx;
-        c.y += c.vy;
-        if (c.y + h > H) { c.y = H - h; c.vy = -c.vy * 0.82; }
-        g.drawImage(c.sprite, c.x, c.y, w, h);
-        if (c.x < -w || c.x > W) active.splice(i, 1);
-      }
-      if ((launched >= order.length && active.length === 0) || now - started > 10000) finish();
+      if (step(now, now - started) || now - started > 11000) finish();
       else requestAnimationFrame(frame);
     };
     // De tafel blijft zichtbaar, de kaarten tekenen eroverheen
@@ -951,7 +1289,7 @@ function buildSeats() {
       </div>
 `;
     el.querySelector(".avatar").insertAdjacentHTML("beforeend",
-      `<span class="order" hidden></span><span class="lead" hidden>uit</span><svg class="turn-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12H6m0 0 6-6m-6 6 6 6"/></svg>`);
+      `<span class="order" hidden></span><span class="lead" hidden>uit</span><span class="mini-stars"></span><svg class="turn-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12H6m0 0 6-6m-6 6 6 6"/></svg>`);
   }
   $("#seat-1").dataset.key = seatsKey();
 }
@@ -981,9 +1319,12 @@ function updateSeats() {
     el.classList.toggle("active", st.active === nr);
     el.classList.toggle("done", hasHadTurn(nr));
     const avatar = el.querySelector(".avatar");
-    avatar.className = `avatar ${moodFor(nr)} ${st.active === nr ? "active" : ""}`;
+    const stars = starRating(statsOfSeat(nr));
+    avatar.className = `avatar ${moodFor(nr)} ${st.active === nr ? "active" : ""} ${stars != null ? "has-stars" : ""}`;
     el.querySelector(".lead").hidden = st.leader !== nr || st.phase === "ROUND_COMPLETE" || st.phase === "GAME_OVER";
     el.querySelector(".nm").textContent = p.name;
+    const mini = el.querySelector(".mini-stars");
+    if (mini.dataset.v !== String(stars)) { mini.dataset.v = String(stars); mini.innerHTML = starsHtml(stars); }
     el.querySelector(".tot").textContent = `${p.total} pt`;
     el.querySelector(".bid b").textContent = p.bid >= 0 ? p.bid : "–";
     const got = el.querySelector(".got");
@@ -1311,7 +1652,10 @@ function renderDialog() {
   const box = $("#dialog-box");
   let html = null;
   let cls = "dialog";
-  if (confirmDialog) {
+  if (playerCard && !confirmDialog) {
+    cls = "dialog card-dialog";
+    html = playerCardHtml();
+  } else if (confirmDialog) {
     html = `<h3>${confirmDialog.title}</h3><p>${confirmDialog.text}</p><div class="actions">
       <button data-action="confirm-no">${confirmDialog.no}</button>
       <button class="primary" data-action="confirm-yes">${confirmDialog.yes}</button></div>`;
@@ -1454,6 +1798,7 @@ function show(name) {
   if (name === "menu") renderMenu();
   if (name === "newgame") renderNewGame();
   if (name === "highscores") renderHighScores();
+  if (name === "stats") renderStats();
   if (name === "settings") renderSettings();
   if (name === "online") renderOnline();
   if (name === "online" || name === "settings") renderAvatarPick();
@@ -1640,7 +1985,7 @@ const clientId = () => {
 
 /** In de Android-app draait de website vanuit de app zelf; gedeelde links wijzen dan naar de echte website. */
 const nativeApp = window.TienApp ?? null;
-const APP_VERSION = "2.9";
+const APP_VERSION = "2.10";
 const SITE_URL = "https://robbert-coder.github.io/10-op-en-neer/";
 const tableLink = (code) => `${nativeApp ? SITE_URL : location.origin + location.pathname}?spel=${code}`;
 
@@ -1845,6 +2190,7 @@ function openTable(rules) {
     queue: new Map(), game: null, rules, smart: settings.smart, status: "Tafel openen…", error: "", chat: [], unread: 0,
   };
   online.link = new Host(code, settings.playerName, netEvents(), null, myAvatar(), rules.players ?? 4);
+  shareStats();
   show("online");
 }
 
@@ -1853,6 +2199,7 @@ function joinTable(code) {
   askNotifications();
   online = { role: "guest", code, seat: 0, players: [], queue: new Map(), game: null, status: "Verbinden met de tafel…", error: "", chat: [], unread: 0 };
   online.link = new Guest(code, settings.playerName, clientId(), netEvents(), myAvatar());
+  shareStats();
   store.set("online-gast", { code, time: Date.now() });
   show("online");
 }
@@ -1953,6 +2300,7 @@ function resumeOnline() {
         chat: saved.chat ?? [], unread: 0,
       };
       online.link = new Host(saved.code, settings.playerName, netEvents(), saved, myAvatar(), saved.started.rules.players ?? 4);
+      shareStats();
       online.game = saved.started;
       currentRules = saved.started.rules;
       currentSmart = saved.started.smart;
@@ -1998,8 +2346,10 @@ function renderOnline() {
     const p = online.players.find((x) => x.seat === seat);
     if (p) {
       const me = seat === online.seat;
-      return `<div class="lobby-seat"><div class="avatar">${humanAvatarHtml(p.avatar, p.name)}</div>
-        <div class="nm">${esc(p.name)}${me ? " (jij)" : ""}<small>${seat === 1 ? "Gastheer" : "Speler"}</small></div>
+      const stats = me ? statsSummary() : p.stats;
+      const games = stats ? `${stats.g} ${stats.g === 1 ? "spel" : "spellen"}` : "nog geen spellen";
+      return `<div class="lobby-seat" data-seat="${seat}" role="button" tabindex="0"><div class="avatar">${humanAvatarHtml(p.avatar, p.name)}</div>
+        <div class="nm">${esc(p.name)}${me ? " (jij)" : ""}<small>${seat === 1 ? "Gastheer" : "Speler"} · ${games}</small>${starsHtml(starRating(stats))}</div>
         <span class="dot ${p.online === false ? "off" : ""}"></span></div>`;
     }
     return `<div class="lobby-seat waiting"><div class="avatar">${faceSvg(SEAT_FACE[seat])}</div>
@@ -2140,6 +2490,16 @@ $("#btn-start").addEventListener("click", () => {
 });
 
 $$("#hs-tabs button").forEach((b) => b.addEventListener("click", () => { hsTab = b.dataset.tab; renderHighScores(); }));
+$("#btn-stats-clear").addEventListener("click", () => {
+  confirmDialog = {
+    title: "Statistieken wissen",
+    text: "Weet je zeker dat je al je statistieken op dit apparaat wilt wissen?",
+    yes: "Wissen",
+    no: "Annuleren",
+    action: () => { store.remove("statistiek"); renderStats(); },
+  };
+  renderDialog();
+});
 $("#btn-hs-clear").addEventListener("click", () => {
   const name = $(`#hs-tabs [data-tab="${hsTab}"]`).textContent;
   confirmDialog = {
@@ -2234,6 +2594,10 @@ $("#dialog-box").addEventListener("click", (e) => {
       showScores = true;
       renderDialog();
       break;
+    case "close-card":
+      playerCard = null;
+      renderDialog();
+      break;
     case "close-scores":
       showScores = false;
       renderDialog();
@@ -2298,3 +2662,24 @@ window.tienBack = () => {
 
 // Voor de tests
 window.__tienopenneer = { get state() { return st; }, settings, get busy() { return busy; }, celebrate };
+
+// Tikken op een speler: zijn statistiek en sterren -----------------------------------------
+
+$("#lobby-seats").addEventListener("click", (e) => {
+  const row = e.target.closest(".lobby-seat[data-seat]");
+  if (!row || !online) return;
+  const seat = Number(row.dataset.seat);
+  const p = online.players.find((x) => x.seat === seat);
+  if (!p) return;
+  openPlayerCard({ name: p.name, avatarHtml: `<div class="avatar">${humanAvatarHtml(p.avatar, p.name)}</div>`,
+    stats: seat === online.seat ? statsSummary() : p.stats });
+});
+
+$("#arena").addEventListener("click", (e) => {
+  const seatEl = e.target.closest(".seat");
+  if (!seatEl || !e.target.closest(".avatar, .who") || !st) return;
+  const nr = Number(seatEl.id.replace("seat-", ""));
+  const p = st.players[nr - 1];
+  if (!p) return;
+  openPlayerCard({ name: p.name, avatarHtml: avatarHtml(nr, p.name), stats: statsOfSeat(nr), computer: !p.human });
+});

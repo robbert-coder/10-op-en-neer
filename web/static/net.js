@@ -26,6 +26,15 @@ export function cleanAvatar(v) {
   return null;
 }
 
+/** Het statistiekoverzicht van een ander: alleen nette getallen, of null. */
+export function cleanStats(v) {
+  if (!v || typeof v !== "object") return null;
+  const n = (x, max) => (Number.isFinite(x) ? Math.max(0, Math.min(max, Math.round(x))) : 0);
+  const g = n(v.g, 100000);
+  if (!g) return null;
+  return { g, w: Math.min(g, n(v.w, 100000)), r: n(v.r, 10000000), ok: Math.min(n(v.r, 10000000), n(v.ok, 10000000)), f: n(v.f, 100) };
+}
+
 export const normalizeCode = (s) => String(s || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 5);
 
 /**
@@ -222,6 +231,7 @@ export class Host {
       p.online = true;
       if (!this.started) p.name = name;
       p.avatar = cleanAvatar(msg.avatar);
+      p.stats = cleanStats(msg.stats);
       conn.clientId = id;
       const old = this.conns.get(id);
       if (old && old !== conn) old.close();
@@ -235,7 +245,10 @@ export class Host {
       if (this.started && conn.clientId) conn.send({ t: "start", game: this.started, log: this.log });
     } else if (msg.t === "me") {
       const p = this.players.find((x) => x.id === conn.clientId);
-      if (p) { p.avatar = cleanAvatar(msg.avatar); this.lobbyChanged(); }
+      if (!p) return;
+      if ("avatar" in msg) p.avatar = cleanAvatar(msg.avatar);
+      if ("stats" in msg) p.stats = cleanStats(msg.stats);
+      this.lobbyChanged();
     } else if (msg.t === "chat") {
       const p = this.players.find((x) => x.id === conn.clientId);
       if (p) this.addChat(p.seat, p.name, msg.text, conn);
@@ -265,7 +278,8 @@ export class Host {
   }
 
   lobbyChanged() {
-    const list = this.players.map(({ name, seat, online, avatar }) => ({ name, seat, online, avatar: avatar ?? null }));
+    const list = this.players.map(({ name, seat, online, avatar, stats }) =>
+      ({ name, seat, online, avatar: avatar ?? null, stats: stats ?? null }));
     this.broadcast({ t: "lobby", players: list, seats: this.seats });
     this.events.onLobby?.(list, this.seats);
   }
@@ -329,6 +343,13 @@ export class Host {
     this.lobbyChanged();
   }
 
+  /** De statistiek van de gastheer zelf, voor de anderen aan tafel. */
+  setStats(v) {
+    const me = this.players.find((x) => x.id === "host");
+    if (me) me.stats = cleanStats(v);
+    this.lobbyChanged();
+  }
+
   /** Een handeling van de gastheer zelf. */
   sendAction(index, seat, value) {
     if (index !== this.log.length) return;
@@ -377,7 +398,7 @@ export class Guest {
   }
 
   hello() {
-    this.conn.send({ t: "hello", id: this.clientId, name: this.name, avatar: this.avatar });
+    this.conn.send({ t: "hello", id: this.clientId, name: this.name, avatar: this.avatar, stats: this.stats ?? null });
   }
 
   /** Elke paar tellen: een teken van leven, of opnieuw aankloppen als de tafel (nog) niet antwoordt. */
@@ -427,7 +448,7 @@ export class Guest {
     }
     else if (msg.t === "lobby") {
       const seats = Number(msg.seats);
-      this.events.onLobby?.((msg.players || []).map((p) => ({ ...p, avatar: cleanAvatar(p.avatar) })),
+      this.events.onLobby?.((msg.players || []).map((p) => ({ ...p, avatar: cleanAvatar(p.avatar), stats: cleanStats(p.stats) })),
         seats >= 2 && seats <= 5 ? seats : 4);
     }
     else if (msg.t === "start") this.events.onStart?.(msg.game, msg.log);
@@ -446,6 +467,12 @@ export class Guest {
   setAvatar(v) {
     this.avatar = cleanAvatar(v);
     this.conn.send({ t: "me", avatar: this.avatar });
+  }
+
+  /** Je eigen statistiek; gaat mee bij het aanschuiven en daarna bij elke verandering. */
+  setStats(v) {
+    this.stats = cleanStats(v);
+    if (this.welcomed) this.conn.send({ t: "me", stats: this.stats });
   }
 
   /** Een chatbericht gaat naar de gastheer, die het doorstuurt. Geeft false zonder verbinding. */

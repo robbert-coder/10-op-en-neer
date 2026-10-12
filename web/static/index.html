@@ -34,6 +34,7 @@
         <div class="button-row">
           <button data-go="rules">Spelregels</button>
           <button data-go="highscores">Highscores</button>
+          <button data-go="stats">Statistieken</button>
           <button data-go="settings">Instellingen</button>
         </div>
       </div>
@@ -215,6 +216,19 @@
     </section>
 
     <!-- Highscores -->
+    <section id="stats" class="screen page">
+      <header><button class="back" data-go="menu" aria-label="Terug">‹</button><h2>Statistieken</h2></header>
+      <div class="content">
+        <div class="tabs" id="stats-tabs">
+          <button data-tab="alles">Alles</button>
+          <button data-tab="computer">Tegen de computer</button>
+          <button data-tab="samen">Samen</button>
+        </div>
+        <div id="stats-body"></div>
+        <button id="btn-stats-clear" hidden>Statistieken wissen</button>
+      </div>
+    </section>
+
     <section id="highscores" class="screen page">
       <header><button class="back" data-go="menu" aria-label="Terug">‹</button><h2>Highscores</h2></header>
       <div class="content">

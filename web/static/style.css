@@ -730,3 +730,43 @@ h1 { font-size: 38px; margin: 18px 0 0; letter-spacing: -.5px; text-wrap: balanc
 /* Nieuw spel: de plaatjes in één rij om door te schuiven, zodat de spelkeuze in beeld blijft */
 #newgame .avatar-pick { display: flex; overflow-x: auto; gap: 8px; padding: 4px 2px 6px; scrollbar-width: thin; }
 #newgame .av-opt { flex: 0 0 46px; width: 46px; height: 46px; }
+
+/* ---------- Statistieken ---------- */
+.button-row:has(> :nth-child(4)) { grid-template-columns: repeat(2, 1fr); }
+.stat-tiles { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin: 12px 0; }
+@media (min-width: 560px) { .stat-tiles { grid-template-columns: repeat(4, 1fr); } }
+.stat-tile { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 12px; text-align: center; }
+.stat-tile b { display: block; font-size: 26px; color: var(--gold); font-variant-numeric: tabular-nums; }
+.stat-tile small { color: var(--muted); font-size: 12px; }
+.stat-head { margin: 16px 0 6px; font-size: 15px; color: var(--muted); font-weight: 700; }
+.stat-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; font-variant-numeric: tabular-nums; }
+.stat-row + .stat-row { border-top: 1px solid var(--line); }
+.stat-row .name { flex: 1; min-width: 0; font-weight: 600; }
+.stat-row .name small { display: block; color: var(--muted); font-weight: 400; font-size: 12px; margin-top: 2px; }
+.stat-row .num { min-width: 44px; text-align: right; font-weight: 700; }
+.stat-row .num small { display: block; color: var(--muted); font-weight: 400; font-size: 11px; }
+.stat-row .num.best { color: var(--gold); }
+.stat-row .num.place { display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
+#btn-stats-clear { margin-top: 14px; }
+
+/* Sterren: waardering uit je statistiek */
+.stars { display: inline-flex; gap: 1px; font-size: 13px; line-height: 1; letter-spacing: 0; white-space: nowrap; }
+.stars i { font-style: normal; color: rgba(255,255,255,.22); }
+.stars i.full { color: var(--gold); }
+.stars i.half { background: linear-gradient(90deg, var(--gold) 50%, rgba(255,255,255,.22) 50%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.stars.big { font-size: 30px; gap: 4px; margin: 6px 0 10px; }
+.lobby-seat[data-seat] { cursor: pointer; }
+.lobby-seat .nm .stars { display: flex; margin-top: 3px; }
+.mini-stars { position: absolute; left: 50%; top: 100%; transform: translate(-50%, 1px); pointer-events: none; z-index: 2; }
+.mini-stars .stars { font-size: 9px; background: rgba(0,0,0,.35); padding: 1px 4px; border-radius: 8px; }
+.mini-stars:empty { display: none; }
+@media (min-width: 1000px) and (min-height: 640px) { .mini-stars .stars { font-size: 12px; } }
+.seat .avatar { cursor: pointer; }
+.pcard { text-align: center; }
+.pcard .avatar { width: 84px; height: 84px; margin: 0 auto 8px; }
+.pcard h3 { margin: 0; }
+.pcard .stat-tiles.three { grid-template-columns: repeat(3, 1fr); margin-bottom: 4px; }
+.my-rating { display: flex; flex-direction: column; align-items: center; margin-top: 8px; }
+.my-rating small { color: var(--muted); font-size: 12px; }
+.seat .avatar.has-stars { margin-bottom: 13px; }
+@media (min-width: 1000px) and (min-height: 640px) { .seat .avatar.has-stars { margin-bottom: 16px; } }
