@@ -862,15 +862,22 @@ function handleGameOver() {
   if (online?.role === "host") saveOnline();
   else if (online) store.remove("online-gast");
   const me = st.players[0];
-  // Volledige spellen met vier spelers hebben een eigen lijst; korte spellen komen in de lijst "kort",
-  // met erbij tot hoeveel kaarten en met hoeveel spelers, want die scores zijn onderling minder te vergelijken
+  // Volledige spellen vanaf drie spelers hebben een eigen lijst; korte spellen komen in de lijst "kort",
+  // met erbij tot hoeveel kaarten, want die scores zijn onderling minder te vergelijken
   const short = st.variant.match(/ tot (\d+)$/);
   highScoreShort = !!short;
-  if (!short && st.players.length === 4) highScorePlace = addHighScore(variantKey(st), me.name, me.total);
-  else if (short) highScorePlace = addHighScore(`${shortVariantKey(st.variant)}.kort`, me.name, me.total, `tot ${short[1]} · ${st.players.length} spelers`);
+  const humans = st.players.filter((p) => p.human).length;
+  const bots = st.players.length - humans;
+  const mix = `${st.players.length} spelers: ${[humans ? `${humans} ${humans === 1 ? "mens" : "mensen"}` : "", bots ? `${bots} ${bots === 1 ? "computer" : "computers"}` : ""].filter(Boolean).join(", ")}`;
+  const gameId = `${game.seed}|${game.actionCount()}|${st.variant}`;
+  if (!short && st.players.length >= 3) {
+    highScorePlace = addHighScore(variantKey(st), me.name, me.total, mix);
+    queueHof({ game: gameId, list: variantKey(st), score: me.total, detail: mix });
+  } else if (short) {
+    highScorePlace = addHighScore(`${shortVariantKey(st.variant)}.kort`, me.name, me.total, `tot ${short[1]} · ${mix}`);
+    queueHof({ game: gameId, list: `${shortVariantKey(st.variant)}.kort`, score: me.total, detail: `tot ${short[1]} · ${mix}` });
+  }
   else highScorePlace = 0;
-  if (!short && st.players.length === 4) queueHof({ game: `${game.seed}|${game.actionCount()}|${st.variant}`, list: variantKey(st), score: me.total });
-  else if (short) queueHof({ game: `${game.seed}|${game.actionCount()}|${st.variant}`, list: `${shortVariantKey(st.variant)}.kort`, score: me.total, detail: `tot ${short[1]} · ${st.players.length} spelers` });
   // AfgelopenCommentaar: applaus bij een goed resultaat
   const aloneFirst = me.rank === 1 && st.players.filter((p) => p.rank === 1).length === 1;
   let applause = null;
@@ -2167,8 +2174,8 @@ function renderHighScores() {
   if (hsScope === "hof") { renderHallOfFame(); return; }
   $("#hof-players").innerHTML = "";
   $("#hs-note").textContent = hsShort
-    ? "Spellen die niet tot het hoogste aantal kaarten gaan. Erbij staat tot hoeveel kaarten en met hoeveel spelers."
-    : "Spellen die helemaal tot het hoogste aantal kaarten gaan, met vier spelers.";
+    ? "Spellen die niet tot het hoogste aantal kaarten gaan. Erbij staat tot hoeveel kaarten en met hoeveel mensen en computers."
+    : "Spellen die helemaal tot het hoogste aantal kaarten gaan, met drie of meer spelers. Erbij staat met hoeveel mensen en computers.";
   const list = loadHighScores(hsKey());
   $("#hs-list").innerHTML = list.length === 0
     ? `<p class="empty-note">Nog geen scores. Speel een spel uit om in de lijst te komen.</p>`
@@ -2185,7 +2192,7 @@ async function renderHallOfFame() {
   $("#btn-hs-clear").hidden = true;
   $("#hs-note").textContent = (hsShort
     ? "De beste korte spellen van alle spelers, met erbij tot hoeveel kaarten en met hoeveel spelers."
-    : "De beste volledige spellen met vier spelers van alle spelers. Iedereen staat er één keer in, met zijn beste score.")
+    : "De beste volledige spellen (vanaf drie spelers) van iedereen. Iedereen staat er één keer in, met zijn beste score.")
     + (settings.hof === false ? " Je doet zelf niet mee; dat zet je aan bij Instellingen." : "");
   const cached = hofCache.get(key);
   if (!cached) { $("#hs-list").innerHTML = `<p class="empty-note">Hall of Fame laden…</p>`; $("#hof-players").innerHTML = ""; }
@@ -2335,7 +2342,7 @@ const clientId = () => {
 
 /** In de Android-app draait de website vanuit de app zelf; gedeelde links wijzen dan naar de echte website. */
 const nativeApp = window.TienApp ?? null;
-const APP_VERSION = "2.20";
+const APP_VERSION = "2.21";
 const SITE_URL = "https://robbert-coder.github.io/10-op-en-neer/";
 const tableLink = (code) => `${nativeApp ? SITE_URL : location.origin + location.pathname}?spel=${code}`;
 
