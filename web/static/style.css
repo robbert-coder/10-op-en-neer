@@ -645,7 +645,7 @@ h1 { font-size: 38px; margin: 18px 0 0; letter-spacing: -.5px; text-wrap: balanc
 @keyframes flag-up { from { transform: scaleY(0); opacity: 0; } to { transform: none; opacity: 1; } }
 
 /* ---------- Aantal spelers en lengte van het spel ---------- */
-.seg { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
+.seg { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 8px; }
 .seg button { padding: 10px; font-weight: 600; }
 .seg button.selected { background: var(--gold); color: var(--gold-ink); border-color: transparent; }
 .field-note { display: block; margin-top: 6px; color: var(--muted); font-weight: 400; font-size: 13px; }
@@ -666,7 +666,12 @@ h1 { font-size: 38px; margin: 18px 0 0; letter-spacing: -.5px; text-wrap: balanc
 .five .tcard.s3 { left: 34%; }
 .five .tcard.s4 { top: 9%; left: 66%; right: auto; transform: translateX(-50%) rotate(-4deg); }
 .five .tcard.s5 { right: 7%; top: 50%; transform: translateY(-50%) rotate(6deg); }
-.tcard[hidden] { display: none; }
+.tcard[hidden], .seat[hidden] { display: none; }
+
+/* Twee spelers: tegenover elkaar. Drie spelers: links en rechts. */
+.arena.two { grid-template-columns: 0 minmax(0, 1fr) 0; }
+.two .tcard.s2 { top: 9%; left: 50%; transform: translateX(-50%) rotate(3deg); }
+.three .tcard.s3 { top: 50%; right: 7%; left: auto; transform: translateY(-50%) rotate(6deg); }
 @media (min-width: 1000px) and (min-height: 640px) {
   .arena.five .seat.north { flex-direction: column; justify-content: flex-end; gap: 2px; text-align: center; padding: 2px 0 4px; }
   .arena.five .seat.north .avatar { width: 64px; height: 64px; }

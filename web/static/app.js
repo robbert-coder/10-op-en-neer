@@ -207,9 +207,12 @@ const animMs = (ms) => (reducedMotion ? 1 : ms * Math.min(1, Math.max(0.5, speed
 /** Nat: te veel slagen, of te weinig kaarten over om het bod nog te halen. Een slag die nog op tafel ligt telt mee. */
 const isWet = (p) => {
   if (p.bid < 0) return false;
-  const pending = st && st.phase === "TRICK_COMPLETE" && st.players[st.trickWinner - 1] === p ? 1 : 0;
+  const i = st ? st.players.indexOf(p) : -1;
+  const pending = st && st.phase === "TRICK_COMPLETE" && st.trickWinner === i + 1 ? 1 : 0;
   const tricks = p.tricks + pending;
-  return tricks > p.bid || p.bid - tricks > p.cardCount;
+  // Een kaart die nog op tafel ligt kan de slag nog winnen, dus die telt mee als kans
+  const onTable = st && st.phase === "PLAYING" && i >= 0 && st.table[i] ? 1 : 0;
+  return tricks > p.bid || p.bid - tricks > p.cardCount + onTable;
 };
 
 function restoreSavedGame() {
@@ -834,17 +837,23 @@ const seatsKey = () => st.players.map((p, i) => {
 }).join(",");
 
 /** Stoelen één keer opbouwen, zodat de gezichten blijven knipperen en praten tussen de beurten door. */
-/** Plaats op het scherm per stoel, bij vier of vijf spelers. */
+/** Plaats op het scherm per stoel, bij twee tot vijf spelers. */
 const SEAT_POS = {
+  2: ["", "south", "north"],
+  3: ["", "south", "west", "east"],
   4: ["", "south", "west", "north", "east"],
   5: ["", "south", "west", "north nw", "north ne", "east"],
 };
 
 function buildSeats() {
   const n = st.players.length;
+  $("#arena").classList.toggle("two", n === 2);
+  $("#arena").classList.toggle("three", n === 3);
   $("#arena").classList.toggle("five", n === 5);
-  $("#seat-5").hidden = n < 5;
-  $("#table .tcard.s5").hidden = n < 5;
+  for (let nr = 2; nr <= 5; nr++) {
+    $(`#seat-${nr}`).hidden = nr > n;
+    $(`#table .tcard.s${nr}`).hidden = nr > n;
+  }
   for (let nr = 1; nr <= n; nr++) {
     const el = $(`#seat-${nr}`);
     el.className = `seat ${SEAT_POS[n][nr]}`;
@@ -1296,9 +1305,11 @@ function renderNewGame() {
   $("#btn-start").textContent = newOnline ? "Tafel openen" : "Start";
   $$(".variant").forEach((el) => el.classList.toggle("selected", (el.dataset.variant === "13") === (newBase === BOERENBRIDGE)));
   $$("#opt-players button").forEach((b) => b.classList.toggle("selected", Number(b.dataset.players) === newPlayers));
-  $("#players-note").textContent = newPlayers === 5
-    ? `Ria doet als vijfde mee.${newBase === BOERENBRIDGE ? " Boerenbridge gaat dan tot hoogstens 10 kaarten." : ""}`
-    : newOnline ? "Lege plaatsen worden computerspelers." : "";
+  $("#players-note").textContent = newOnline
+    ? `Tot ${newPlayers} mensen kunnen aanschuiven. Je kiest bij het starten of lege plaatsen computerspelers worden.`
+    : newPlayers === 5
+      ? `Ria doet als vijfde mee.${newBase === BOERENBRIDGE ? " Boerenbridge gaat dan tot hoogstens 10 kaarten." : ""}`
+      : newPlayers === 2 ? "Jij tegen Henk." : newPlayers === 3 ? "Jij tegen Henk en Truus." : "";
   const slider = $("#opt-max");
   slider.max = String(maxCardsFor(newBase, newPlayers));
   slider.value = String(newMaxCards());
@@ -1440,8 +1451,9 @@ function netEvents() {
       online.status = "";
       renderOnline();
     },
-    onLobby: (players) => {
+    onLobby: (players, seats) => {
       online.players = players;
+      online.seats = seats;
       if (screen === "online") renderOnline();
       if (screen === "game") renderGame();
       saveOnline();
@@ -1476,7 +1488,7 @@ let chatOpen = false;
 const QUICK = ["👍", "😂", "😮", "😢", "👏", "🔥", "Goed gespeeld!", "Pech!", "Haha", "Even wachten"];
 
 /** Plaats op het scherm (1 = onderaan) van een stoel in het spel. */
-const tableSize = () => online?.game?.rules?.players ?? online?.rules?.players ?? 4;
+const tableSize = () => online?.game?.rules?.players ?? online?.rules?.players ?? online?.seats ?? 4;
 const viewOfSeat = (seat) => (seat - online.seat + tableSize()) % tableSize() + 1;
 
 function onChatMessage(m, own) {
@@ -1637,9 +1649,19 @@ function joinTable(code) {
   show("online");
 }
 
-/** De gastheer begint (opnieuw) een spel met wie er aan tafel zit; lege stoelen worden computers. */
-function startHostGame() {
+/**
+ * De gastheer begint (opnieuw) een spel met wie er aan tafel zit. Lege stoelen worden computers,
+ * of ([fill] uit) de tafel wordt precies zo groot als het aantal mensen.
+ */
+function startHostGame(fill) {
   if (online?.role !== "host") return;
+  if (!fill && !online.game && online.players.length >= 2 && online.players.length < tableSize()) {
+    online.link.compact();
+    online.players = online.link.players.map(({ name, seat, online: on, avatar }) => ({ name, seat, online: on, avatar }));
+    online.rules = { ...online.rules, players: online.players.length };
+    online.chat = online.link.chat.slice(-100);
+    renderChat();
+  }
   const names = Array.from(defaultNames());
   const humanSeats = [];
   for (const p of online.players) {
@@ -1771,9 +1793,16 @@ function renderOnline() {
   $("#lobby-seats").innerHTML = rows;
   const humans = online.players.length;
   const start = $("#btn-online-start");
-  start.hidden = !isHost || !!online.game;
   const free = tableSize() - humans;
-  start.textContent = free <= 0 ? "Start het spel" : `Start met ${free} ${free === 1 ? "computerspeler" : "computerspelers"}`;
+  const fill = $("#btn-online-start-fill");
+  const canStart = isHost && !online.game;
+  // Met minstens twee mensen kun je ook zonder computers spelen; alleen kan dat niet.
+  start.hidden = !canStart;
+  fill.hidden = !canStart || free <= 0 || humans < 2;
+  start.textContent = free <= 0 ? "Start het spel"
+    : humans >= 2 ? `Start met ${humans} spelers, zonder computers`
+      : `Start met ${free} ${free === 1 ? "computerspeler" : "computerspelers"}`;
+  fill.textContent = `Lege plaatsen aanvullen met ${free} ${free === 1 ? "computerspeler" : "computerspelers"}`;
   let note = "";
   if (online.game) note = "Het spel is begonnen.";
   else if (isHost) note = humans === 1 ? "Deel de link en wacht tot anderen aanschuiven." : "Start zodra iedereen er is.";
@@ -1799,7 +1828,8 @@ $("#btn-join").addEventListener("click", () => {
   joinTable(code);
 });
 $("#on-code").addEventListener("input", (e) => { e.target.value = normalizeCode(e.target.value); });
-$("#btn-online-start").addEventListener("click", startHostGame);
+$("#btn-online-start").addEventListener("click", () => startHostGame(online.players.length < 2));
+$("#btn-online-start-fill").addEventListener("click", () => startHostGame(true));
 $("#btn-leave").addEventListener("click", () => { closeOnline(); renderOnline(); renderMenu(); });
 $("#btn-share").addEventListener("click", async () => {
   const url = tableLink(online.code);

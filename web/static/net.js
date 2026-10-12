@@ -6,9 +6,8 @@
 const PREFIX = "tienopenneer-v1-";
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
-/** Volgorde waarin mensen een stoel krijgen: eerst tegenover elkaar. */
-export const SEAT_ORDER = [1, 3, 2, 4];
-const SEAT_ORDER_5 = [1, 3, 4, 2, 5];
+/** Volgorde waarin mensen een stoel krijgen, per aantal plaatsen: bij vier eerst tegenover elkaar. */
+const SEAT_ORDERS = { 2: [1, 2], 3: [1, 2, 3], 4: [1, 3, 2, 4], 5: [1, 3, 4, 2, 5] };
 
 export function makeCode() {
   let c = "";
@@ -118,7 +117,7 @@ export class Host {
       let p = this.players.find((x) => x.id === id);
       if (!p) {
         if (this.started) { conn.send({ t: "full", text: "Dit spel is al begonnen." }); return; }
-        const order = this.seats === 5 ? SEAT_ORDER_5 : SEAT_ORDER;
+        const order = SEAT_ORDERS[this.seats] ?? SEAT_ORDERS[4];
         const free = order.find((s) => !this.players.some((x) => x.seat === s));
         if (!free) { conn.send({ t: "full", text: "De tafel is vol." }); return; }
         p = { id, name, seat: free, online: true };
@@ -168,8 +167,8 @@ export class Host {
 
   lobbyChanged() {
     const list = this.players.map(({ name, seat, online, avatar }) => ({ name, seat, online, avatar: avatar ?? null }));
-    this.broadcast({ t: "lobby", players: list });
-    this.events.onLobby?.(list);
+    this.broadcast({ t: "lobby", players: list, seats: this.seats });
+    this.events.onLobby?.(list, this.seats);
   }
 
   broadcast(msg, except = null) {
@@ -180,6 +179,24 @@ export class Host {
     const index = this.log.length;
     this.log.push({ seat, value });
     this.broadcast({ t: "act", index, seat, value }, from);
+  }
+
+  /**
+   * Spelen zonder computers: de mensen schuiven aan op stoel 1, 2, 3… in dezelfde volgorde aan tafel,
+   * en de tafel krijgt precies zoveel plaatsen als er mensen zijn. Iedereen hoort zijn nieuwe stoel.
+   */
+  compact() {
+    const map = new Map();
+    this.players.slice().sort((a, b) => a.seat - b.seat).forEach((p, i) => map.set(p.seat, i + 1));
+    for (const p of this.players) p.seat = map.get(p.seat);
+    this.chat = this.chat.filter((m) => map.has(m.seat)).map((m) => ({ ...m, seat: map.get(m.seat) }));
+    this.seats = this.players.length;
+    for (const p of this.players) {
+      const c = this.conns.get(p.id);
+      if (c?.open) c.send({ t: "welcome", seat: p.seat, code: this.code });
+    }
+    this.broadcast({ t: "chatlog", messages: this.chat });
+    this.lobbyChanged();
   }
 
   /** Begint het spel; lege stoelen worden computerspelers. */
@@ -280,7 +297,9 @@ export class Guest {
     if (!msg || typeof msg !== "object") return;
     if (msg.t === "welcome") this.events.onWelcome?.(msg.seat);
     else if (msg.t === "lobby") {
-      this.events.onLobby?.((msg.players || []).map((p) => ({ ...p, avatar: cleanAvatar(p.avatar) })));
+      const seats = Number(msg.seats);
+      this.events.onLobby?.((msg.players || []).map((p) => ({ ...p, avatar: cleanAvatar(p.avatar) })),
+        seats >= 2 && seats <= 5 ? seats : 4);
     }
     else if (msg.t === "start") this.events.onStart?.(msg.game, msg.log);
     else if (msg.t === "act") this.events.onAction?.({ index: msg.index, seat: msg.seat, value: msg.value });

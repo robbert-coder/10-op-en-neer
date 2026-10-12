@@ -289,4 +289,38 @@ class GameTest {
     fun thirteenCardsDoNotFitFivePlayers() {
         assertFailsWith<IllegalArgumentException> { Game(Rules.BOERENBRIDGE, 1L, playerCount = 5) }
     }
+
+    @Test
+    fun twoAndThreePlayersWithOrWithoutComputers() {
+        for (count in 2..3) {
+            for (rules in listOf(Rules.TIEN_OP_EN_NEER, Rules.BOERENBRIDGE, Rules.TIEN_OP_EN_NEER.copy(maxCards = 3))) {
+                for (seats in listOf((1..count).toSet(), setOf(1))) {
+                    for (smart in listOf(false, true)) {
+                        val seed = 700L + count
+                        val g = Game(rules, seed, smartComputers = smart, playerCount = count)
+                        g.humanSeats = seats
+                        assertEquals(count, g.players.size)
+                        var guard = 0
+                        while (g.phase != Phase.GAME_OVER) {
+                            check(++guard < 200_000) { "Spel loopt vast" }
+                            val seat = g.humanToMove
+                            if (seat != 0) {
+                                if (g.phase == Phase.BIDDING) assertNull(g.humanBid(g.hintBid(seat)))
+                                else assertNull(g.humanPlay(g.hintCard(seat)!!))
+                            } else {
+                                g.advance()
+                            }
+                        }
+                        for (round in 1..rules.rounds) {
+                            assertEquals(rules.cardsInRound(round), g.players.sumOf { it.tricksForRound(round) })
+                        }
+                        val r = Game.restore(rules, seed, Game.DEFAULT_NAMES, g.humanActions, smart, seats, count, count)
+                        while (r.canAdvance) r.advance()
+                        assertEquals(g.players.map { it.total }, r.players.map { it.total })
+                    }
+                }
+            }
+        }
+        assertFailsWith<IllegalArgumentException> { Game(Rules.TIEN_OP_EN_NEER, 1L, playerCount = 1) }
+    }
 }

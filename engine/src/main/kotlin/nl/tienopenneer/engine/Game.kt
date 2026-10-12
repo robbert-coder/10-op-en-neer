@@ -70,7 +70,7 @@ class Player internal constructor(val number: Int, var name: String, val isHuman
 }
 
 /**
- * Het spel "10 op en neer" / Boerenbridge voor vier (of vijf) spelers.
+ * Het spel "10 op en neer" / Boerenbridge voor twee tot vijf spelers (gewoonlijk vier).
  * Speler 1 is de mens (onderaan), daarna met de klok mee 2 (links), 3 (boven) en 4 (rechts); bij vijf
  * spelers zit speler 5 ook rechts.
  *
@@ -85,7 +85,7 @@ class Game internal constructor(
     val smartComputers: Boolean,
     /** Een rekenkopie voor de sterkere computerspeler: er wordt niet gedeeld en er is geen status of geluid. */
     private val simulation: Boolean,
-    /** Aantal spelers aan tafel: 4, of 5 bij samen spelen met een grotere groep. */
+    /** Aantal spelers aan tafel: 2 tot 5 (gewoonlijk 4). */
     val playerCount: Int,
 ) {
     constructor(
@@ -97,7 +97,7 @@ class Game internal constructor(
     ) : this(rules, seed, names, smartComputers, false, playerCount)
 
     init {
-        require(playerCount in 4..MAX_PLAYERS) { "Er kunnen 4 of 5 spelers meedoen" }
+        require(playerCount in MIN_PLAYERS..MAX_PLAYERS) { "Er kunnen 2 tot 5 spelers meedoen" }
         require(rules.maxCards * playerCount <= 52) { "Te veel kaarten voor $playerCount spelers" }
     }
 
@@ -695,6 +695,7 @@ class Game internal constructor(
     fun previousPlayer(pl: Int): Int = (pl + playerCount - 2) % playerCount + 1
 
     companion object {
+        const val MIN_PLAYERS = 2
         const val MAX_PLAYERS = 5
         val DEFAULT_NAMES = listOf("Speler", "Henk", "Truus", "Kees", "Ria")
 
