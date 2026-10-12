@@ -438,6 +438,9 @@ async function collectTrick() {
 function handleGameOver() {
   if (gameOverHandled) return;
   gameOverHandled = true;
+  // Een afgelopen online spel niet meer automatisch openen na het herladen
+  if (online?.role === "host") saveOnline();
+  else if (online) store.remove("online-gast");
   const me = st.players[0];
   // Highscores alleen voor een volledig spel met vier spelers, anders zijn de scores niet te vergelijken
   const full = st.players.length === 4 && !/ tot \d+$/.test(st.variant);
@@ -1645,7 +1648,7 @@ function joinTable(code) {
   closeOnline();
   online = { role: "guest", code, seat: 0, players: [], queue: new Map(), game: null, status: "Verbinden met de tafel…", error: "", chat: [], unread: 0 };
   online.link = new Guest(code, settings.playerName, clientId(), netEvents(), myAvatar());
-  store.set("online-gast", { code });
+  store.set("online-gast", { code, time: Date.now() });
   show("online");
 }
 
@@ -1725,12 +1728,18 @@ function netSend(index, value) {
 }
 
 function saveOnline() {
-  if (online?.role === "host" && online.link && online.game) store.set("online", online.link.snapshot());
+  if (online?.role === "host" && online.link && online.game) store.set("online", { ...online.link.snapshot(), time: Date.now(), over: st?.phase === "GAME_OVER" });
 }
 
 /** Na het herladen van de pagina: de eigen tafel weer openen, of opnieuw aanschuiven bij een ander. */
+/** Hoe lang je na het sluiten van de app automatisch terugkomt aan een online tafel. */
+const ONLINE_RESUME_MS = 3 * 60 * 60 * 1000;
+
 function resumeOnline() {
-  const saved = store.get("online", null);
+  // Een tafel van lang geleden is er niet meer: dan niet automatisch terug naar dat spel
+  const recent = (x) => x && Date.now() - (x.time ?? 0) < ONLINE_RESUME_MS;
+  let saved = store.get("online", null);
+  if (saved && (saved.over || !recent(saved))) { store.remove("online"); saved = null; }
   if (saved?.started) {
     try {
       online = {
@@ -1755,7 +1764,8 @@ function resumeOnline() {
     }
   }
   const guest = store.get("online-gast", null);
-  if (guest?.code) {
+  if (guest && !recent(guest)) store.remove("online-gast");
+  else if (guest?.code) {
     joinTable(guest.code);
     return true;
   }
@@ -1798,20 +1808,24 @@ function renderOnline() {
   const canStart = isHost && !online.game;
   // Met minstens twee mensen kun je ook zonder computers spelen; alleen kan dat niet.
   start.hidden = !canStart;
+  $("#btn-online-back").hidden = !(online.game && game && st?.phase !== "GAME_OVER");
   fill.hidden = !canStart || free <= 0 || humans < 2;
   start.textContent = free <= 0 ? "Start het spel"
     : humans >= 2 ? `Start met ${humans} spelers, zonder computers`
       : `Start met ${free} ${free === 1 ? "computerspeler" : "computerspelers"}`;
   fill.textContent = `Lege plaatsen aanvullen met ${free} ${free === 1 ? "computerspeler" : "computerspelers"}`;
   let note = "";
-  if (online.game) note = "Het spel is begonnen.";
+  if (online.game && st?.phase === "GAME_OVER") note = `Dit spel is afgelopen. ${isHost ? "Sluit de tafel" : "Verlaat de tafel"} om een nieuwe te openen.`;
+  else if (online.game) note = "Het spel is bezig.";
   else if (isHost) note = humans === 1 ? "Deel de link en wacht tot anderen aanschuiven." : "Start zodra iedereen er is.";
   else if (online.seat) note = "Wachten tot de gastheer het spel start…";
   $("#lobby-note").textContent = note;
   $("#btn-leave").textContent = isHost ? "Tafel sluiten" : "Tafel verlaten";
 }
 
-$("#btn-online").addEventListener("click", () => show(online?.game && game ? "game" : "online"));
+// Altijd eerst naar Samen spelen: van daaruit kun je verder spelen of de tafel sluiten en een nieuwe openen
+$("#btn-online").addEventListener("click", () => show("online"));
+$("#btn-online-back").addEventListener("click", () => { if (online?.game && game) show("game"); });
 $("#on-name").addEventListener("input", (e) => {
   settings.playerName = e.target.value.trim() || "Speler";
   renderAvatarPick();
