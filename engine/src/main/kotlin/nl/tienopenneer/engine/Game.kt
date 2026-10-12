@@ -178,7 +178,7 @@ class Game internal constructor(
 
     /**
      * De stoelen waar een mens zit. Normaal alleen stoel 1; bij samen spelen via internet ook andere.
-     * Alleen zetten voordat het spel begint.
+     * Zetten voordat het spel begint; daarna alleen kleiner via [computerTakesOver].
      */
     var humanSeats: Set<Int> = setOf(1)
 
@@ -299,6 +299,17 @@ class Game internal constructor(
         if (!rules.roundingAllowed && phase == Phase.BIDDING && toBid == seat && isLastBidder(seat) &&
             tricksOver in 0..cardsThisRound
         ) tricksOver else null
+
+    /**
+     * Een mens verlaat het spel (samen spelen): vanaf nu speelt de computer op [seat]. Staat in het
+     * logboek als -seat, zodat iedereen het op hetzelfde moment in het spel doet.
+     */
+    fun computerTakesOver(seat: Int): String? {
+        if (seat !in humanSeats || seat !in 1..playerCount) return "Stoel $seat is geen mens."
+        humanSeats = humanSeats - seat
+        humanLog.add(-seat)
+        return null
+    }
 
     fun humanBid(n: Int): String? {
         checkHumanBid(n)?.let { return it }
@@ -715,7 +726,11 @@ class Game internal constructor(
             g.viewSeat = viewSeat
             for (action in humanActions) {
                 while (g.canAdvance) g.advance()
-                val error = if (action >= 100) g.humanPlay(Card.fromCode(action)) else g.humanBid(action)
+                val error = when {
+                    action < 0 -> g.computerTakesOver(-action)
+                    action >= 100 -> g.humanPlay(Card.fromCode(action))
+                    else -> g.humanBid(action)
+                }
                 check(error == null) { "Opgeslagen spel kan niet hersteld worden: $error" }
             }
             g.sounds.clear()

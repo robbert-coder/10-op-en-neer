@@ -5,7 +5,7 @@ import { faceSvg, initialSvg, emojiSvg, puppetBodySvg } from "./faces.js";
 import * as tineke from "./tineke.js";
 import { BID_LINES, WET_LINES, BID_MS } from "./voices.js";
 import { cloudEnabled, makeCloudCode, normalizeCloudCode, formatCloudCode, validCloudCode, fetchStats, saveStats, fetchHallOfFame, sendHofScore, sendHofPlayer } from "./cloud.js";
-import { Host, Guest, makeCode, normalizeCode, AVATAR_EMOJIS, AVATAR_FACES, cleanAvatar, cleanStats } from "./net.js";
+import { Host, Guest, PublicLobby, makeCode, normalizeCode, AVATAR_EMOJIS, AVATAR_FACES, cleanAvatar, cleanStats } from "./net.js";
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
@@ -804,6 +804,7 @@ function drive() {
   // Samen spelen op de achtergrond: de volgende ronde begint vanzelf
   if (st.phase === "ROUND_COMPLETE" && online?.game && inBackground()) { continueAfterRound(); return; }
   if (st.phase === "GAME_OVER" || st.phase === "ROUND_COMPLETE" || humanBidding() || humanPlaying()) return;
+  if (applyTakeovers()) refresh();
   // Wachten op een andere mens: pas verder als zijn handeling binnen is
   if (remoteTurn() && !online.queue.has(game.actionCount())) return;
   driver = setTimeout(async () => {
@@ -2101,6 +2102,7 @@ function show(name) {
   if (name === "stats") { renderStats(); renderCloud(); syncStats(); }
   if (name === "settings") renderSettings();
   if (name === "online") renderOnline();
+  else stopPublicLobby();
   if (name === "online" || name === "settings") renderAvatarPick();
   if (name !== "game" && name !== "online" && chatOpen) { chatOpen = false; }
   renderChat();
@@ -2138,11 +2140,17 @@ const newRules = () => ({
 });
 
 let newOnline = false; // wordt het nieuwe spel een tafel voor samen spelen?
+let newPublic = false; // een openbare tafel, te zien in de lobby
+let newTitle = "";
 
 function renderNewGame() {
   $("#ng-name").value = settings.playerName;
   renderAvatarPick();
-  $("#newgame h2").textContent = newOnline ? "Tafel openen" : "Nieuw spel";
+  $("#newgame h2").textContent = newOnline ? (newPublic ? "Openbare tafel openen" : "Privé tafel openen") : "Nieuw spel";
+  $("#ng-public").hidden = !newOnline;
+  $$("#opt-public button").forEach((b) => b.classList.toggle("selected", (b.dataset.public === "1") === newPublic));
+  $("#row-title").hidden = !newPublic;
+  if ($("#opt-title").value !== newTitle) $("#opt-title").value = newTitle;
   $("#btn-start").textContent = newOnline ? "Tafel openen" : "Start";
   $$(".variant").forEach((el) => el.classList.toggle("selected", (el.dataset.variant === "13") === (newBase === BOERENBRIDGE)));
   $$("#opt-players button").forEach((b) => b.classList.toggle("selected", Number(b.dataset.players) === newPlayers));
@@ -2284,6 +2292,7 @@ function setAvatar(v) {
   settings.avatar = cleanAvatar(v);
   saveSettings();
   online?.link?.setAvatar?.(settings.avatar);
+  pubLobby?.setMe({ avatar: settings.avatar });
   renderAvatarPick();
   if (st && screen === "game") renderGame();
 }
@@ -2373,7 +2382,7 @@ const clientId = () => {
 
 /** In de Android-app draait de website vanuit de app zelf; gedeelde links wijzen dan naar de echte website. */
 const nativeApp = window.TienApp ?? null;
-const APP_VERSION = "2.22";
+const APP_VERSION = "2.23";
 const SITE_URL = "https://robbert-coder.github.io/10-op-en-neer/";
 const tableLink = (code) => `${nativeApp ? SITE_URL : location.origin + location.pathname}?spel=${code}`;
 
@@ -2416,9 +2425,10 @@ function netEvents() {
       online.status = "";
       renderOnline();
     },
-    onLobby: (players, seats) => {
+    onLobby: (players, seats, pub) => {
       online.players = players;
       online.seats = seats;
+      if (online.role === "guest") online.pub = pub;
       if (screen === "online") renderOnline();
       if (screen === "game") renderGame();
       saveOnline();
@@ -2504,7 +2514,7 @@ function renderDock() {
   const msgs = online.chat;
   const last = msgs[msgs.length - 1];
   $("#dock-last").innerHTML = open ? "<b>Chat</b>"
-    : last ? `<b>${esc(last.name)}:</b> ${esc(last.text)}` : "<b>Chat</b> <small>tik om iets te zeggen</small>";
+    : last ? (last.system ? esc(last.text) : `<b>${esc(last.name)}:</b> ${esc(last.text)}`) : "<b>Chat</b> <small>tik om iets te zeggen</small>";
   const unread = online.unread ?? 0;
   $("#dock-badge").hidden = open || unread === 0;
   $("#dock-badge").textContent = unread > 9 ? "9+" : String(unread);
@@ -2513,6 +2523,7 @@ function renderDock() {
     list.innerHTML = msgs.length === 0
       ? `<p class="chat-empty">Zeg iets tegen je medespelers!</p>`
       : msgs.slice(-30).map((m) => {
+        if (m.system) return `<div class="chat-msg system">${esc(m.text)}</div>`;
         const me = m.seat === online.seat;
         return `<div class="chat-msg ${me ? "me" : ""}"><small>${esc(m.name)}</small>${esc(m.text)}</div>`;
       }).join("");
@@ -2546,6 +2557,7 @@ function renderChat() {
   list.innerHTML = msgs.length === 0
     ? `<p class="chat-empty">Nog geen berichten. Zeg iets tegen je medespelers!</p>`
     : msgs.map((m) => {
+      if (m.system) return `<div class="chat-msg system">${esc(m.text)}</div>`;
       const me = m.seat === online.seat;
       return `<div class="chat-msg ${me ? "me" : ""}"><small>${esc(m.name)}</small>${esc(m.text)}</div>`;
     }).join("");
@@ -2609,7 +2621,12 @@ function openTable(rules) {
     role: "host", code, seat: 1, players: [{ name: settings.playerName, seat: 1, online: true, avatar: myAvatar() }],
     queue: new Map(), game: null, rules, smart: settings.smart, status: "Tafel openen…", error: "", chat: [], unread: 0,
   };
-  online.link = new Host(code, settings.playerName, netEvents(), null, myAvatar(), rules.players ?? 4);
+  const pub = newPublic ? {
+    title: newTitle.trim().slice(0, 40),
+    variant: rulesVariantName(rules), rounds: 2 * rules.maxCards - 1,
+  } : null;
+  online.pub = pub;
+  online.link = new Host(code, settings.playerName, netEvents(), null, myAvatar(), rules.players ?? 4, pub);
   shareStats();
   show("online");
 }
@@ -2656,6 +2673,7 @@ function startOnlineGame(g, log) {
   online.game = g;
   online.queue = new Map();
   game = createGame(g.rules, g.smart, g.seed, g.names, log.map((a) => a.value), g.humanSeats, online.seat);
+  markTakenOver();
   gameOverHandled = false;
   endComment = null;
   highScorePlace = 0;
@@ -2688,8 +2706,42 @@ function onNetAction(a) {
   if (!game || !online?.game) return;
   if (a.index < game.actionCount()) return;
   online.queue.set(a.index, a);
+  if (applyTakeovers()) { refresh(); if (screen === "game") renderGame(); }
   saveOnline();
   drive();
+}
+
+/**
+ * Iemand heeft het spel verlaten (handeling -stoel): meteen een computer laten spelen, zonder op
+ * zijn beurt te wachten. Geeft true als er iets veranderde.
+ */
+function applyTakeovers() {
+  if (!online?.game || !game) return false;
+  let changed = false;
+  for (;;) {
+    const a = online.queue.get(game.actionCount());
+    if (!a || !(a.value < 0)) break;
+    online.queue.delete(game.actionCount());
+    const error = game.applyRemote(a.seat, a.value);
+    if (error) { console.warn("Overnemen lukt niet:", error); break; }
+    changed = true;
+    const name = online.game.names?.[-a.value - 1] ?? "Een speler";
+    message = `${name} heeft het spel verlaten. Een computer speelt nu verder voor ${name}.`;
+    online.chat.push({ seat: 0, name: "", text: message, time: Date.now(), system: true });
+  }
+  if (changed) { markTakenOver(); renderChat(); turnNotice(message); }
+  return changed;
+}
+
+/** Stoelen waar een computer het van een mens heeft overgenomen, krijgen "(computer)" achter de naam. */
+function markTakenOver() {
+  if (!online?.game || !game) return;
+  const s = JSON.parse(game.state());
+  for (const p of s.players) {
+    if (online.game.humanSeats.includes(p.seat) && !p.human && !p.name.endsWith(" (computer)")) {
+      game.setSeatName(p.seat, `${p.name} (computer)`);
+    }
+  }
 }
 
 /** Een eigen handeling naar de anderen sturen. */
@@ -2726,6 +2778,7 @@ function resumeOnline() {
       currentSmart = saved.started.smart;
       game = createGame(saved.started.rules, saved.started.smart, saved.started.seed, saved.started.names,
         saved.log.map((a) => a.value), saved.started.humanSeats, 1);
+      markTakenOver();
       refresh();
       return true;
     } catch (e) {
@@ -2745,8 +2798,64 @@ function resumeOnline() {
   return false;
 }
 
+// Openbare lobby -----------------------------------------------------------------------------
+
+let pubLobby = null;
+let pubTables = [];
+let pubPeople = [];
+let pubChat = [];
+let pubStatus = "";
+
+/** In de lobby zolang je op het scherm Samen spelen bent en nog niet aan een tafel zit. */
+function startPublicLobby() {
+  if (pubLobby) return;
+  pubTables = []; pubPeople = []; pubChat = []; pubStatus = "Verbinden met de lobby…";
+  pubLobby = new PublicLobby({ id: clientId(), name: settings.playerName, avatar: myAvatar() }, {
+    onTables: (list) => { pubTables = list; renderPublicLobby(); },
+    onPeople: (list) => { pubPeople = list; renderPublicLobby(); },
+    onChat: (m) => { pubChat.push(m); if (pubChat.length > 60) pubChat.shift(); renderPublicLobby(true); },
+    onStatus: (text) => { pubStatus = text; renderPublicLobby(); },
+  });
+}
+
+function stopPublicLobby() {
+  pubLobby?.close();
+  pubLobby = null;
+}
+
+function renderPublicLobby(scrollChat = false) {
+  if (!pubLobby) return;
+  const tables = pubTables.map((t) => {
+    const taken = t.seats - t.free;
+    const title = t.title || `Tafel van ${t.host}`;
+    return `<div class="pub-table"><div class="avatar">${humanAvatarHtml(t.avatar, t.host)}</div>
+      <div class="info"><b>${esc(title)}</b>
+        <small>${esc(t.variant)}${t.rounds ? ` · ${t.rounds} rondes` : ""}</small>
+        <small>${t.seats} spelers · ${taken} bezet · <span class="free">${t.free ? `${t.free} vrij` : "vol"}</span></small>
+        <small>${t.players.map(esc).join(", ")}</small></div>
+      <button class="${t.free ? "primary" : ""}" data-pub-join="${esc(t.code)}" ${t.free ? "" : "disabled"}>${t.free ? "Aanschuiven" : "Vol"}</button></div>`;
+  }).join("");
+  $("#pub-tables").innerHTML = tables || `<p class="empty-note">Er staat nu geen openbare tafel open. Open er zelf een!</p>`;
+  $("#pub-status").textContent = pubStatus;
+  $("#pub-status").hidden = !pubStatus;
+  const n = pubPeople.length;
+  $("#pub-people-head").textContent = n ? `${n} ${n === 1 ? "persoon" : "personen"} in de lobby` : "";
+  $("#pub-people").innerHTML = pubPeople.map((p) =>
+    `<span class="pub-person${p.me ? " me" : ""}"><span class="avatar">${humanAvatarHtml(p.avatar, p.name)}</span>${esc(p.name)}${p.me ? " (jij)" : ""}</span>`).join("");
+  const box = $("#pub-chat");
+  const atEnd = box.scrollHeight - box.scrollTop - box.clientHeight < 30;
+  box.innerHTML = pubChat.map((m) => `<p><b>${esc(m.name)}:</b> ${esc(m.text)}</p>`).join("");
+  if (scrollChat || atEnd) box.scrollTop = box.scrollHeight;
+}
+
+let onlineMode = "openbaar"; // tabblad op het scherm Samen spelen: "openbaar" of "prive"
+
 function renderOnline() {
   $("#on-name").value = settings.playerName;
+  $$("#online-mode button").forEach((b) => b.classList.toggle("selected", b.dataset.mode === onlineMode));
+  $("#online-public").hidden = onlineMode !== "openbaar";
+  $("#online-private").hidden = onlineMode !== "prive";
+  if (!online && screen === "online" && onlineMode === "openbaar") { startPublicLobby(); renderPublicLobby(); } else stopPublicLobby();
   const inLobby = !!online;
   $("#online-home").hidden = inLobby;
   $("#online-lobby").hidden = !inLobby;
@@ -2757,8 +2866,15 @@ function renderOnline() {
   msg.classList.toggle("info", !online?.error);
   if (!online) return;
   $("#lobby-code").textContent = online.code;
+  const hostName = online.players.find((x) => x.seat === 1)?.name ?? settings.playerName;
+  const pubTitle = online.pub ? (online.pub.title || `Tafel van ${hostName}`) : "";
+  // Een openbare tafel vind je in de lobby: geen code of link nodig
+  $("#lobby-code").hidden = !!online.pub;
+  $("#lobby-title").textContent = pubTitle;
+  $("#lobby-title").hidden = !pubTitle;
+  $("#lobby-kind").textContent = online.pub ? "Openbare tafel, te zien in de lobby" : "Code van de tafel";
   const isHost = online.role === "host";
-  $("#share-row").hidden = !isHost;
+  $("#share-row").hidden = !isHost || !!online.pub;
   const rules = online.rules ?? online.game?.rules;
   $("#lobby-variant").textContent = rules ? rulesVariantName(rules) : "";
   const names = Array.from(defaultNames());
@@ -2792,7 +2908,9 @@ function renderOnline() {
   let note = "";
   if (online.game && st?.phase === "GAME_OVER") note = `Dit spel is afgelopen. ${isHost ? "Sluit de tafel" : "Verlaat de tafel"} om een nieuwe te openen.`;
   else if (online.game) note = "Het spel is bezig.";
-  else if (isHost) note = humans === 1 ? "Deel de link en wacht tot anderen aanschuiven." : "Start zodra iedereen er is.";
+  else if (isHost) note = humans === 1
+    ? (online.pub ? "Je tafel staat in de openbare lobby. Wacht tot anderen aanschuiven." : "Deel de link en wacht tot anderen aanschuiven.")
+    : "Start zodra iedereen er is.";
   else if (online.seat) note = "Wachten tot de gastheer het spel start…";
   $("#lobby-note").textContent = note;
   renderNotifyRow();
@@ -2804,10 +2922,24 @@ $("#btn-online").addEventListener("click", () => show("online"));
 $("#btn-online-back").addEventListener("click", () => { if (online?.game && game) show("game"); });
 $("#on-name").addEventListener("input", (e) => {
   settings.playerName = e.target.value.trim() || "Speler";
+  pubLobby?.setMe({ name: settings.playerName });
   renderAvatarPick();
   saveSettings();
 });
-$("#btn-host").addEventListener("click", () => { newOnline = true; show("newgame"); });
+$("#btn-host").addEventListener("click", () => { newOnline = true; newPublic = false; show("newgame"); });
+$$("#online-mode button").forEach((b) => b.addEventListener("click", () => { onlineMode = b.dataset.mode; renderOnline(); }));
+$("#btn-host-public").addEventListener("click", () => { newOnline = true; newPublic = true; show("newgame"); });
+$$("#opt-public button").forEach((b) => b.addEventListener("click", () => { newPublic = b.dataset.public === "1"; renderNewGame(); }));
+$("#opt-title").addEventListener("input", (e) => { newTitle = e.target.value; });
+$("#pub-tables").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-pub-join]");
+  if (b && !b.disabled) joinTable(normalizeCode(b.dataset.pubJoin));
+});
+$("#pub-chat-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const input = $("#pub-chat-input");
+  if (pubLobby?.sendChat(input.value)) input.value = "";
+});
 $("#btn-join").addEventListener("click", () => {
   const code = normalizeCode($("#on-code").value);
   if (code.length !== 5) {
@@ -2820,7 +2952,24 @@ $("#btn-join").addEventListener("click", () => {
 $("#on-code").addEventListener("input", (e) => { e.target.value = normalizeCode(e.target.value); });
 $("#btn-online-start").addEventListener("click", () => startHostGame(online.players.length < 2));
 $("#btn-online-start-fill").addEventListener("click", () => startHostGame(true));
-$("#btn-leave").addEventListener("click", () => { closeOnline(); renderOnline(); renderMenu(); });
+$("#btn-leave").addEventListener("click", () => {
+  const leave = () => { closeOnline(); renderOnline(); renderMenu(); };
+  if (online?.game && st && st.phase !== "GAME_OVER") {
+    const host = online.role === "host";
+    confirmDialog = {
+      title: host ? "Tafel sluiten" : "Spel verlaten",
+      text: host
+        ? "Het spel is nog bezig. Als je de tafel sluit, stopt het spel voor iedereen."
+        : "Het spel is nog bezig. Als je weggaat, speelt een computer verder op jouw plaats en kun je niet meer terug.",
+      yes: host ? "Tafel sluiten" : "Spel verlaten",
+      no: "Blijven",
+      action: leave,
+    };
+    renderDialog();
+    return;
+  }
+  leave();
+});
 $("#btn-share").addEventListener("click", async () => {
   const url = tableLink(online.code);
   if (nativeApp) {

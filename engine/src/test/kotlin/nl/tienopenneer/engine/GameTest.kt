@@ -3,6 +3,7 @@ package nl.tienopenneer.engine
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -213,6 +214,38 @@ class GameTest {
             }
         }
         assertTrue(heard.containsAll(listOf(Sound.GOED_VOORSPELD, Sound.MEDESPELER_NAT, Sound.SLAG_TE_VEEL, Sound.SLAG_TE_WEINIG)), "$heard")
+    }
+
+    /**
+     * Een mens verlaat halverwege het spel en de computer neemt het over, ook als dat gebeurt terwijl de
+     * computers nog aan zet zijn. Herstellen uit het logboek geeft precies dezelfde stand.
+     */
+    @Test
+    fun computerTakesOverAndRestore() {
+        val rules = Rules(maxCards = 6, pointsPerTrick = 1, wrongScoresZero = true, penaltyPerTrick = 0,
+            negativeScores = false, roundingAllowed = true, mustTrump = false)
+        val g = Game(rules, 777L, smartComputers = true)
+        g.humanSeats = setOf(1, 3)
+        var guard = 0
+        var actions = 0
+        while (g.phase != Phase.GAME_OVER) {
+            check(++guard < 100_000) { "Spel loopt vast" }
+            val seat = g.humanToMove
+            if (seat != 0) {
+                if (g.phase == Phase.BIDDING) assertNull(g.humanBid(g.hintBid(seat))) else assertNull(g.humanPlay(g.hintCard(seat)!!))
+                // Meteen na de 9e handeling, nog voordat de computers verder spelen
+                if (++actions == 9) assertNull(g.computerTakesOver(3))
+            } else {
+                g.advance()
+            }
+        }
+        assertEquals(setOf(1), g.humanSeats)
+        assertTrue(-3 in g.humanActions)
+        val r = Game.restore(rules, 777L, Game.DEFAULT_NAMES, g.humanActions, true, setOf(1, 3), 1)
+        while (r.canAdvance) r.advance()
+        assertEquals(Phase.GAME_OVER, r.phase)
+        assertEquals(g.players.map { it.total }, r.players.map { it.total })
+        assertNotNull(g.computerTakesOver(3)) // al een computer
     }
 
     /** Twee mensen aan tafel (stoel 1 en 3): het spel loopt, en herstellen geeft dezelfde stand. */

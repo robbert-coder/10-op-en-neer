@@ -174,9 +174,10 @@ h1 { font-size: 38px; margin: 18px 0 0; letter-spacing: -.5px; text-wrap: balanc
 /* ---------- Gezichten ---------- */
 .avatar { position: relative; width: 48px; height: 48px; flex: none; border-radius: 50%; background: rgba(255,255,255,.1); box-shadow: inset 0 0 0 2px rgba(255,255,255,.12); }
 .face-svg { width: 100%; height: 100%; display: block; overflow: visible; }
-.avatar .mouth { display: none; }
-.avatar .mouth.smile { display: inline; }
-.avatar .tear { display: none; }
+/* Overal (ook in de plaatjeskiezer en lijsten) alleen de gewone glimlach; de rest hoort bij een stemming */
+.face-svg .mouth { display: none; }
+.face-svg .mouth.smile { display: inline; }
+.face-svg .tear { display: none; }
 .avatar .head { transform-origin: 50% 80%; }
 .avatar .eyes { transform-origin: 50% 52%; animation: blink 4.6s infinite; }
 .avatar:nth-child(odd) .eyes { animation-delay: 1.7s; }
@@ -862,3 +863,29 @@ button.primary { background: linear-gradient(180deg, #F7C761, var(--gold)); box-
 .tabs.small button { font-size: 13px; padding-top: 6px; padding-bottom: 6px; }
 .tabs button[hidden] { display: none; }
 .tabs-label { align-self: center; padding: 0 6px 0 8px; font-size: 12px; color: var(--muted); }
+
+/* Openbare lobby */
+.pub-lobby #pub-tables { display: flex; flex-direction: column; gap: 8px; margin: 10px 0; }
+.pub-table { display: flex; gap: 10px; align-items: center; padding: 10px; border-radius: 12px; background: rgba(255,255,255,.05); border: 1px solid var(--line); }
+.pub-table .avatar { width: 40px; height: 40px; flex: none; border-radius: 50%; overflow: hidden; }
+.pub-table .avatar svg, .pub-table .avatar img, .pub-person .avatar svg, .pub-person .avatar img { width: 100%; height: 100%; display: block; }
+.pub-table .info { flex: 1; min-width: 0; }
+.pub-table .info b { display: block; overflow-wrap: anywhere; }
+.pub-table .info small { display: block; color: var(--muted); font-size: 12px; line-height: 1.35; }
+.pub-table .info .free { color: var(--gold); font-weight: 600; }
+.pub-table button { flex: none; padding: 8px 12px; }
+.pub-people-head { margin-top: 14px; font-size: 13px; color: var(--muted); }
+.pub-people { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 8px; }
+.pub-person { display: flex; align-items: center; gap: 5px; padding: 3px 9px 3px 3px; border-radius: 99px; background: rgba(255,255,255,.06); font-size: 13px; }
+.pub-person .avatar { width: 22px; height: 22px; border-radius: 50%; overflow: hidden; }
+.pub-person.me { outline: 1px solid var(--gold); }
+.pub-chat { max-height: 180px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
+.pub-chat:empty { display: none; }
+.pub-chat p { margin: 0; line-height: 1.35; overflow-wrap: anywhere; }
+.pub-chat p b { color: var(--gold); }
+.pub-chat-row { display: flex; gap: 8px; margin-top: 8px; }
+.pub-chat-row input { flex: 1; min-width: 0; }
+#lobby-title { display: block; font-size: 18px; letter-spacing: 0; }
+#lobby-title[hidden] { display: none; }
+#online-mode { margin-bottom: 12px; }
+.chat-msg.system { align-self: center; background: none; color: var(--muted); font-style: italic; font-size: 13px; text-align: center; }

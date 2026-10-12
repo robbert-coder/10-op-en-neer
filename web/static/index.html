@@ -51,6 +51,15 @@
           <label class="field">Jouw naam<input type="text" id="ng-name" maxlength="16" autocomplete="off"></label>
           <div class="field">Jouw plaatje<div class="avatar-pick"></div></div>
         </div>
+        <div class="group" id="ng-public" hidden>
+          <div class="field">Soort tafel
+            <div class="seg two" id="opt-public">
+              <button type="button" data-public="0">Privé<small>met een link of code</small></button>
+              <button type="button" data-public="1">Openbaar<small>zichtbaar in de lobby</small></button>
+            </div>
+          </div>
+          <label class="field" id="row-title">Naam van de tafel<input type="text" id="opt-title" maxlength="40" autocomplete="off" placeholder="Bijvoorbeeld: Beginners welkom"></label>
+        </div>
         <div class="group">
           <div class="field">Lengte van het spel
             <div class="seg two" id="opt-length">
@@ -113,26 +122,49 @@
       <div class="content">
         <div id="online-home" class="online-home">
           <div class="group"><label class="field">Jouw naam<input type="text" id="on-name" maxlength="16" autocomplete="off"></label></div>
-          <div class="group pad">
-            <b>Jouw plaatje</b>
-            <p class="note">Dit zien de anderen bij jouw plaats aan tafel. Kies een plaatje of een eigen foto.</p>
-            <div class="avatar-pick"></div>
+          <div class="tabs" id="online-mode">
+            <button data-mode="openbaar">Openbaar</button>
+            <button data-mode="prive">Privé</button>
           </div>
+          <div id="online-public">
+          <div class="group pad pub-lobby">
+            <b>Openbare lobby</b>
+            <p class="note">Iedereen kan hier een tafel zien en aanschuiven, zonder code. Zodra een spel begint, kan er niemand meer bij.</p>
+            <p class="note" id="pub-status">Verbinden met de lobby…</p>
+            <div id="pub-tables"></div>
+            <button class="primary wide" id="btn-host-public">Openbare tafel openen</button>
+            <div class="pub-people-head" id="pub-people-head"></div>
+            <div class="pub-people" id="pub-people"></div>
+            <div class="pub-chat" id="pub-chat"></div>
+            <form class="pub-chat-row" id="pub-chat-form">
+              <input type="text" id="pub-chat-input" maxlength="200" placeholder="Zeg iets tegen de lobby" autocomplete="off">
+              <button class="primary" type="submit">Stuur</button>
+            </form>
+          </div>
+          </div>
+          <div id="online-private" hidden>
           <div class="group pad">
-            <b>Tafel openen</b>
+            <b>Privé tafel openen</b>
             <p class="note">Je opent een tafel en deelt de link met bekenden. Wie de link opent, schuift aan. Zijn er minder dan vier mensen, dan vul je de lege plaatsen aan met Henk, Truus of Kees.</p>
-            <button class="primary wide" id="btn-host">Tafel openen</button>
+            <button class="wide" id="btn-host">Privé tafel openen</button>
           </div>
           <div class="group pad">
             <b>Meedoen met een code</b>
+            <p class="note">Heb je een code of link van een bekende gekregen? Vul de code hier in.</p>
             <div class="join-row">
               <input type="text" id="on-code" placeholder="CODE" maxlength="5" autocapitalize="characters" autocomplete="off" spellcheck="false">
               <button class="primary" id="btn-join">Meedoen</button>
             </div>
           </div>
+          </div>
+          <div class="group pad">
+            <b>Jouw plaatje</b>
+            <p class="note">Dit zien de anderen bij jouw plaats aan tafel. Kies een plaatje of een eigen foto.</p>
+            <div class="avatar-pick"></div>
+          </div>
         </div>
         <div id="online-lobby" class="online-lobby" hidden>
-          <div class="table-code"><small>Code van de tafel</small><b id="lobby-code"></b><span id="lobby-variant"></span></div>
+          <div class="table-code"><small id="lobby-kind">Code van de tafel</small><b id="lobby-title" hidden></b><b id="lobby-code"></b><span id="lobby-variant"></span></div>
           <div class="share-row" id="share-row">
             <button class="primary" id="btn-share">Link delen</button>
             <button id="btn-copy">Link kopiëren</button>

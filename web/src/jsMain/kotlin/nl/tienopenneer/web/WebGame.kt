@@ -55,6 +55,11 @@ class WebGame(
         game.player(viewSeat).name = name
     }
 
+    /** Naam van een andere stoel aanpassen (bijvoorbeeld als een computer het van iemand overneemt). */
+    fun setSeatName(seat: Int, name: String) {
+        if (seat in 1..n) game.player(seat).name = name
+    }
+
     /** Aantal handelingen van mensen tot nu toe (de volgorde is voor iedereen gelijk). */
     fun actionCount(): Int = game.humanActions.size
 
@@ -73,6 +78,8 @@ class WebGame(
 
     /** Een handeling van een andere mens (via internet): een voorspelling (0..13) of een kaartcode (100+). */
     fun applyRemote(seat: Int, value: Int): String? {
+        // Een negatieve waarde: de speler op die stoel is weg en een computer neemt het over
+        if (value < 0) return game.computerTakesOver(-value)
         if (game.humanToMove != seat) return "Stoel $seat is niet aan de beurt."
         return if (value >= 100) game.humanPlay(Card.fromCode(value)) else game.humanBid(value)
     }
