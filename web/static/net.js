@@ -65,8 +65,6 @@ const CHAT_TOPIC = `${PUBLIC}/chat`;
 /** Openbare berichten worden zo vaak ververst; wat langer niet ververst is, is weg. */
 const PUBLIC_REFRESH_MS = 15000;
 const PUBLIC_STALE_MS = 75000;
-/** Aan een openbare tafel neemt een computer het over van wie zo lang weg is (aan een privétafel alleen bij vertrekken). */
-const TAKEOVER_MS = 90000;
 /** Hoe lang een tafel in de lobby blijft staan als de gastheer even weg is (bijvoorbeeld een tabblad op de achtergrond). */
 const AWAY_MS = 5 * 60 * 1000;
 
@@ -176,6 +174,7 @@ export class Host {
     this.started = null; // startgegevens zodra het spel loopt
     this.log = []; // alle handelingen van mensen, in volgorde: {seat, value}
     this.chat = []; // laatste chatberichten: {seat, name, text, time}
+    this.votes = new Map(); // stoel -> ids van wie wil dat een computer die stoel overneemt
     this.closed = false;
     if (saved) {
       // Na het herladen van de pagina: dezelfde tafel weer openen, de anderen verbinden vanzelf opnieuw
@@ -252,13 +251,61 @@ export class Host {
   }
 
   /**
+   * Iemand reageert al een tijd niet: de anderen stemmen of een computer het overneemt. Pas als
+   * iedereen die meedoet (en verbonden is) akkoord is, gebeurt het.
+   */
+  castVote(id, seat, yes) {
+    const target = this.players.find((x) => x.seat === seat);
+    const voter = this.players.find((x) => x.id === id);
+    if (!this.started || this.finished || !target || target.id === "host" || target.left || !voter || voter.left || voter === target) return;
+    const set = this.votes.get(seat) ?? new Set();
+    if (yes) set.add(id); else set.delete(id);
+    this.votes.set(seat, set);
+    const voters = this.players.filter((x) => !x.left && x !== target && (x.id === "host" || x.online));
+    if (voters.length && voters.every((x) => set.has(x.id))) {
+      this.votes.delete(seat);
+      this.sendVotes(seat, [], [], true, true);
+      this.takeOver(target, true);
+      return;
+    }
+    this.sendVotes(seat, voters.filter((x) => set.has(x.id)).map((x) => x.seat), voters.map((x) => x.seat));
+  }
+
+  sendVotes(seat, yes, need, done = false, taken = false) {
+    const m = { t: "votes", seat, yes, need, done, taken };
+    this.broadcast(m);
+    this.events.onVotes?.(m);
+  }
+
+  /** De gastheer stemt zelf. */
+  vote(seat, yes) {
+    this.castVote("host", seat, yes);
+  }
+
+  /** Voor een nieuw potje met hetzelfde gezelschap: wie vertrokken of weg is, telt niet meer mee. */
+  prepareNewGame() {
+    // Wie vervangen werd omdat hij niet reageerde maar nog wel aan tafel zit, doet weer mee
+    this.players = this.players.filter((p) => p.id === "host" || ((!p.left || p.idle) && p.online));
+    for (const p of this.players) { p.left = false; p.idle = false; }
+    this.votes.clear();
+  }
+
+  /**
    * Een speler verlaat het lopende spel: vanaf nu speelt een computer op zijn stoel. Dat gaat als
    * handeling (-stoel) in het logboek, zodat het bij iedereen op hetzelfde moment gebeurt.
    */
-  takeOver(p) {
+  takeOver(p, idle = false) {
     if (!this.started || p.left || p.id === "host") return;
+    if (this.finished) {
+      // Na afloop van het spel hoeft er niemand meer overgenomen te worden: alleen van tafel af
+      p.left = true;
+      p.online = false;
+      this.lobbyChanged();
+      return;
+    }
     p.left = true;
-    p.online = false;
+    p.idle = idle; // vervangen omdat hij niet reageerde: mag blijven kijken en chatten
+    if (!idle) p.online = false;
     const index = this.log.length;
     this.record(p.seat, -p.seat);
     this.events.onAction?.({ index, seat: p.seat, value: -p.seat });
@@ -267,12 +314,6 @@ export class Host {
 
   /** Iedereen een teken van leven sturen, en wie al even niets liet horen als weg zien. */
   heartbeat() {
-    // Aan een openbare tafel wacht niemand eindeloos op iemand die weg is
-    if (this.pub && this.started) {
-      for (const p of this.players) {
-        if (p.id !== "host" && !p.online && !p.left && Date.now() - (p.offlineSince ?? Date.now()) > TAKEOVER_MS) this.takeOver(p);
-      }
-    }
     for (const [id, conn] of this.links) {
       if (Date.now() - conn.seen > GONE_MS) {
         this.links.delete(id);
@@ -291,7 +332,7 @@ export class Host {
       const id = String(msg.id || "").slice(0, 40);
       const name = String(msg.name || "Speler").slice(0, 16);
       let p = this.players.find((x) => x.id === id);
-      if (p?.left) { conn.send({ t: "full", text: "Je had het spel verlaten. Een computer speelt nu voor je verder." }); return; }
+      if (p?.left && !p.idle) { conn.send({ t: "full", text: "Je had het spel verlaten. Een computer speelt nu voor je verder." }); return; }
       if (!p) {
         if (this.started) { conn.send({ t: "full", text: "Dit spel is al begonnen." }); return; }
         const order = SEAT_ORDERS[this.seats] ?? SEAT_ORDERS[4];
@@ -321,6 +362,8 @@ export class Host {
       if ("avatar" in msg) p.avatar = cleanAvatar(msg.avatar);
       if ("stats" in msg) p.stats = cleanStats(msg.stats);
       this.lobbyChanged();
+    } else if (msg.t === "vote") {
+      if (conn.clientId) this.castVote(conn.clientId, Number(msg.seat), !!msg.yes);
     } else if (msg.t === "chat") {
       const p = this.players.find((x) => x.id === conn.clientId);
       if (p) this.addChat(p.seat, p.name, msg.text, conn);
@@ -343,7 +386,6 @@ export class Host {
     this.conns.delete(p.id);
     if (this.started) {
       p.online = false;
-      p.offlineSince = Date.now();
       if (left) this.takeOver(p);
     } else {
       this.players = this.players.filter((x) => x !== p);
@@ -368,6 +410,8 @@ export class Host {
     const index = this.log.length;
     this.log.push({ seat, value });
     this.broadcast({ t: "act", index, seat, value }, from);
+    // Wie iets doet, reageert weer: een lopende stemming over die stoel vervalt
+    if (value >= 0 && this.votes.has(seat)) { this.votes.delete(seat); this.sendVotes(seat, [], [], true); }
   }
 
   /**
@@ -391,7 +435,9 @@ export class Host {
   /** Begint het spel; lege stoelen worden computerspelers. */
   start(game) {
     this.started = game;
+    this.finished = false; // de app zet dit op true zodra het spel is afgelopen
     this.log = [];
+    this.votes.clear();
     this.broadcast({ t: "start", game, log: [] });
     this.lobbyChanged();
   }
@@ -533,12 +579,21 @@ export class Guest {
     else if (msg.t === "act") this.events.onAction?.({ index: msg.index, seat: msg.seat, value: msg.value });
     else if (msg.t === "chat") this.events.onChat?.(msg.message, false);
     else if (msg.t === "chatlog") this.events.onChatLog?.(msg.messages || []);
+    else if (msg.t === "votes") {
+      const seats = (v) => (Array.isArray(v) ? v.map(Number).filter((n) => n >= 1 && n <= 5) : []);
+      this.events.onVotes?.({ seat: Number(msg.seat), yes: seats(msg.yes), need: seats(msg.need), done: !!msg.done, taken: !!msg.taken });
+    }
     else if (msg.t === "full") { this.close(); this.events.onClosed?.(msg.text); }
     else if (msg.t === "bye") { this.close(); this.events.onClosed?.("De gastheer heeft de tafel gesloten."); }
   }
 
   sendAction(index, seat, value) {
     this.conn.send({ t: "act", index, seat, value });
+  }
+
+  /** Stemmen of een computer de plaats overneemt van iemand die niet reageert. */
+  vote(seat, yes) {
+    this.conn.send({ t: "vote", seat, yes });
   }
 
   /** Een ander plaatje kiezen; de gastheer laat het iedereen zien. */

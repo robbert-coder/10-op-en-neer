@@ -514,8 +514,10 @@ function remoteTurn() {
   const seat = game.humanToMove();
   return seat && seat !== online.seat ? seat : 0;
 }
-const humanBidding = () => st && st.phase === "BIDDING" && st.active === 1;
-const humanPlaying = () => st && st.phase === "PLAYING" && st.active === 1;
+// Speelt er een computer voor jou (je reageerde niet), dan ben je zelf nooit meer aan de beurt
+const meHuman = () => st.players[0]?.human !== false;
+const humanBidding = () => st && st.phase === "BIDDING" && st.active === 1 && meHuman();
+const humanPlaying = () => st && st.phase === "PLAYING" && st.active === 1 && meHuman();
 const hasGameInProgress = () => st !== null && st.phase !== "GAME_OVER";
 const speedFactor = () => ({ 1: 2.0, 2: 1.4, 3: 1.0, 4: 0.65, 5: 0.35 })[settings.speed] ?? 1.0;
 const animMs = (ms) => (reducedMotion ? 1 : ms * Math.min(1, Math.max(0.5, speedFactor())));
@@ -616,6 +618,7 @@ function refresh() {
     return;
   }
   st = JSON.parse(game.state());
+  if (online?.role === "host" && online.link && online.game) online.link.finished = st.phase === "GAME_OVER";
   const sounds = Array.from(game.takeSounds());
   // Als de spelers praten, zegt een computerspeler zelf iets als hij nat gaat in plaats van het geluidje
   const voiceWet = settings.speakBids && sounds[sounds.length - 1] === "MEDESPELER_NAT";
@@ -803,6 +806,11 @@ function drive() {
   if (driver !== null || busy || tinekeWaiting || screen !== "game" || !st) return;
   // Samen spelen op de achtergrond: de volgende ronde begint vanzelf
   if (st.phase === "ROUND_COMPLETE" && online?.game && inBackground()) { continueAfterRound(); return; }
+  // Speelt er een computer voor jou, dan kijk je mee en gaat de volgende ronde na even vanzelf verder
+  if (st.phase === "ROUND_COMPLETE" && online?.game && !meHuman()) {
+    driver = setTimeout(() => { driver = null; continueAfterRound(); }, 4000);
+    return;
+  }
   if (st.phase === "GAME_OVER" || st.phase === "ROUND_COMPLETE" || humanBidding() || humanPlaying()) return;
   if (applyTakeovers()) refresh();
   // Wachten op een andere mens: pas verder als zijn handeling binnen is
@@ -2007,11 +2015,25 @@ function gameOverHtml() {
   const hs = highScorePlace > 0
     ? `<p class="gold">Je staat op plaats ${highScorePlace} in de highscore van ${highScoreShort ? "korte spellen " : ""}${esc(st.variant.replace(/ tot \d+$/, ""))}.</p>` : "";
   const say = settings.tinekeHelp ? endComment ??= tineke.comment("afgelopen", st) : null;
-  return `<h3>${title}</h3>${say ? tinekeLine(say) : ""}<div class="result-rows">${rows}</div>${hs}
+  if (!online?.game) {
+    return `<h3>${title}</h3>${say ? tinekeLine(say) : ""}<div class="result-rows">${rows}</div>${hs}
     <div class="actions"><button data-action="scores">Scorelijst</button>
     <button data-action="menu">Menu</button>
-    ${!online?.game ? `<button class="primary" data-action="new-game">Nieuw spel</button>`
-      : online.role === "host" ? `<button class="primary" data-action="new-online">Nog een spel</button>` : ""}</div>`;
+    <button class="primary" data-action="new-game">Nieuw spel</button></div>`;
+  }
+  // Online: geen haast meer. Blijf kletsen, speel nog een potje met hetzelfde gezelschap of ga terug.
+  const host = online.role === "host";
+  const open = !!online.link;
+  const unread = online.unread ?? 0;
+  const note = !open ? "De gastheer heeft de tafel gesloten."
+    : host ? "Blijf gerust nog even kletsen. Wil je nog een keer? Start een nieuw potje met dezelfde spelers."
+      : "Blijf gerust nog even kletsen. De gastheer kan een nieuw potje met dezelfde spelers starten.";
+  return `<h3>${title}</h3>${say ? tinekeLine(say) : ""}<div class="result-rows">${rows}</div>${hs}
+    <p class="over-note">${note}</p>
+    <div class="actions wrap"><button data-action="scores">Scorelijst</button>
+    ${open ? `<button data-action="online-chat">Chat${unread ? ` <span class="badge inline">${unread > 9 ? "9+" : unread}</span>` : ""}</button>` : ""}
+    <button ${host && open ? "" : `class="primary"`} data-action="online-exit">${online.pub ? "Terug naar de lobby" : "Terug naar het hoofdmenu"}</button>
+    ${host && open ? `<button class="primary" data-action="new-online">Nieuw potje met dezelfde spelers</button>` : ""}</div>`;
 }
 
 let endComment = null;
@@ -2382,7 +2404,7 @@ const clientId = () => {
 
 /** In de Android-app draait de website vanuit de app zelf; gedeelde links wijzen dan naar de echte website. */
 const nativeApp = window.TienApp ?? null;
-const APP_VERSION = "2.24";
+const APP_VERSION = "2.25";
 const SITE_URL = "https://robbert-coder.github.io/10-op-en-neer/";
 const tableLink = (code) => `${nativeApp ? SITE_URL : location.origin + location.pathname}?spel=${code}`;
 
@@ -2453,6 +2475,7 @@ function netEvents() {
       if (screen === "online") renderOnline();
       if (screen === "game") { message = text; renderGame(); }
     },
+    onVotes: (v) => onVotes(v),
     onClosed: (text) => {
       const wasPlaying = !!online?.game;
       online.error = text;
@@ -2481,6 +2504,7 @@ function onChatMessage(m, own) {
     showBubble(viewOfSeat(m.seat), `<span>${esc(m.text)}</span>`, 2500 + m.text.length * 40, "chat");
   }
   renderChat();
+  renderDialog();
   saveOnline();
 }
 
@@ -2498,7 +2522,8 @@ function sendChat(text) {
 }
 
 /** Bij samen spelen staat de chat vast onderin het spelscherm; met het pijltje klap je hem in. */
-const dockShown = () => !!online && !!online.game && screen === "game";
+// Na afloop staat de uitslag in beeld; dan gaat de chat via de knop in de uitslag
+const dockShown = () => !!online && !!online.game && screen === "game" && st?.phase !== "GAME_OVER";
 
 function renderDock() {
   const dock = $("#chat-dock");
@@ -2725,8 +2750,12 @@ function applyTakeovers() {
     const error = game.applyRemote(a.seat, a.value);
     if (error) { console.warn("Overnemen lukt niet:", error); break; }
     changed = true;
-    const name = online.game.names?.[-a.value - 1] ?? "Een speler";
-    message = `${name} heeft het spel verlaten. Een computer speelt nu verder voor ${name}.`;
+    const seat = -a.value;
+    const name = online.game.names?.[seat - 1] ?? "Een speler";
+    const idle = online.takenIdle?.includes(seat);
+    message = !idle ? `${name} heeft het spel verlaten. Een computer speelt nu verder voor ${name}.`
+      : seat === online.seat ? "Je reageerde niet en de anderen waren akkoord: een computer speelt nu verder voor je. Je kunt blijven kijken en chatten."
+        : `${name} reageerde niet en iedereen was akkoord: een computer speelt nu verder voor ${name}.`;
     online.chat.push({ seat: 0, name: "", text: message, time: Date.now(), system: true });
   }
   if (changed) { markTakenOver(); renderChat(); turnNotice(message); }
@@ -2742,6 +2771,143 @@ function markTakenOver() {
       game.setSeatName(p.seat, `${p.name} (computer)`);
     }
   }
+}
+
+// Wie niet reageert -------------------------------------------------------------------------
+// Na 1 minuut krijgt de speler die aan de beurt is een waarschuwing, de laatste 30 seconden een
+// grote aftelling. De anderen zien dat ook. Na 2 minuten stemmen zij of een computer het overneemt;
+// alleen als iedereen akkoord is, gebeurt dat. Na afloop van het spel is er geen tijdslimiet.
+
+const IDLE_FAST = new URLSearchParams(location.search).get("idle") === "fast"; // om te testen
+const IDLE_WARN_MS = IDLE_FAST ? 6000 : 60000;
+const IDLE_COUNT_MS = IDLE_FAST ? 9000 : 90000;
+const IDLE_LIMIT_MS = IDLE_FAST ? 12000 : 120000;
+let idleKey = "";
+let idleSince = 0;
+let idleStage = 0; // 1 = gewaarschuwd, 2 = aftellen, 3 = tijd om (voor de meldingen in de chat)
+let idleHtml = null;
+let wasOver = false;
+
+const seatName = (seat) => online?.game?.names?.[seat - 1] ?? `Speler ${seat}`;
+
+function systemChat(text) {
+  if (!online) return;
+  online.chat.push({ seat: 0, name: "", text, time: Date.now(), system: true });
+  if (online.chat.length > 100) online.chat.shift();
+  renderChat();
+}
+
+function onVotes(v) {
+  if (!online) return;
+  online.votes ??= {};
+  if (v.done) {
+    delete online.votes[v.seat];
+    if (v.taken) (online.takenIdle ??= []).push(v.seat);
+  } else online.votes[v.seat] = v;
+  idleTick();
+}
+
+function idleTick() {
+  const over = !!(online?.game && st?.phase === "GAME_OVER");
+  if (over !== wasOver) { wasOver = over; renderChat(); }
+  let seat = 0;
+  let count = 0;
+  if (screen === "game" && online?.game && game && st && (st.phase === "BIDDING" || st.phase === "PLAYING")) {
+    seat = game.humanToMove() || 0;
+    count = Math.max(game.actionCount(), online.queue.size ? Math.max(...online.queue.keys()) + 1 : 0);
+  }
+  const key = seat ? `${online.game.seed}|${seat}|${count}` : "";
+  if (key !== idleKey) { idleKey = key; idleSince = Date.now(); idleStage = 0; }
+  const waited = seat ? Date.now() - idleSince : 0;
+  const mine = seat && seat === online.seat;
+  const name = seat ? seatName(seat) : "";
+  const hostSeat = seat === 1;
+  const meLeft = !!online?.players?.find((p) => p.seat === online.seat)?.left;
+  const secs = Math.max(0, Math.ceil((IDLE_LIMIT_MS - waited) / 1000));
+  let html = "";
+  if (seat && waited >= IDLE_WARN_MS) {
+    const stage = waited >= IDLE_LIMIT_MS ? 3 : waited >= IDLE_COUNT_MS ? 2 : 1;
+    if (mine) {
+      if (stage > idleStage) idleNotice(stage, hostSeat);
+      if (hostSeat) {
+        html = `<p><b>Je bent al ${waited >= IDLE_LIMIT_MS ? "2 minuten" : "een minuut"} aan de beurt.</b> De anderen wachten op je.</p>`;
+      } else if (stage === 1) {
+        html = `<p><b>Ben je er nog?</b> Je bent al een minuut aan de beurt. Als je binnen een minuut niets doet, mogen de anderen een computer voor je laten spelen.</p>`;
+      } else if (stage === 2) {
+        html = `<div class="idle-row"><div class="idle-big">${secs}</div>
+          <p><b>Speel nu!</b> Over ${secs} ${secs === 1 ? "seconde" : "seconden"} mogen de anderen een computer voor je laten spelen.</p></div>`;
+      } else {
+        const v = online.votes?.[seat];
+        html = `<p><b>De anderen mogen nu stemmen</b> om een computer voor je te laten spelen. Speel snel, dan gaat het spel gewoon met jou verder.</p>
+          ${v ? `<p class="idle-votes">${v.yes.length} van de ${v.need.length} ${v.need.length === 1 ? "speler" : "spelers"} ${v.yes.length === 1 ? "wil" : "willen"} dat een computer het overneemt.</p>` : ""}`;
+      }
+    } else if (!meLeft) {
+      if (stage > idleStage) {
+        if (stage === 1) systemChat(`${name} reageert al een minuut niet.`);
+        if (stage === 3) systemChat(hostSeat
+          ? `${name} (gastheer) reageert al 2 minuten niet. Het spel loopt via de gastheer, dus wachten jullie tot die terug is.`
+          : `${name} reageert al 2 minuten niet. Jullie kunnen nu stemmen of een computer verder speelt voor ${name}.`);
+      }
+      if (stage < 3) {
+        const next = hostSeat ? "Even geduld." : `Blijft het stil, dan kunnen jullie over ${secs} seconden samen beslissen of een computer verder speelt voor ${esc(name)}. Dat gebeurt alleen als iedereen akkoord is.`;
+        const text = `<p><b>${esc(name)} reageert al ${stage === 1 ? "een minuut" : "anderhalve minuut"} niet.</b> ${esc(name)} heeft een waarschuwing gekregen. ${next}</p>`;
+        html = stage === 2 ? `<div class="idle-row"><div class="idle-big other">${secs}</div>${text}</div>` : text;
+      } else if (hostSeat) {
+        html = `<p><b>${esc(name)} reageert al 2 minuten niet.</b> Het spel loopt via het apparaat van de gastheer, dus een computer kan het niet overnemen. Wacht tot de gastheer terug is, of verlaat de tafel.</p>`;
+      } else {
+        const v = online.votes?.[seat];
+        const yes = v?.yes ?? [];
+        const need = v?.need ?? [];
+        const iSaid = yes.includes(online.seat);
+        const who = (list) => list.map((s) => (s === online.seat ? "jij" : esc(seatName(s)))).join(", ");
+        const waiting = need.filter((s) => !yes.includes(s));
+        html = `<p><b>${esc(name)} reageert al 2 minuten niet.</b> Zal een computer verder spelen voor ${esc(name)}? Dat gebeurt alleen als iedereen akkoord is. Speelt ${esc(name)} intussen, dan gaat het spel gewoon verder.</p>
+          ${v && yes.length ? `<p class="idle-votes">Akkoord: ${who(yes)}${waiting.length ? `. Wacht nog op: ${who(waiting)}` : ""}.</p>` : ""}
+          <div class="idle-actions">
+            <button class="${iSaid ? "" : "primary"}" data-vote="0">Nog even wachten</button>
+            <button class="${iSaid ? "primary selected" : ""}" data-vote="1">${iSaid ? "✓ " : ""}Computer laten spelen</button>
+          </div>`;
+      }
+    }
+    idleStage = Math.max(idleStage, stage);
+  }
+  const panel = $("#idle-panel");
+  if (html !== idleHtml) {
+    idleHtml = html;
+    panel.innerHTML = html;
+    panel.dataset.seat = String(seat);
+    panel.classList.toggle("mine", !!mine);
+    panel.hidden = !html;
+  }
+}
+
+$("#idle-panel").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-vote]");
+  const seat = Number($("#idle-panel").dataset.seat);
+  if (!b || !seat || !online?.link?.vote) return;
+  online.link.vote(seat, b.dataset.vote === "1");
+});
+setInterval(idleTick, 500);
+
+/** Wie niet reageert krijgt ook een melding (als de app op de achtergrond staat) en een trilling. */
+function idleNotice(stage, hostSeat) {
+  const what = st.phase === "BIDDING" ? "Voorspel hoeveel slagen je haalt" : "Speel een kaart";
+  const text = hostSeat ? `Schiet op! Je bent al ${stage === 3 ? "2 minuten" : "een minuut"} aan de beurt en de anderen wachten op je. ${what}.`
+    : stage === 1 ? `Schiet op! Je bent al een minuut aan de beurt. ${what}, anders mogen de anderen straks een computer voor je laten spelen.`
+      : stage === 2 ? `Nog 30 seconden! ${what}, anders mogen de anderen een computer voor je laten spelen.`
+        : `De anderen mogen nu een computer voor je laten spelen. ${what}, dan speel je zelf verder.`;
+  turnNotice(text);
+  try { navigator.vibrate?.(stage === 1 ? 200 : [200, 120, 200]); } catch { /* geen trilfunctie */ }
+}
+
+/** Na afloop: nog een potje met wie er nog aan tafel zit. Lege plaatsen worden computers. */
+function newRoundSameGroup() {
+  if (online?.role !== "host" || !online.link) return;
+  online.link.prepareNewGame();
+  online.players = online.link.players.map(({ name, seat, online: on, avatar, stats }) => ({ name, seat, online: on, avatar, stats }));
+  online.votes = {};
+  online.takenIdle = [];
+  startHostGame(true);
 }
 
 /** Een eigen handeling naar de anderen sturen. */
@@ -2900,14 +3066,17 @@ function renderOnline() {
   const canStart = isHost && !online.game;
   // Met minstens twee mensen kun je ook zonder computers spelen; alleen kan dat niet.
   start.hidden = !canStart;
-  $("#btn-online-back").hidden = !(online.game && game && st?.phase !== "GAME_OVER");
+  $("#btn-online-back").hidden = !(online.game && game);
+  $("#btn-online-back").textContent = st?.phase === "GAME_OVER" ? "Terug naar de uitslag" : "Terug naar het spel";
   fill.hidden = !canStart || free <= 0 || humans < 2;
   start.textContent = free <= 0 ? "Start het spel"
     : humans >= 2 ? `Start met ${humans} spelers, zonder computers`
       : `Start met ${free} ${free === 1 ? "computerspeler" : "computerspelers"}`;
   fill.textContent = `Lege plaatsen aanvullen met ${free} ${free === 1 ? "computerspeler" : "computerspelers"}`;
   let note = "";
-  if (online.game && st?.phase === "GAME_OVER") note = `Dit spel is afgelopen. ${isHost ? "Sluit de tafel" : "Verlaat de tafel"} om een nieuwe te openen.`;
+  if (online.game && st?.phase === "GAME_OVER") note = isHost
+    ? "Dit spel is afgelopen. Ga terug naar de uitslag om een nieuw potje met dezelfde spelers te starten, of sluit de tafel."
+    : "Dit spel is afgelopen. Wacht tot de gastheer een nieuw potje start, of verlaat de tafel.";
   else if (online.game) note = "Het spel is bezig.";
   else if (isHost) note = humans === 1
     ? (online.pub ? "Je tafel staat in de openbare lobby. Wacht tot anderen aanschuiven." : "Deel de link en wacht tot anderen aanschuiven.")
@@ -3219,8 +3388,17 @@ $("#dialog-box").addEventListener("click", (e) => {
       show("newgame");
       break;
     case "new-online":
-      startHostGame();
+      newRoundSameGroup();
       break;
+    case "online-chat":
+      openChat(true);
+      break;
+    case "online-exit": {
+      const pub = !!online?.pub;
+      closeOnline();
+      if (pub) { onlineMode = "openbaar"; show("online"); } else show("menu");
+      break;
+    }
   }
 });
 

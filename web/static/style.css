@@ -890,3 +890,22 @@ button.primary { background: linear-gradient(180deg, #F7C761, var(--gold)); box-
 #online-mode { margin-bottom: 12px; }
 .chat-msg.system { align-self: center; background: none; color: var(--muted); font-style: italic; font-size: 13px; text-align: center; }
 .pub-table .info .away { color: var(--gold); font-style: italic; }
+
+/* Wie niet reageert: waarschuwing, aftellen en stemmen */
+.idle-panel {
+  position: absolute; left: 8px; right: 8px; bottom: 6px; z-index: 18;
+  background: #FFF4D6; color: #1E2430; border-radius: 16px; padding: 12px 14px;
+  box-shadow: 0 12px 32px rgba(0,0,0,.45); border: 2px solid #E0A200; animation: fade-in .2s;
+}
+.idle-panel[hidden] { display: none; }
+.idle-panel.mine { background: #FFE3DC; border-color: #D6452B; }
+.idle-panel p { margin: 0; font-size: 14px; line-height: 1.4; }
+.idle-panel p + p { margin-top: 6px; }
+.idle-panel .idle-votes { font-size: 13px; color: #5A4A20; }
+.idle-big.other { color: #B85C00; font-size: 64px; }
+.idle-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.idle-actions button { padding: 9px 14px; }
+.idle-row { display: flex; align-items: center; gap: 14px; }
+.idle-big { flex: none; font-size: 84px; font-weight: 900; line-height: .95; color: #D6452B; font-variant-numeric: tabular-nums; min-width: 1.2em; text-align: center; animation: idle-pulse 1s ease-in-out infinite; }
+@keyframes idle-pulse { 0%, 100% { scale: 1; } 50% { scale: 1.08; } }
+.over-note { margin: 12px 0 0; font-size: 14px; color: var(--muted); }
