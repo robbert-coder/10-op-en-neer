@@ -19,3 +19,5 @@ jobs:
           echo "::notice title=cors::$cors"
           hof=$(curl -sS -o /tmp/h -w "%{http_code}" -X POST "$U/rest/v1/rpc/hof_get" "${H[@]}" -d '{"p_list":"10openneer"}')
           echo "::notice title=hof::$hof $(head -c 300 /tmp/h)"
+          bad=$(curl -sS -o /tmp/b -w "%{http_code}" -X POST "$U/rest/v1/rpc/hof_put_score" "${H[@]}" -d '{"p_player":"TESTTESTTESTTEST","p_game":"x","p_name":"Test","p_avatar":"","p_list":"10openneer","p_score":5000,"p_detail":""}')
+          echo "::notice title=hof-onzin-geweigerd::$bad $(head -c 200 /tmp/b)"
