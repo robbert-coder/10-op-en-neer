@@ -756,8 +756,8 @@ function tinekeHelp(event, extra = {}) {
 
 function tinekeComment(event, always = false) {
   if (!st) return;
-  if (!always && (settings.tinekeHelp || !settings.tinekeComments)) return;
-  if (always && !settings.tinekeHelp && !settings.tinekeComments) return;
+  // Tineke is er alleen als haar uitleg aan staat; dan zegt ze alleen iets bij de vaste momenten
+  if (!settings.tinekeHelp || !always) return;
   const text = tineke.comment(event, st, tinekeOpinion);
   if (text) tinekeSay(text);
 }
@@ -789,8 +789,7 @@ $("#tineke-skip").addEventListener("click", () => {
   settings.tinekeHelp = false;
   saveSettings();
   tinekeContinue();
-  const h = tineke.help("hulp uit", st, 0, describeCard);
-  tinekeSay(h.text);
+  renderGame();
 });
 
 // ------------------------------------------------------------------------------------------
@@ -869,7 +868,7 @@ function buildSeats() {
       </div>
 `;
     el.querySelector(".avatar").insertAdjacentHTML("beforeend",
-      `<span class="lead" hidden>uit</span><svg class="turn-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12H6m0 0 6-6m-6 6 6 6"/></svg>`);
+      `<span class="order" hidden></span><span class="lead" hidden>uit</span><svg class="turn-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12H6m0 0 6-6m-6 6 6 6"/></svg>`);
   }
   $("#seat-1").dataset.key = seatsKey();
 }
@@ -1006,14 +1005,122 @@ async function animateCollect(winner) {
   await Promise.all(anims).catch(() => {});
 }
 
+/**
+ * Zolang er voorspeld wordt staat de troef groot midden op tafel. Heeft iedereen voorspeld, dan schuift hij
+ * kleiner wordend naar zijn vaste plek rechtsboven.
+ */
+function renderTrumpBig() {
+  const el = $("#trump-big");
+  const corner = $("#g-trump");
+  if (st.phase === "BIDDING" && !showLastTrick) {
+    const key = `${st.round}|${st.trump}`;
+    corner.style.visibility = "hidden";
+    if (el.dataset.key === key && !el.hidden) return;
+    el.dataset.key = key;
+    el.getAnimations().forEach((a) => a.cancel());
+    el.innerHTML = `<small>Troef</small>${st.trump
+      ? cardHtml(st.trump, "", "--w:calc(var(--tw, 56px) * 1.5)")
+      : `<div class="none">Geen<br>troef</div>`}`;
+    el.hidden = false;
+    el.animate(
+      [{ transform: "translate(-50%, -50%) scale(.3) rotate(-25deg)", opacity: 0 }, { transform: "translate(-50%, -50%)", opacity: 1 }],
+      { duration: animMs(500), easing: "cubic-bezier(.2, .9, .3, 1.25)" },
+    );
+    return;
+  }
+  if (el.hidden) { corner.style.visibility = ""; return; }
+  if (el.dataset.key === "leaving") return;
+  el.dataset.key = "leaving";
+  const from = el.getBoundingClientRect();
+  const to = corner.getBoundingClientRect();
+  if (reducedMotion || !to.width || !from.width) { el.hidden = true; corner.style.visibility = ""; return; }
+  const dx = to.left + to.width / 2 - (from.left + from.width / 2);
+  const dy = to.top + to.height / 2 - (from.top + from.height / 2);
+  const anim = el.animate(
+    [{ transform: "translate(-50%, -50%)" },
+      { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(${to.width / from.width})` }],
+    { duration: animMs(700), easing: "cubic-bezier(.5, 0, .3, 1)", fill: "forwards" },
+  );
+  anim.onfinish = () => {
+    el.hidden = true;
+    el.dataset.key = "";
+    anim.cancel();
+    corner.style.visibility = "";
+  };
+}
+
+/**
+ * Tijdens het voorspellen: een nummer bij iedereen (de volgorde, met de klok mee vanaf wie uitkomt) en
+ * pijlen over de rand van de tafel van speler naar speler. Wie al voorspeld heeft krijgt een vinkje.
+ */
+function renderBidOrder() {
+  const svg = $("#bid-order");
+  const n = st.players.length;
+  const show = st.phase === "BIDDING" && !showLastTrick;
+  const order = Array.from({ length: n }, (_, i) => (st.leader - 1 + i) % n + 1);
+  order.forEach((nr, i) => {
+    const badge = $(`#seat-${nr} .order`);
+    if (!badge) return;
+    badge.hidden = !show;
+    const done = st.players[nr - 1].bid >= 0;
+    badge.textContent = done ? "✓" : String(i + 1);
+    badge.className = `order ${done ? "done" : nr === st.active ? "now" : ""}`;
+  });
+  // Een svg-element kent de eigenschap hidden niet; daarom het attribuut zelf zetten
+  if (!show) { svg.setAttribute("hidden", ""); svg.dataset.key = ""; return; }
+  const felt = $("#table").getBoundingClientRect();
+  const states = order.map((nr) => (st.players[nr - 1].bid >= 0 ? "done" : nr === st.active ? "now" : "todo"));
+  const key = `${Math.round(felt.width)}x${Math.round(felt.height)}|${order}|${states}`;
+  if (svg.dataset.key === key && !svg.hasAttribute("hidden")) return;
+  svg.dataset.key = key;
+  svg.removeAttribute("hidden");
+  const w = felt.width;
+  const h = felt.height;
+  const cx = w / 2;
+  const cy = h / 2;
+  const rx = w / 2 - 20;
+  const ry = h / 2 - 20;
+  // Hoek van elke speler gezien vanuit het midden van de tafel (met de klok mee wordt de hoek groter)
+  const angle = (nr) => {
+    const r = $(`#seat-${nr} .avatar`).getBoundingClientRect();
+    return Math.atan2((r.top + r.height / 2 - felt.top - cy) / ry, (r.left + r.width / 2 - felt.left - cx) / rx);
+  };
+  let paths = "";
+  for (let i = 0; i < n - 1; i++) {
+    let a0 = angle(order[i]);
+    let a1 = angle(order[i + 1]);
+    while (a1 <= a0) a1 += 2 * Math.PI;
+    const gap = Math.min(0.32, (a1 - a0) / 5);
+    a0 += gap;
+    a1 -= gap;
+    const pts = [];
+    for (let k = 0; k <= 24; k++) {
+      const a = a0 + ((a1 - a0) * k) / 24;
+      pts.push(`${(cx + rx * Math.cos(a)).toFixed(1)},${(cy + ry * Math.sin(a)).toFixed(1)}`);
+    }
+    const s = states[i + 1];
+    paths += `<path class="${s}" d="M${pts.join("L")}" marker-end="url(#bo-head-${s})"/>`;
+  }
+  svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+  svg.innerHTML = `<defs>${["done", "now", "todo"].map((s) =>
+    `<marker id="bo-head-${s}" class="${s}" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto"><path d="M0,0 L10,5 L0,10 z"/></marker>`).join("")}</defs>${paths}`;
+}
+window.addEventListener("resize", () => { if (screen === "game" && st) { $("#bid-order").dataset.key = ""; renderBidOrder(); } });
+
 function renderGame() {
   if (!st) return;
+  // Tineke staat alleen aan tafel als je haar uitleg wilt (niet bij samen spelen)
+  const tinekeOn = settings.tinekeHelp && !online?.game;
+  $("#tineke").hidden = !tinekeOn;
+  if (!tinekeOn) $("#tineke-panel").hidden = true;
   $("#g-round").textContent = `Ronde ${st.round} van ${st.rounds}`;
   $("#g-cards").textContent = `${st.cards} ${st.cards === 1 ? "kaart" : "kaarten"} · ${st.variant}`;
   $("#g-over").textContent = st.tricksOver;
   $("#g-trump").innerHTML = st.trump ? cardHtml(st.trump, "small", "--w:30px") : `<div class="none">geen<br>troef</div>`;
 
   updateSeats();
+  renderTrumpBig();
+  renderBidOrder();
 
   // Tafel: alleen veranderde plekken opnieuw tekenen, zodat nieuwe kaarten kunnen invliegen
   const last = showLastTrick && st.lastTrickWinner !== 0;
@@ -1035,7 +1142,7 @@ function renderGame() {
   // Statusregel
   let text = message;
   if (!text) {
-    if (humanBidding()) text = "Hoeveel slagen denk je te halen?";
+    if (humanBidding()) text = ""; // de vraag staat boven de knoppen
     else if (humanPlaying()) text = "Jij bent aan de beurt. Kies een kaart.";
     else if (remoteTurn()) {
       const p = st.players[st.active - 1];
@@ -1053,7 +1160,7 @@ function renderGame() {
   // Voorspellen
   const bids = $("#bids");
   if (humanBidding()) {
-    let html = "";
+    let html = `<p class="bids-q">Hoeveel slagen denk je te halen?</p>`;
     for (let n = 0; n <= st.cards; n++) {
       const forbidden = n === st.forbiddenBid;
       html += `<button data-bid="${n}" class="${forbidden ? "forbidden" : ""} ${n === hintBid ? "hint" : ""}" ${forbidden ? "disabled" : ""}>${n}</button>`;
@@ -1171,7 +1278,7 @@ function gameOverHtml() {
       ${avatarHtml(p.nr, p.name, p.rank === 1 ? "happy" : p.rank === st.players.length ? "sad" : "")}
       <div class="name">${esc(p.name)}${winnerFlag(p)}</div><div class="rank">${p.rank}e</div><div class="tot">${p.total}</div></div>`).join("");
   const hs = highScorePlace > 0 ? `<p class="gold">Je staat op plaats ${highScorePlace} in de highscore van ${esc(st.variant)}.</p>` : "";
-  const say = settings.tinekeHelp || settings.tinekeComments ? endComment ??= tineke.comment("afgelopen", st) : null;
+  const say = settings.tinekeHelp ? endComment ??= tineke.comment("afgelopen", st) : null;
   return `<h3>${title}</h3>${say ? tinekeLine(say) : ""}<div class="result-rows">${rows}</div>${hs}
     <div class="actions"><button data-action="scores">Scorelijst</button>
     <button data-action="menu">Menu</button>
@@ -1192,7 +1299,7 @@ function renderSidebar() {
   const el = $("#sidebar");
   if (!isWide()) { if (el.innerHTML) el.innerHTML = ""; return; }
   const html = `<h3>Scorelijst</h3><div class="scroll">${sheetTableHtml()}</div>
-    <p class="legend">Klein getal: voorspelling. Doorgestreept: fout voorspeld.</p>`;
+    <p class="legend">Klein doorgestreept getal: de voorspelling klopte niet.</p>`;
   if (el.dataset.key === html) return;
   el.dataset.key = html;
   el.innerHTML = html;
@@ -1202,7 +1309,7 @@ function renderSidebar() {
 function scoreSheetHtml() {
   return `<h3>Scorelijst · ${esc(st.variant)}</h3>
     <div class="scroll">${sheetTableHtml()}</div>
-    <p class="legend">Klein getal: voorspelling. Doorgestreept: fout voorspeld.</p>
+    <p class="legend">Klein doorgestreept getal: de voorspelling klopte niet.</p>
     <div class="actions"><button class="primary" data-action="close-scores">Sluiten</button></div>`;
 }
 
@@ -1212,7 +1319,8 @@ function sheetTableHtml() {
   for (let r = 1; r <= st.rounds; r++) {
     const cells = st.players.map((p) => {
       const [bid, , score, crossed, good] = p.rounds[r - 1];
-      if (score >= 0) return `<td><span class="b ${good ? "good" : "bad"}">${bid}</span>${crossed ? "" : score}</td>`;
+      // Een goede voorspelling staat niet apart: alleen een foute voorspelling wordt doorgestreept getoond
+      if (score >= 0) return `<td>${good ? "" : `<span class="b bad">${bid}</span>`}${crossed ? "" : score}</td>`;
       if (r === st.round && p.bid >= 0) return `<td><span class="b open">${p.bid}</span></td>`;
       return `<td></td>`;
     }).join("");
@@ -1409,7 +1517,6 @@ function renderSettings() {
   $("#set-speak").checked = settings.speakBids;
   $("#row-speak").hidden = !settings.sound;
   $("#set-help").checked = settings.tinekeHelp;
-  $("#set-comments").checked = settings.tinekeComments;
 }
 
 const RULES_TEXT = [
@@ -1961,7 +2068,6 @@ $("#set-desc").addEventListener("change", (e) => { settings.sortDescending = e.t
 $("#set-sound").addEventListener("change", (e) => { settings.sound = e.target.checked; saveSettings(); renderSettings(); });
 $("#set-speak").addEventListener("change", (e) => { settings.speakBids = e.target.checked; saveSettings(); });
 $("#set-help").addEventListener("change", (e) => { settings.tinekeHelp = e.target.checked; settings.tinekeAsked = true; helpLevel = 0; saveSettings(); });
-$("#set-comments").addEventListener("change", (e) => { settings.tinekeComments = e.target.checked; saveSettings(); });
 
 $("#bids").addEventListener("click", (e) => {
   const b = e.target.closest("[data-bid]");

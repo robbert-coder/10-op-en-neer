@@ -29,10 +29,27 @@ export function cleanAvatar(v) {
 
 export const normalizeCode = (s) => String(s || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 5);
 
+/**
+ * Servers die helpen om een rechtstreekse verbinding te vinden. STUN is genoeg op de meeste netwerken; de
+ * TURN-servers van PeerJS sturen het verkeer door als twee apparaten elkaar niet rechtstreeks kunnen bereiken
+ * (bijvoorbeeld op mobiel internet).
+ */
+const ICE_SERVERS = [
+  { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
+  { urls: "stun:stun.cloudflare.com:3478" },
+  {
+    urls: ["turn:eu-0.turn.peerjs.com:3478", "turn:us-0.turn.peerjs.com:3478"],
+    username: "peerjs", credential: "peerjsp",
+  },
+];
+
+/** Hoe lang we wachten op de server of op de tafel voordat we het opnieuw proberen. */
+const WAIT_MS = 12000;
+
 /** Instellingen voor PeerJS. Met ?peerhost=host:poort kan een eigen (test)server gebruikt worden. */
 function peerOptions() {
   const host = new URLSearchParams(location.search).get("peerhost");
-  if (!host) return { debug: 0 };
+  if (!host) return { debug: 0, config: { iceServers: ICE_SERVERS } };
   const [h, port] = host.split(":");
   return { host: h, port: Number(port || 9000), path: "/", secure: false, debug: 0 };
 }
@@ -62,7 +79,7 @@ export class Host {
   constructor(code, myName, events, saved = null, myAvatar = null, seats = 4) {
     this.code = code;
     this.events = events;
-    /** Aantal plaatsen aan tafel: 4 of 5. */
+    /** Aantal plaatsen aan tafel: 2 tot 5. */
     this.seats = seats;
     this.players = [{ id: "host", name: myName, seat: 1, online: true, avatar: cleanAvatar(myAvatar) }];
     this.conns = new Map(); // clientId -> verbinding
@@ -90,7 +107,13 @@ export class Host {
 
   open() {
     this.peer = newPeer(PREFIX + this.code);
-    this.peer.on("open", () => this.events.onStatus?.(""));
+    clearTimeout(this.peerTimer);
+    this.peerTimer = setTimeout(() => {
+      if (!this.closed && !this.peer.open) {
+        this.events.onStatus?.("De server die de spelers aan elkaar koppelt reageert nog niet. Even geduld…");
+      }
+    }, WAIT_MS);
+    this.peer.on("open", () => { clearTimeout(this.peerTimer); this.events.onStatus?.(""); });
     this.peer.on("connection", (conn) => this.accept(conn));
     this.peer.on("disconnected", () => { if (!this.closed) setTimeout(() => this.peer.reconnect(), 2000); });
     this.peer.on("error", (err) => {
@@ -238,6 +261,7 @@ export class Host {
 
   close() {
     this.closed = true;
+    clearTimeout(this.peerTimer);
     this.broadcast({ t: "bye" });
     setTimeout(() => this.peer?.destroy(), 300);
   }
@@ -257,8 +281,14 @@ export class Guest {
     this.events = events;
     this.closed = false;
     this.retries = 0;
+    this.attempts = 0;
     this.peer = newPeer();
-    this.peer.on("open", () => this.connect());
+    this.peerTimer = setTimeout(() => {
+      if (!this.closed && !this.peer.open) {
+        this.events.onError?.("De server die de spelers aan elkaar koppelt reageert niet. Controleer je internet en probeer het opnieuw.");
+      }
+    }, WAIT_MS);
+    this.peer.on("open", () => { clearTimeout(this.peerTimer); this.connect(); });
     this.peer.on("disconnected", () => { if (!this.closed) setTimeout(() => this.peer.reconnect(), 2000); });
     this.peer.on("error", (err) => {
       if (err?.type === "peer-unavailable" && this.everConnected && !this.closed) {
@@ -273,7 +303,27 @@ export class Guest {
     if (this.closed) return;
     const conn = this.peer.connect(PREFIX + this.code, { reliable: true });
     this.conn = conn;
+    this.attempts++;
+    // Lukt de verbinding niet binnen een paar tellen, dan opnieuw proberen en zeggen wat er aan de hand is
+    clearTimeout(this.connTimer);
+    this.connTimer = setTimeout(() => {
+      if (this.closed || conn !== this.conn || conn.open) return;
+      if (this.attempts >= 2) {
+        this.events.onStatus?.(this.attempts >= 4
+          ? "Het lukt niet om de tafel te bereiken. Staat de tafel nog open bij de gastheer? Soms helpt het als iedereen op wifi zit."
+          : "De tafel reageert nog niet. Opnieuw proberen…");
+      }
+      try { conn.close(); } catch (e) { /* al dicht */ }
+      this.connect();
+    }, WAIT_MS);
+    conn.on("error", () => {
+      if (this.closed || conn !== this.conn) return;
+      clearTimeout(this.connTimer);
+      this.retryLater();
+    });
     conn.on("open", () => {
+      clearTimeout(this.connTimer);
+      this.attempts = 0;
       this.everConnected = true;
       this.retries = 0;
       this.events.onStatus?.("");
@@ -328,6 +378,8 @@ export class Guest {
 
   close() {
     this.closed = true;
+    clearTimeout(this.connTimer);
+    clearTimeout(this.peerTimer);
     try { this.conn?.close(); } catch { /* al dicht */ }
     setTimeout(() => this.peer?.destroy(), 300);
   }

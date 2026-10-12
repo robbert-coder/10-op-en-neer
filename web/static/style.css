@@ -351,7 +351,7 @@ h1 { font-size: 38px; margin: 18px 0 0; letter-spacing: -.5px; text-wrap: balanc
 .result-row .rank { font-weight: 800; color: var(--muted); }
 .result-row.me { box-shadow: inset 0 0 0 1.5px rgba(255, 201, 77, .5); }
 .gold { color: var(--gold); }
-.sheet { max-width: 580px; height: 88vh; }
+.sheet { max-width: 580px; }
 .sheet .scroll { flex: 1; overflow: auto; }
 .sheet table { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
 .sheet th { color: var(--muted); font-weight: 600; font-size: 12px; position: sticky; top: 0; background: #0F2A1D; padding: 6px 2px; }
@@ -435,7 +435,7 @@ h1 { font-size: 38px; margin: 18px 0 0; letter-spacing: -.5px; text-wrap: balanc
     margin: 14px 14px 14px 0; padding: 16px; border-radius: 22px; background: rgba(0, 0, 0, .22); border: 1px solid var(--line);
   }
   .sidebar h3 { margin: 0 0 10px; font-size: 19px; color: var(--gold); }
-  .sidebar.sheet { max-width: none; height: auto; }
+  .sidebar.sheet { max-width: none; height: auto; align-self: start; max-height: calc(100% - 28px); }
   .sidebar.sheet th, .sidebar.sheet .total td { background: #0A2A19; }
   .sidebar.sheet table { font-size: 15px; }
 
@@ -679,3 +679,40 @@ h1 { font-size: 38px; margin: 18px 0 0; letter-spacing: -.5px; text-wrap: balanc
   .arena.five .seat.north .who { flex-direction: column; align-items: center; gap: 0; }
   .arena.five { grid-template-columns: clamp(110px, 12vw, 190px) minmax(0, 1fr) minmax(0, 1fr) clamp(110px, 12vw, 190px); }
 }
+
+/* ---------- Voorspellen: troef groot in het midden en de volgorde met de klok mee ---------- */
+.trump-big { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); pointer-events: none; z-index: 2; }
+.trump-big[hidden] { display: none; }
+.trump-big small {
+  position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+  color: var(--gold); font-weight: 800; font-size: 13px; letter-spacing: .5px; text-transform: uppercase; white-space: nowrap;
+}
+.trump-big .card { box-shadow: 0 12px 30px rgba(0, 0, 0, .45), 0 0 0 3px rgba(255, 201, 77, .55); }
+.trump-big .none {
+  width: calc(var(--tw, 56px) * 1.5); aspect-ratio: 5 / 7; display: grid; place-items: center; text-align: center;
+  border: 2px dashed rgba(255, 255, 255, .45); border-radius: 10px; color: var(--muted); font-weight: 700; font-size: 15px;
+}
+.bid-order { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; z-index: 1; }
+.bid-order[hidden] { display: none; }
+.bid-order > path { fill: none; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.bid-order > path.todo { stroke: rgba(255, 255, 255, .4); stroke-dasharray: 1 8; }
+.bid-order > path.now { stroke: var(--gold); stroke-dasharray: 10 8; animation: bo-flow .9s linear infinite; filter: drop-shadow(0 0 4px rgba(255, 201, 77, .7)); }
+.bid-order > path.done { stroke: rgba(255, 255, 255, .16); }
+.bid-order marker path { stroke: none; }
+.bid-order marker.todo path { fill: rgba(255, 255, 255, .4); }
+.bid-order marker.now path { fill: var(--gold); }
+.bid-order marker.done path { fill: rgba(255, 255, 255, .16); }
+@keyframes bo-flow { to { stroke-dashoffset: -18; } }
+@media (prefers-reduced-motion: reduce) { .bid-order > path.now { animation: none; } }
+.avatar .order {
+  position: absolute; left: -6px; top: -6px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px;
+  display: grid; place-items: center; font-size: 12px; font-weight: 800; z-index: 1;
+  background: rgba(255, 255, 255, .92); color: #1E2430; box-shadow: 0 2px 6px rgba(0, 0, 0, .4);
+}
+.avatar .order[hidden] { display: none; }
+.avatar .order.now { background: var(--gold); color: var(--gold-ink); }
+.avatar .order.done { background: var(--good); color: #0B2A16; }
+@media (min-width: 1000px) and (min-height: 640px) { .avatar .order { min-width: 26px; height: 26px; border-radius: 13px; font-size: 15px; } }
+.tineke-btn[hidden] { display: none; }
+.bids .bids-q { grid-column: 1 / -1; margin: 0 0 2px; text-align: center; font-weight: 700; font-size: 16px; color: var(--text, #fff); }
+@media (min-width: 1000px) and (min-height: 640px) { .bids .bids-q { font-size: 19px; } }
