@@ -57,8 +57,9 @@ export function saveStats(code, games, clearedAt) {
 // Hall of Fame ------------------------------------------------------------------------------
 
 /** De beste score per speler in een lijst, en de spelers met hun overzicht. */
-export async function fetchHallOfFame(list) {
-  const data = await rpc("hof_get", { p_list: list });
+export async function fetchHallOfFame(list, players = null, vs = null) {
+  // Filters alleen meesturen als ze gekozen zijn
+  const data = await rpc("hof_get", { p_list: list, ...(players ? { p_players: players } : {}), ...(vs ? { p_vs: vs } : {}) });
   return {
     scores: Array.isArray(data?.scores) ? data.scores : [],
     players: Array.isArray(data?.players) ? data.players : [],

@@ -857,3 +857,8 @@ button.primary { background: linear-gradient(180deg, #F7C761, var(--gold)); box-
 .hs-row .stars { flex: none; }
 .hs-row.hof .name small { white-space: normal; }
 #hs-scope { margin-bottom: 8px; }
+.hs-filters { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.hs-filters .tabs { flex: 1 1 200px; margin: 0; }
+.tabs.small button { font-size: 13px; padding-top: 6px; padding-bottom: 6px; }
+.tabs button[hidden] { display: none; }
+.tabs-label { align-self: center; padding: 0 6px 0 8px; font-size: 12px; color: var(--muted); }

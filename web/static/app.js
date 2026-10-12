@@ -502,6 +502,8 @@ let newMax = null;
 const SHORT_MAX = 5;
 let hsTab = "10openneer";
 let hsShort = false; // de lijst van korte spellen tonen
+let hsPlayers = 0; // filter: alleen spellen met zoveel spelers (0 = alle)
+let hsVs = ""; // filter: "computers" (jij alleen tegen computers), "mensen" (met andere mensen) of "" (alles)
 let hsScope = "hof"; // "hof": Hall of Fame van iedereen, "local": op dit apparaat
 let highScoreShort = false;
 const hsKey = () => (hsShort ? `${hsTab}.kort` : hsTab);
@@ -2165,19 +2167,47 @@ function renderNewGame() {
   $("#variant-name").textContent = `Je speelt: ${rulesVariantName(newRules())} met ${newPlayers} spelers`;
 }
 
+const hsFiltered = () => !!hsPlayers || !!hsVs;
+
+/** Past een score bij de filters? De omschrijving is bijvoorbeeld "tot 5 · 4 spelers: 1 mens, 3 computers". */
+function matchesHsFilter(h) {
+  if (!hsFiltered()) return true;
+  const n = Number(h.detail?.match(/(\d+) spelers/)?.[1] ?? (hsShort ? 0 : 4));
+  const humans = Number(h.detail?.match(/(\d+) mens/)?.[1] ?? 0);
+  if (hsPlayers && n !== hsPlayers) return false;
+  if (hsVs === "computers" && humans !== 1) return false;
+  if (hsVs === "mensen" && humans < 2) return false;
+  return true;
+}
+
+function renderHsFilters() {
+  // Volledige spellen tellen vanaf drie spelers
+  if (!hsShort && hsPlayers === 2) hsPlayers = 0;
+  $$("#hs-players button").forEach((b) => {
+    b.hidden = !hsShort && b.dataset.n === "2";
+    b.classList.toggle("selected", Number(b.dataset.n || 0) === hsPlayers);
+  });
+  $$("#hs-vs button").forEach((b) => b.classList.toggle("selected", b.dataset.vs === hsVs));
+}
+
 function renderHighScores() {
   $("#hs-scope").hidden = !cloudEnabled();
   if (!cloudEnabled()) hsScope = "local";
-  $$("#hs-scope button").forEach((b) => b.classList.toggle("selected", b.dataset.scope === hsScope));
+  $$("#hs-players button").forEach((b) => b.addEventListener("click", () => { hsPlayers = Number(b.dataset.n || 0); renderHighScores(); }));
+$$("#hs-vs button").forEach((b) => b.addEventListener("click", () => { hsVs = b.dataset.vs; renderHighScores(); }));
+$$("#hs-scope button").forEach((b) => b.classList.toggle("selected", b.dataset.scope === hsScope));
   $$("#hs-tabs button").forEach((b) => b.classList.toggle("selected", b.dataset.tab === hsTab));
   $$("#hs-length button").forEach((b) => b.classList.toggle("selected", (b.dataset.len === "kort") === hsShort));
+  renderHsFilters();
   if (hsScope === "hof") { renderHallOfFame(); return; }
   $("#hof-players").innerHTML = "";
   $("#hs-note").textContent = hsShort
     ? "Spellen die niet tot het hoogste aantal kaarten gaan. Erbij staat tot hoeveel kaarten en met hoeveel mensen en computers."
     : "Spellen die helemaal tot het hoogste aantal kaarten gaan, met drie of meer spelers. Erbij staat met hoeveel mensen en computers.";
-  const list = loadHighScores(hsKey());
-  $("#hs-list").innerHTML = list.length === 0
+  const list = loadHighScores(hsKey()).filter(matchesHsFilter);
+  $("#hs-list").innerHTML = list.length === 0 && hsFiltered()
+    ? `<p class="empty-note">Geen scores met deze filters.</p>`
+    : list.length === 0
     ? `<p class="empty-note">Nog geen scores. Speel een spel uit om in de lijst te komen.</p>`
     : list.map((h, i) => `<div class="hs-row"><span class="pos">${i + 1}</span><span class="name">${esc(h.name)}${h.detail ? `<small>${esc(h.detail)}</small>` : ""}</span><span class="date">${h.date}</span><span class="score">${h.score}</span></div>`).join("");
   $("#btn-hs-clear").hidden = list.length === 0;
@@ -2188,7 +2218,8 @@ const hofFace = (p) => `<span class="hof-face">${humanAvatarHtml(cleanAvatar(p.a
 
 /** De Hall of Fame: de beste score van iedereen in deze lijst, en bij volledige spellen de beste spelers. */
 async function renderHallOfFame() {
-  const key = hsKey();
+  const key = `${hsKey()}|${hsPlayers}|${hsVs}`;
+  const cur = () => `${hsKey()}|${hsPlayers}|${hsVs}`;
   $("#btn-hs-clear").hidden = true;
   $("#hs-note").textContent = (hsShort
     ? "De beste korte spellen van alle spelers, met erbij tot hoeveel kaarten en met hoeveel spelers."
@@ -2200,19 +2231,19 @@ async function renderHallOfFame() {
   if (!cached || Date.now() - cached.time > 60000) {
     try {
       await flushHof();
-      data = await fetchHallOfFame(key);
+      data = await fetchHallOfFame(hsKey(), hsPlayers || null, hsVs || null);
       hofCache.set(key, { time: Date.now(), data });
     } catch {
       if (!data) {
-        if (hsScope === "hof" && hsKey() === key) $("#hs-list").innerHTML = `<p class="empty-note">De Hall of Fame is nu niet bereikbaar. Probeer het later nog eens.</p>`;
+        if (hsScope === "hof" && cur() === key) $("#hs-list").innerHTML = `<p class="empty-note">De Hall of Fame is nu niet bereikbaar. Probeer het later nog eens.</p>`;
         return;
       }
     }
   }
-  if (hsScope !== "hof" || hsKey() !== key) return; // intussen naar een andere lijst gegaan
+  if (hsScope !== "hof" || cur() !== key) return; // intussen naar een andere lijst gegaan
   const me = settings.hofId;
   $("#hs-list").innerHTML = data.scores.length === 0
-    ? `<p class="empty-note">Nog niemand in deze lijst. Speel een spel uit en kom er als eerste in!</p>`
+    ? `<p class="empty-note">${hsFiltered() ? "Nog niemand met deze filters." : "Nog niemand in deze lijst. Speel een spel uit en kom er als eerste in!"}</p>`
     : data.scores.map((h, i) => `<div class="hs-row hof${h.p === me ? " me" : ""}"><span class="pos">${i + 1}</span>${hofFace(h)}<span class="name">${esc(String(h.name ?? ""))}${h.detail ? `<small>${esc(String(h.detail))}</small>` : ""}</span><span class="date">${hofDate(h.date)}</span><span class="score">${Number(h.score) || 0}</span></div>`).join("");
   if (hsShort) { $("#hof-players").innerHTML = ""; return; }
   const players = data.players
@@ -2342,7 +2373,7 @@ const clientId = () => {
 
 /** In de Android-app draait de website vanuit de app zelf; gedeelde links wijzen dan naar de echte website. */
 const nativeApp = window.TienApp ?? null;
-const APP_VERSION = "2.21";
+const APP_VERSION = "2.22";
 const SITE_URL = "https://robbert-coder.github.io/10-op-en-neer/";
 const tableLink = (code) => `${nativeApp ? SITE_URL : location.origin + location.pathname}?spel=${code}`;
 

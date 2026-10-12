@@ -69,14 +69,25 @@ begin
 end;
 $$;
 
--- De beste score per speler in een lijst (hoogstens 50), en de spelers met minstens één volledig spel
-create or replace function public.hof_get(p_list text) returns jsonb
+-- De beste score per speler in een lijst (hoogstens 50), eventueel alleen met zoveel spelers (p_players)
+-- of alleen tegen computers / met andere mensen (p_vs = 'computers' / 'mensen'),
+-- en de spelers met minstens één volledig spel
+drop function if exists public.hof_get(text);
+create or replace function public.hof_get(p_list text, p_players int default null, p_vs text default null) returns jsonb
 language sql security definer set search_path = public as $$
+  with f as (
+    select *, substring(detail from '(\d+) spelers')::int as n,
+           coalesce(substring(detail from '(\d+) mens')::int, 0) as h
+    from public.hof_scores where list = p_list
+  )
   select jsonb_build_object(
     'scores', coalesce((select jsonb_agg(s order by s.score desc, s.date) from (
       select * from (
         select distinct on (player) player as p, name, avatar, score, detail, created_at::date as date
-        from public.hof_scores where list = p_list order by player, score desc, created_at
+        from f
+        where (p_players is null or n = p_players)
+          and (p_vs is null or (p_vs = 'computers' and h = 1) or (p_vs = 'mensen' and h >= 2))
+        order by player, score desc, created_at
       ) best order by score desc, date limit 50
     ) s), '[]'::jsonb),
     'players', coalesce((select jsonb_agg(jsonb_build_object('p', player, 'name', name, 'avatar', avatar, 'stats', stats))
@@ -86,4 +97,4 @@ $$;
 
 grant execute on function public.hof_put_score(text, text, text, text, text, int, text) to anon;
 grant execute on function public.hof_put_player(text, text, text, jsonb) to anon;
-grant execute on function public.hof_get(text) to anon;
+grant execute on function public.hof_get(text, int, text) to anon;
