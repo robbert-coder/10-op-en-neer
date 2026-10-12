@@ -1,9 +1,8 @@
-// Samen spelen via internet. De apparaten maken rechtstreeks verbinding met elkaar (WebRTC via PeerJS);
-// de openbare PeerJS-server helpt alleen om elkaar te vinden. Wie de tafel opent is de gastheer: alle
-// berichten gaan via hem. Iedereen rekent het spel zelf uit; dat kan omdat het spel met dezelfde
+// Samen spelen via internet. Alle berichten gaan via een openbare doorgeefserver (MQTT over een websocket),
+// zodat het op elk netwerk werkt, ook als twee apparaten elkaar niet rechtstreeks kunnen bereiken.
+// Wie de tafel opent is de gastheer: alle berichten gaan via hem. Iedereen rekent het spel zelf uit; dat kan omdat het spel met dezelfde
 // beginwaarde (seed) en dezelfde handelingen van de mensen altijd precies hetzelfde verloopt.
 
-const PREFIX = "tienopenneer-v1-";
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 /** Volgorde waarin mensen een stoel krijgen, per aantal plaatsen: bij vier eerst tegenover elkaar. */
@@ -30,46 +29,98 @@ export function cleanAvatar(v) {
 export const normalizeCode = (s) => String(s || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 5);
 
 /**
- * Servers die helpen om een rechtstreekse verbinding te vinden. STUN is genoeg op de meeste netwerken; de
- * TURN-servers van PeerJS sturen het verkeer door als twee apparaten elkaar niet rechtstreeks kunnen bereiken
- * (bijvoorbeeld op mobiel internet).
+ * Openbare doorgeefservers. De gastheer luistert op allemaal tegelijk; een gast gebruikt de eerste die werkt
+ * en probeert de volgende als de tafel daar niet antwoordt. Met ?relay=ws://host:poort kan een eigen
+ * (test)server gebruikt worden.
  */
-const ICE_SERVERS = [
-  { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
-  { urls: "stun:stun.cloudflare.com:3478" },
-  {
-    urls: ["turn:eu-0.turn.peerjs.com:3478", "turn:us-0.turn.peerjs.com:3478"],
-    username: "peerjs", credential: "peerjsp",
-  },
+const BROKERS = [
+  "wss://broker.emqx.io:8084/mqtt",
+  "wss://broker.hivemq.com:8884/mqtt",
+  "wss://test.mosquitto.org:8081/mqtt",
 ];
-
-/** Hoe lang we wachten op de server of op de tafel voordat we het opnieuw proberen. */
-const WAIT_MS = 12000;
-
-/** Instellingen voor PeerJS. Met ?peerhost=host:poort kan een eigen (test)server gebruikt worden. */
-function peerOptions() {
-  const host = new URLSearchParams(location.search).get("peerhost");
-  if (!host) return { debug: 0, config: { iceServers: ICE_SERVERS } };
-  const [h, port] = host.split(":");
-  return { host: h, port: Number(port || 9000), path: "/", secure: false, debug: 0 };
-}
-
-function newPeer(id) {
-  const Peer = window.peerjs?.Peer;
-  if (!Peer) throw new Error("Samen spelen werkt niet in deze browser.");
-  return id ? new Peer(id, peerOptions()) : new Peer(peerOptions());
-}
-
-const peerError = (err) => {
-  const t = err?.type;
-  if (t === "unavailable-id") return "Deze tafel bestaat al. Probeer het opnieuw.";
-  if (t === "peer-unavailable") return "Er is geen tafel met deze code, of de gastheer is niet meer online.";
-  if (t === "network" || t === "server-error" || t === "socket-error" || t === "socket-closed") {
-    return "Geen verbinding met internet of met de server die de spelers aan elkaar koppelt.";
-  }
-  if (t === "browser-incompatible") return "Samen spelen werkt niet in deze browser.";
-  return "Er ging iets mis met de verbinding.";
+const brokers = () => {
+  const own = new URLSearchParams(location.search).get("relay");
+  return own ? [own] : BROKERS;
 };
+const topic = (code) => `tienopenneer/v2/${code}`;
+
+/** Hoe vaak we een teken van leven sturen, en na hoe lang zonder bericht iemand weg is. */
+const PING_MS = 4000;
+const GONE_MS = 16000;
+/** Hoe lang een gast wacht op antwoord van de tafel voordat hij een andere doorgeefserver probeert. */
+const WAIT_MS = 10000;
+
+/** Een verbinding met een doorgeefserver; valt hij weg, dan opnieuw (bij [rotate] met de volgende server). */
+class Relay {
+  constructor(urls, subscribe, onMessage, onState) {
+    this.urls = urls;
+    this.subscribe = subscribe;
+    this.onMessage = onMessage;
+    this.onState = onState;
+    this.index = 0;
+    this.closed = false;
+    this.connect();
+  }
+
+  connect() {
+    if (this.closed) return;
+    const mqtt = window.mqtt;
+    if (!mqtt) { this.onState("unsupported"); return; }
+    const url = this.urls[this.index % this.urls.length];
+    const client = mqtt.connect(url, {
+      clientId: `tien_${Math.random().toString(36).slice(2, 12)}`,
+      clean: true, keepalive: 30, reconnectPeriod: 0, connectTimeout: 8000, protocolVersion: 4,
+    });
+    this.client = client;
+    let ok = false;
+    client.on("connect", () => {
+      ok = true;
+      client.subscribe(this.subscribe(), { qos: 0 });
+      this.onState("open");
+    });
+    client.on("message", (t, payload) => {
+      let msg;
+      try { msg = JSON.parse(payload.toString()); } catch { return; }
+      if (msg && typeof msg === "object") this.onMessage(msg, this);
+    });
+    const lost = () => {
+      if (this.client !== client || this.closed) return;
+      this.client = null;
+      try { client.end(true); } catch { /* al dicht */ }
+      if (!ok) this.index++;
+      this.onState("lost");
+      setTimeout(() => this.connect(), ok ? 1500 : 500);
+    };
+    client.on("close", lost);
+    client.on("error", lost);
+    client.on("offline", lost);
+  }
+
+  /** Naar de volgende server (alleen zinvol als er meer dan één is). */
+  next() {
+    if (this.urls.length < 2 || this.closed) return;
+    const old = this.client;
+    this.client = null;
+    this.index++;
+    try { old?.end(true); } catch { /* al dicht */ }
+    this.connect();
+  }
+
+  get open() { return !!this.client?.connected; }
+
+  publish(t, msg) {
+    if (!this.client?.connected) return false;
+    this.client.publish(t, JSON.stringify(msg), { qos: 0 });
+    return true;
+  }
+
+  close() {
+    this.closed = true;
+    const c = this.client;
+    this.client = null;
+    setTimeout(() => { try { c?.end(false); } catch { /* al dicht */ } }, 300);
+  }
+}
 
 /**
  * De gastheer: houdt bij wie er aan tafel zit en stuurt alle handelingen door.
@@ -106,30 +157,52 @@ export class Host {
   }
 
   open() {
-    this.peer = newPeer(PREFIX + this.code);
-    clearTimeout(this.peerTimer);
-    this.peerTimer = setTimeout(() => {
-      if (!this.closed && !this.peer.open) {
-        this.events.onStatus?.("De server die de spelers aan elkaar koppelt reageert nog niet. Even geduld…");
+    // Per gast een "verbinding": berichten gaan via de server waarop de gast zich meldde
+    this.links = new Map();
+    const base = topic(this.code);
+    this.relays = brokers().map((url) => new Relay([url], () => `${base}/h`, (msg, relay) => this.incoming(msg, relay), () => {
+      if (this.relays?.some((r) => r.open)) { clearTimeout(this.waitTimer); this.events.onStatus?.(""); }
+    }));
+    this.waitTimer = setTimeout(() => {
+      if (!this.closed && !this.relays.some((r) => r.open)) {
+        this.events.onStatus?.("De server die de spelers aan elkaar koppelt reageert nog niet. Controleer je internet.");
       }
     }, WAIT_MS);
-    this.peer.on("open", () => { clearTimeout(this.peerTimer); this.events.onStatus?.(""); });
-    this.peer.on("connection", (conn) => this.accept(conn));
-    this.peer.on("disconnected", () => { if (!this.closed) setTimeout(() => this.peer.reconnect(), 2000); });
-    this.peer.on("error", (err) => {
-      if (err?.type === "unavailable-id" && this.restarting) {
-        // De oude verbinding is bij de server nog niet weg; even later opnieuw proberen
-        setTimeout(() => this.open(), 3000);
-        return;
-      }
-      this.events.onError?.(peerError(err));
-    });
+    this.pinger = setInterval(() => this.heartbeat(), PING_MS);
   }
 
-  accept(conn) {
-    conn.on("data", (msg) => this.receive(conn, msg));
-    conn.on("close", () => this.dropped(conn));
-    conn.on("error", () => this.dropped(conn));
+  incoming(msg, relay) {
+    const id = String(msg.from || "").slice(0, 40);
+    if (!id || id === "host") return;
+    let conn = this.links.get(id);
+    if (!conn || conn.relay !== relay) {
+      const base = topic(this.code);
+      conn = {
+        relay, open: true, clientId: null,
+        send: (m) => relay.publish(`${base}/g/${id}`, m),
+        close() { this.open = false; },
+      };
+      this.links.set(id, conn);
+    }
+    conn.open = true;
+    conn.seen = Date.now();
+    if (msg.t === "ping") return;
+    if (msg.t === "bye") { this.links.delete(id); conn.open = false; this.dropped(conn); return; }
+    this.receive(conn, msg);
+  }
+
+  /** Iedereen een teken van leven sturen, en wie al even niets liet horen als weg zien. */
+  heartbeat() {
+    for (const [id, conn] of this.links) {
+      if (Date.now() - conn.seen > GONE_MS) {
+        this.links.delete(id);
+        conn.open = false;
+        this.dropped(conn);
+      } else {
+        // Met het aantal handelingen, zodat een gast die iets gemist heeft dat merkt
+        conn.send(this.started ? { t: "ping", n: this.log.length } : { t: "ping" });
+      }
+    }
   }
 
   receive(conn, msg) {
@@ -157,6 +230,9 @@ export class Host {
       if (this.started) conn.send({ t: "start", game: this.started, log: this.log });
       conn.send({ t: "chatlog", messages: this.chat });
       this.lobbyChanged();
+    } else if (msg.t === "sync") {
+      // Een gast loopt niet gelijk (er is een bericht zoekgeraakt): stuur de hele stand opnieuw
+      if (this.started && conn.clientId) conn.send({ t: "start", game: this.started, log: this.log });
     } else if (msg.t === "me") {
       const p = this.players.find((x) => x.id === conn.clientId);
       if (p) { p.avatar = cleanAvatar(msg.avatar); this.lobbyChanged(); }
@@ -261,9 +337,10 @@ export class Host {
 
   close() {
     this.closed = true;
-    clearTimeout(this.peerTimer);
+    clearTimeout(this.waitTimer);
+    clearInterval(this.pinger);
     this.broadcast({ t: "bye" });
-    setTimeout(() => this.peer?.destroy(), 300);
+    for (const r of this.relays ?? []) r.close();
   }
 }
 
@@ -280,72 +357,74 @@ export class Guest {
     this.clientId = clientId;
     this.events = events;
     this.closed = false;
-    this.retries = 0;
-    this.attempts = 0;
-    this.peer = newPeer();
-    this.peerTimer = setTimeout(() => {
-      if (!this.closed && !this.peer.open) {
-        this.events.onError?.("De server die de spelers aan elkaar koppelt reageert niet. Controleer je internet en probeer het opnieuw.");
-      }
-    }, WAIT_MS);
-    this.peer.on("open", () => { clearTimeout(this.peerTimer); this.connect(); });
-    this.peer.on("disconnected", () => { if (!this.closed) setTimeout(() => this.peer.reconnect(), 2000); });
-    this.peer.on("error", (err) => {
-      if (err?.type === "peer-unavailable" && this.everConnected && !this.closed) {
-        this.retryLater();
-        return;
-      }
-      this.events.onError?.(peerError(err));
+    this.welcomed = false; // heeft de tafel ons sinds de laatste (her)verbinding begroet?
+    this.everWelcomed = false;
+    this.lastHost = 0;
+    this.tries = 0;
+    this.mismatch = 0;
+    const base = topic(code);
+    this.relay = new Relay(brokers(), () => [`${base}/g/${clientId}`], (msg) => this.receive(msg), (state) => {
+      if (state === "unsupported") this.events.onError?.("Samen spelen werkt niet in deze browser.");
+      if (state === "open") { this.waitStart = Date.now(); this.hello(); }
     });
+    // Een open verbinding naar de tafel, met dezelfde vorm als voorheen
+    this.conn = {
+      get open() { return true; },
+      send: (m) => this.relay.publish(`${base}/h`, { ...m, from: this.clientId }),
+    };
+    this.waitStart = Date.now();
+    this.pinger = setInterval(() => this.tick(), PING_MS);
   }
 
-  connect() {
+  hello() {
+    this.conn.send({ t: "hello", id: this.clientId, name: this.name, avatar: this.avatar });
+  }
+
+  /** Elke paar tellen: een teken van leven, of opnieuw aankloppen als de tafel (nog) niet antwoordt. */
+  tick() {
     if (this.closed) return;
-    const conn = this.peer.connect(PREFIX + this.code, { reliable: true });
-    this.conn = conn;
-    this.attempts++;
-    // Lukt de verbinding niet binnen een paar tellen, dan opnieuw proberen en zeggen wat er aan de hand is
-    clearTimeout(this.connTimer);
-    this.connTimer = setTimeout(() => {
-      if (this.closed || conn !== this.conn || conn.open) return;
-      if (this.attempts >= 2) {
-        this.events.onStatus?.(this.attempts >= 4
-          ? "Het lukt niet om de tafel te bereiken. Staat de tafel nog open bij de gastheer? Soms helpt het als iedereen op wifi zit."
-          : "De tafel reageert nog niet. Opnieuw proberen…");
-      }
-      try { conn.close(); } catch (e) { /* al dicht */ }
-      this.connect();
-    }, WAIT_MS);
-    conn.on("error", () => {
-      if (this.closed || conn !== this.conn) return;
-      clearTimeout(this.connTimer);
-      this.retryLater();
-    });
-    conn.on("open", () => {
-      clearTimeout(this.connTimer);
-      this.attempts = 0;
-      this.everConnected = true;
-      this.retries = 0;
-      this.events.onStatus?.("");
-      conn.send({ t: "hello", id: this.clientId, name: this.name, avatar: this.avatar });
-    });
-    conn.on("data", (msg) => this.receive(msg));
-    conn.on("close", () => {
-      if (this.closed || conn !== this.conn) return;
+    if (this.welcomed && Date.now() - this.lastHost > GONE_MS) {
+      this.welcomed = false;
+      this.waitStart = Date.now();
       this.events.onStatus?.("De verbinding met de tafel is weg. Opnieuw verbinden…");
-      this.retryLater();
-    });
-  }
-
-  retryLater() {
-    if (this.closed) return;
-    this.retries++;
-    setTimeout(() => this.connect(), Math.min(10000, 1500 * this.retries));
+    }
+    if (this.welcomed) { this.conn.send({ t: "ping" }); return; }
+    if (!this.relay.open) {
+      if (Date.now() - this.waitStart > WAIT_MS) {
+        this.events.onStatus?.("De server die de spelers aan elkaar koppelt reageert niet. Controleer je internet.");
+      }
+      return;
+    }
+    this.hello();
+    if (Date.now() - this.waitStart > WAIT_MS) {
+      // Geen antwoord: misschien zit de gastheer op een andere doorgeefserver
+      this.tries++;
+      this.waitStart = Date.now();
+      this.events.onStatus?.(this.everWelcomed
+        ? "De tafel reageert niet. Opnieuw proberen…"
+        : `Nog geen antwoord van tafel ${this.code}. Staat de tafel open bij de gastheer? Opnieuw proberen…`);
+      this.relay.next();
+    }
   }
 
   receive(msg) {
-    if (!msg || typeof msg !== "object") return;
-    if (msg.t === "welcome") this.events.onWelcome?.(msg.seat);
+    this.lastHost = Date.now();
+    if (msg.t === "ping") {
+      // Twee keer achter elkaar een ander aantal handelingen dan de gastheer: de stand opnieuw opvragen
+      const mine = typeof msg.n === "number" ? this.events.actionCount?.() : null;
+      if (mine != null && mine !== msg.n) {
+        if (++this.mismatch >= 2) { this.mismatch = 0; this.conn.send({ t: "sync" }); }
+      } else {
+        this.mismatch = 0;
+      }
+      return;
+    }
+    if (msg.t === "welcome") {
+      this.welcomed = true;
+      this.everWelcomed = true;
+      this.events.onStatus?.("");
+      this.events.onWelcome?.(msg.seat);
+    }
     else if (msg.t === "lobby") {
       const seats = Number(msg.seats);
       this.events.onLobby?.((msg.players || []).map((p) => ({ ...p, avatar: cleanAvatar(p.avatar) })),
@@ -360,27 +439,27 @@ export class Guest {
   }
 
   sendAction(index, seat, value) {
-    if (this.conn?.open) this.conn.send({ t: "act", index, seat, value });
+    this.conn.send({ t: "act", index, seat, value });
   }
 
   /** Een ander plaatje kiezen; de gastheer laat het iedereen zien. */
   setAvatar(v) {
     this.avatar = cleanAvatar(v);
-    if (this.conn?.open) this.conn.send({ t: "me", avatar: this.avatar });
+    this.conn.send({ t: "me", avatar: this.avatar });
   }
 
   /** Een chatbericht gaat naar de gastheer, die het doorstuurt. Geeft false zonder verbinding. */
   sendChat(text) {
-    if (!this.conn?.open) return false;
+    if (!this.relay.open || !this.welcomed) return false;
     this.conn.send({ t: "chat", text });
     return true;
   }
 
   close() {
+    if (this.closed) return;
+    this.conn.send({ t: "bye" });
     this.closed = true;
-    clearTimeout(this.connTimer);
-    clearTimeout(this.peerTimer);
-    try { this.conn?.close(); } catch { /* al dicht */ }
-    setTimeout(() => this.peer?.destroy(), 300);
+    clearInterval(this.pinger);
+    this.relay.close();
   }
 }

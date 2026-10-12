@@ -33,9 +33,10 @@ De uitgesproken voorspellingen (`bod_*.mp3`, `nat_*.mp3`) zijn gemaakt met de Pi
 ### Samen spelen via internet
 
 In de webversie en de Android-app kun je via "Samen spelen via internet" een tafel openen en de link delen. Wie de link opent,
-schuift aan; lege plaatsen worden Henk, Truus of Kees. De apparaten maken rechtstreeks verbinding met elkaar
-via WebRTC ([PeerJS](https://peerjs.com), MIT-licentie, meegeleverd in `web/static/vendor/`). De openbare
-PeerJS-server wordt alleen gebruikt om elkaar te vinden. Iedereen rekent het spel zelf uit: met dezelfde seed
+schuift aan. Er kunnen 2 tot 5 mensen meedoen; lege plaatsen kunnen computerspelers worden. De berichten
+gaan via een openbare MQTT-doorgeefserver (broker.emqx.io, broker.hivemq.com of test.mosquitto.org) met
+[MQTT.js](https://github.com/mqttjs/MQTT.js) (MIT-licentie, meegeleverd in `web/static/vendor/`), zodat het
+op elk netwerk werkt. Iedereen rekent het spel zelf uit: met dezelfde seed
 en dezelfde handelingen van de mensen verloopt het spel overal precies hetzelfde.
 
 

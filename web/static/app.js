@@ -1572,6 +1572,12 @@ function netEvents() {
     onChat: (m, own) => onChatMessage(m, own),
     onChatLog: (list) => { online.chat = list.slice(-100); renderChat(); },
     onAction: (a) => onNetAction(a),
+    // Hoeveel handelingen dit apparaat al heeft (ook die nog in de wachtrij staan)
+    actionCount: () => {
+      if (!online?.game || !game) return null;
+      const queued = online.queue.size ? Math.max(...online.queue.keys()) + 1 : 0;
+      return Math.max(game.actionCount(), queued);
+    },
     onStatus: (text) => {
       online.status = text;
       if (screen === "online") renderOnline();
