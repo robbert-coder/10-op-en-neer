@@ -374,6 +374,8 @@ function bidBubble(text, bid) {
 }
 
 function stepDelay(phase) {
+  // Op de achtergrond kijkt niemand: meteen door, zodat je snel hoort dat je aan de beurt bent
+  if (inBackground()) return 0;
   const factor = speedFactor();
   const base = { BIDDING: 550, PLAYING: 700, TRICK_COMPLETE: 1200 }[phase] ?? 300;
   // Tijd om de uitgesproken voorspelling af te laten maken
@@ -383,6 +385,8 @@ function stepDelay(phase) {
 
 function drive() {
   if (driver !== null || busy || tinekeWaiting || screen !== "game" || !st) return;
+  // Samen spelen op de achtergrond: de volgende ronde begint vanzelf
+  if (st.phase === "ROUND_COMPLETE" && online?.game && inBackground()) { continueAfterRound(); return; }
   if (st.phase === "GAME_OVER" || st.phase === "ROUND_COMPLETE" || humanBidding() || humanPlaying()) return;
   // Wachten op een andere mens: pas verder als zijn handeling binnen is
   if (remoteTurn() && !online.queue.has(game.actionCount())) return;
@@ -425,7 +429,7 @@ async function collectTrick() {
   if (busy || st.phase !== "TRICK_COMPLETE") return;
   busy = true;
   const winner = st.trickWinner;
-  if (screen === "game" && !showLastTrick) await animateCollect(winner);
+  if (screen === "game" && !showLastTrick && !inBackground()) await animateCollect(winner);
   game.advance();
   busy = false;
   afterStep();
@@ -438,6 +442,7 @@ async function collectTrick() {
 function handleGameOver() {
   if (gameOverHandled) return;
   gameOverHandled = true;
+  if (online?.game) turnNotice("Het spel is afgelopen. Kijk wie er gewonnen heeft!");
   // Een afgelopen online spel niet meer automatisch openen na het herladen
   if (online?.role === "host") saveOnline();
   else if (online) store.remove("online-gast");
@@ -762,12 +767,58 @@ function tinekeComment(event, always = false) {
   if (text) tinekeSay(text);
 }
 
+// Meldingen -------------------------------------------------------------------------------
+
+/** In de app zegt de app zelf of hij op de achtergrond staat; in de browser zegt de pagina het. */
+let appVisible = true;
+window.tienVisible = (visible) => {
+  appVisible = visible;
+  if (visible) { clearTurnNotice(); drive(); }
+};
+const inBackground = () => document.hidden || !appVisible;
+document.addEventListener("visibilitychange", () => { if (!document.hidden) clearTurnNotice(); });
+
+/** Toestemming vragen voor meldingen (bij het openen van of aanschuiven bij een tafel). */
+function askNotifications() {
+  if (settings.notify === false) return;
+  if (nativeApp?.askNotifications) { nativeApp.askNotifications(); return; }
+  if ("Notification" in window && Notification.permission === "default") Notification.requestPermission().catch(() => {});
+}
+
+/** Een melding als het spel op de achtergrond staat, bijvoorbeeld omdat je aan de beurt bent. */
+async function turnNotice(text) {
+  if (settings.notify === false || !inBackground()) return;
+  if (nativeApp?.notify) { nativeApp.notify("10 op en neer", text); return; }
+  if (!("Notification" in window) || Notification.permission !== "granted") return;
+  const opts = { body: text, tag: "beurt", renotify: true, icon: "icons/icon-192.png", badge: "icons/icon-192.png" };
+  try {
+    const reg = await navigator.serviceWorker?.getRegistration();
+    if (reg) { await reg.showNotification("10 op en neer", opts); return; }
+  } catch { /* dan de gewone manier */ }
+  try {
+    const n = new Notification("10 op en neer", opts);
+    n.onclick = () => { window.focus(); n.close(); };
+  } catch { /* meldingen kunnen hier niet */ }
+}
+
+async function clearTurnNotice() {
+  nativeApp?.clearNotification?.();
+  try {
+    const reg = await navigator.serviceWorker?.getRegistration();
+    for (const n of (await reg?.getNotifications({ tag: "beurt" })) ?? []) n.close();
+  } catch { /* niets te sluiten */ }
+}
+
 /** Uitleg zodra er iets nieuws gebeurt: jij moet bieden, een kaart kiezen, of een slag is vol. */
 function onTurn() {
   if (!st) return;
   const key = `${st.round}|${st.phase}|${st.active}|${st.players.map((p) => p.cardCount).join("")}|${st.trickWinner}`;
   if (key === lastTurnKey) return;
   lastTurnKey = key;
+  if (online?.game) {
+    if (humanBidding()) turnNotice(`Je bent aan de beurt: hoeveel slagen denk je te halen? (ronde ${st.round})`);
+    else if (humanPlaying()) turnNotice("Je bent aan de beurt: leg een kaart op.");
+  }
   if (humanBidding()) {
     adviceBid = game.hintBid();
     tinekeHelp("voorspellen", { advice: adviceBid });
@@ -1517,6 +1568,7 @@ function renderSettings() {
   $("#set-speak").checked = settings.speakBids;
   $("#row-speak").hidden = !settings.sound;
   $("#set-help").checked = settings.tinekeHelp;
+  $("#set-notify").checked = settings.notify !== false;
 }
 
 const RULES_TEXT = [
@@ -1745,6 +1797,7 @@ function closeOnline() {
 
 function openTable(rules) {
   closeOnline();
+  askNotifications();
   store.remove("spel");
   game = null;
   st = null;
@@ -1759,6 +1812,7 @@ function openTable(rules) {
 
 function joinTable(code) {
   closeOnline();
+  askNotifications();
   online = { role: "guest", code, seat: 0, players: [], queue: new Map(), game: null, status: "Verbinden met de tafel…", error: "", chat: [], unread: 0 };
   online.link = new Guest(code, settings.playerName, clientId(), netEvents(), myAvatar());
   store.set("online-gast", { code, time: Date.now() });
@@ -2073,6 +2127,11 @@ $("#set-speed").addEventListener("input", (e) => { settings.speed = Number(e.tar
 $("#set-desc").addEventListener("change", (e) => { settings.sortDescending = e.target.checked; saveSettings(); });
 $("#set-sound").addEventListener("change", (e) => { settings.sound = e.target.checked; saveSettings(); renderSettings(); });
 $("#set-speak").addEventListener("change", (e) => { settings.speakBids = e.target.checked; saveSettings(); });
+$("#set-notify").addEventListener("change", (e) => {
+  settings.notify = e.target.checked;
+  saveSettings();
+  askNotifications();
+});
 $("#set-help").addEventListener("change", (e) => { settings.tinekeHelp = e.target.checked; settings.tinekeAsked = true; helpLevel = 0; saveSettings(); });
 
 $("#bids").addEventListener("click", (e) => {

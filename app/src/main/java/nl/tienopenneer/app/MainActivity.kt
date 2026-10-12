@@ -1,13 +1,19 @@
 package nl.tienopenneer.app
 
+import android.Manifest
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
 import android.content.pm.ApplicationInfo
+import android.content.pm.PackageManager
 import android.content.res.AssetManager
 import android.graphics.Color
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.webkit.JavascriptInterface
 import android.webkit.ValueCallback
@@ -22,6 +28,8 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.webkit.WebViewAssetLoader
@@ -42,6 +50,55 @@ class MainActivity : ComponentActivity() {
     private val pickImage = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         fileCallback?.onReceiveValue(if (uri != null) arrayOf(uri) else null)
         fileCallback = null
+    }
+
+    /** Toestemming voor meldingen (nodig vanaf Android 13). */
+    private val askNotify = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
+    /** Staat de app in beeld? Alleen als dat niet zo is, komt er een melding. */
+    @Volatile private var inForeground = false
+
+    override fun onStart() {
+        super.onStart()
+        inForeground = true
+        NotificationManagerCompat.from(this).cancel(TURN_NOTIFICATION)
+        if (::web.isInitialized) web.evaluateJavascript("window.tienVisible && window.tienVisible(true)", null)
+    }
+
+    override fun onStop() {
+        inForeground = false
+        // De pagina blijft draaien, zodat het spel doorloopt en kan melden dat je aan de beurt bent
+        if (::web.isInitialized) web.evaluateJavascript("window.tienVisible && window.tienVisible(false)", null)
+        super.onStop()
+    }
+
+    private fun showTurnNotification(title: String, text: String) {
+        if (inForeground) return
+        if (Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) return
+        val manager = getSystemService(NotificationManager::class.java)
+        if (manager.getNotificationChannel(CHANNEL) == null) {
+            val channel = NotificationChannel(CHANNEL, "Aan de beurt", NotificationManager.IMPORTANCE_HIGH)
+            channel.description = "Een melding als je bij samen spelen aan de beurt bent"
+            manager.createNotificationChannel(channel)
+        }
+        val open = PendingIntent.getActivity(
+            this, 0,
+            Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val notification = NotificationCompat.Builder(this, CHANNEL)
+            .setSmallIcon(R.drawable.ic_notify)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            .setContentIntent(open)
+            .setAutoCancel(true)
+            .build()
+        manager.notify(TURN_NOTIFICATION, notification)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -168,6 +225,29 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        /** Vraagt toestemming voor meldingen, als dat nog moet. */
+        @JavascriptInterface
+        fun askNotifications() {
+            runOnUiThread {
+                if (Build.VERSION.SDK_INT >= 33 &&
+                    checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                ) {
+                    askNotify.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+            }
+        }
+
+        /** Een melding, alleen als de app niet in beeld is. */
+        @JavascriptInterface
+        fun notify(title: String, text: String) {
+            runOnUiThread { showTurnNotification(title.take(60), text.take(200)) }
+        }
+
+        @JavascriptInterface
+        fun clearNotification() {
+            runOnUiThread { NotificationManagerCompat.from(this@MainActivity).cancel(TURN_NOTIFICATION) }
+        }
+
         @JavascriptInterface
         fun copy(text: String) {
             runOnUiThread {
@@ -194,6 +274,8 @@ class MainActivity : ComponentActivity() {
 
     private companion object {
         const val START_URL = "https://${WebViewAssetLoader.DEFAULT_DOMAIN}/web/index.html"
+        const val CHANNEL = "beurt"
+        const val TURN_NOTIFICATION = 1
         val FELT = Color.rgb(0x06, 0x30, 0x1C)
         val MIME_TYPES = mapOf(
             "html" to "text/html",

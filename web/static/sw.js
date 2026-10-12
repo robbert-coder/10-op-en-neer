@@ -35,3 +35,14 @@ self.addEventListener("fetch", (event) => {
     caches.match(event.request, { ignoreSearch: true }).then((hit) => hit || fetch(event.request)),
   );
 });
+
+// Tik op een melding: terug naar het spel
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+      const open = list.find((c) => "focus" in c);
+      return open ? open.focus() : self.clients.openWindow("./");
+    }),
+  );
+});
