@@ -83,8 +83,8 @@ const HAIR = {
 function drawFace(p) {
   const id = `f${uid++}`;
   const skin = p.skin;
-  const dark = shade(skin, -0.18);
-  const darker = shade(skin, -0.32);
+  const dark = shade(skin, -0.1);
+  const darker = shade(skin, -0.24);
   const hair = p.hairColor ?? "#5A3B24";
   const [back, front] = (HAIR[p.hair] ?? HAIR.short)(hair, shade(hair, -0.22), shade(hair, 0.35), p.cap);
   const lips = p.lips ?? shade(skin, -0.38);
@@ -132,7 +132,6 @@ function drawFace(p) {
 <svg class="face-svg" viewBox="0 0 100 100" aria-hidden="true">
   <defs>
     <radialGradient id="${id}s" cx="45%" cy="40%" r="62%"><stop offset="0" stop-color="${shade(skin, 0.12)}"/><stop offset=".7" stop-color="${skin}"/><stop offset="1" stop-color="${dark}"/></radialGradient>
-    <linearGradient id="${id}n" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${darker}"/><stop offset="1" stop-color="${dark}"/></linearGradient>
     <clipPath id="${id}c"><circle cx="50" cy="50" r="48"/></clipPath>
   </defs>
   <g clip-path="url(#${id}c)">
@@ -141,9 +140,10 @@ function drawFace(p) {
   </g>
   <g class="head">
     ${back}
-    <path d="M40 76 L40 86 C44 89 56 89 60 86 L60 76 Z" fill="url(#${id}n)"/>
+    <path d="M40 76 L40 86 C44 89 56 89 60 86 L60 76 Z" fill="${dark}"/>
     <ellipse cx="21" cy="58" rx="5" ry="8" fill="${dark}"/><ellipse cx="79" cy="58" rx="5" ry="8" fill="${dark}"/>
     <ellipse cx="21.5" cy="58" rx="2.4" ry="4.5" fill="${darker}" opacity=".5"/><ellipse cx="78.5" cy="58" rx="2.4" ry="4.5" fill="${darker}" opacity=".5"/>
+    <path d="M23 50 C23 30 35 20 50 20 C65 20 77 30 77 50 C77 66 72 78 62 85 C56 89 44 89 38 85 C28 78 23 66 23 50 Z" fill="${skin}"/>
     <path d="M23 50 C23 30 35 20 50 20 C65 20 77 30 77 50 C77 66 72 78 62 85 C56 89 44 89 38 85 C28 78 23 66 23 50 Z" fill="url(#${id}s)"/>
     ${wrinkles}${freckles}
     <g class="cheeks" fill="#E57373" opacity=".22"><ellipse cx="31" cy="65" rx="6" ry="4"/><ellipse cx="69" cy="65" rx="6" ry="4"/></g>
@@ -163,7 +163,6 @@ function drawFace(p) {
     <g class="mouth talk"><ellipse cx="50" cy="77.5" rx="6" ry="4.6" fill="#5A1F1A"/><path d="M45 74.6 C48 74 52 74 55 74.6 L54.4 76.2 C51 75.6 49 75.6 45.6 76.2 Z" fill="#FFFFFF"/>
       <ellipse cx="50" cy="77.5" rx="6" ry="4.6" fill="none" stroke="${lips}" stroke-width="1.6"/></g>
     <path class="mouth frown" d="M41 79 C45 74.5 55 74.5 59 79" fill="none" stroke="${lips}" stroke-width="2.2" stroke-linecap="round"/>
-    <path class="tear" d="M30 57 C28 61 27 63 27 65 A3 3 0 0 0 33 65 C33 63 32 61 30 57 Z" fill="#64B5F6" opacity=".9"/>
   </g>
 </svg>`;
 }
@@ -171,36 +170,36 @@ function drawFace(p) {
 // De vaste karakters aan tafel
 const PEOPLE = {
   // Henk: rustige oude heer, kaal met grijze plukken, bril en snor
-  henk: { skin: "#E6B48C", hair: "bald", hairColor: "#C9C4BC", brows: "#B9B1A6", thickBrows: true, eyes: "#5B7A8C",
+  henk: { skin: "#F5D6C1", hair: "bald", hairColor: "#C9C4BC", brows: "#B9B1A6", thickBrows: true, eyes: "#5B7A8C",
     glasses: "#2E2E2E", beard: "moustache", beardColor: "#DDD8D0", wrinkles: true, nose: "big", shirt: "#8D6E63" },
   // Truus: uitbundig, rode krullenbos, wimpers, oorbellen
-  truus: { skin: "#F2C9A5", hair: "curly", hairColor: "#D2552F", brows: "#9C3D22", eyes: "#3F8A5A", lashes: true,
+  truus: { skin: "#FADFCD", hair: "curly", hairColor: "#D2552F", brows: "#9C3D22", eyes: "#3F8A5A", lashes: true,
     lips: "#C2185B", earrings: "#FFD54F", freckles: true, shirt: "#AB47BC" },
   // Kees: brutaal, pet achterstevoren, stoppelbaard
-  kees: { skin: "#D9A27A", hair: "cap", hairColor: "#6B4226", cap: "#2F6FDB", brows: "#4A3020", thickBrows: true,
+  kees: { skin: "#F2CDB3", hair: "cap", hairColor: "#6B4226", cap: "#2F6FDB", brows: "#4A3020", thickBrows: true,
     eyes: "#5C3B22", beard: "stubble", beardColor: "#4A3020", teeth: true, shirt: "#E53935" },
   // Ria: gezellige oma met een paarsgrijze permanent en een roze bril
-  ria: { skin: "#F4CFB4", hair: "perm", hairColor: "#B8ABD1", brows: "#9C90B5", eyes: "#6E8FB5", lashes: true,
+  ria: { skin: "#F9E1D2", hair: "perm", hairColor: "#B8ABD1", brows: "#9C90B5", eyes: "#6E8FB5", lashes: true,
     glasses: "#C2185B", lips: "#D84367", earrings: "#E91E63", wrinkles: true, shirt: "#EC8FB0" },
   // Tineke: de uitleg, blond bobkapsel
-  tineke: { skin: "#F6D2B8", hair: "bob", hairColor: "#E8C35A", brows: "#B8913A", eyes: "#4F86C6", lashes: true,
+  tineke: { skin: "#FBE3D3", hair: "bob", hairColor: "#E8C35A", brows: "#B8913A", eyes: "#4F86C6", lashes: true,
     lips: "#D0476A", earrings: "#FFFFFF", shirt: "#26A69A" },
 };
 
 /** Gezichten die je zelf als plaatje kunt kiezen. */
 export const PERSONS = {
-  p1: { skin: "#F1C6A3", hair: "short", hairColor: "#6B4426", eyes: "#4F7FA8", shirt: "#3F6FB5" },
-  p2: { skin: "#F6D5BC", hair: "long", hairColor: "#E3C16F", eyes: "#4F86C6", lashes: true, lips: "#C9566A", shirt: "#E07A5F" },
+  p1: { skin: "#F6D7C3", hair: "short", hairColor: "#6B4426", eyes: "#4F7FA8", shirt: "#3F6FB5" },
+  p2: { skin: "#FBE2D2", hair: "long", hairColor: "#E3C16F", eyes: "#4F86C6", lashes: true, lips: "#C9566A", shirt: "#E07A5F" },
   p3: { skin: "#8D5A3B", hair: "short", hairColor: "#1E1612", eyes: "#3B2416", beard: "full", beardColor: "#1E1612", shirt: "#2A9D8F" },
   p4: { skin: "#7A4B30", hair: "afro", hairColor: "#21170F", eyes: "#3B2416", lashes: true, lips: "#7A2E36", earrings: "#FFD54F", shirt: "#F4A261" },
-  p5: { skin: "#E8B996", hair: "short", hairColor: "#BDBDBD", eyes: "#5B7A8C", glasses: "#3E3E3E", beard: "full", beardColor: "#D6D6D6", wrinkles: true, shirt: "#6D4C41" },
-  p6: { skin: "#EDBE98", hair: "ponytail", hairColor: "#7A4A26", eyes: "#3F8A5A", lashes: true, lips: "#B84A5E", freckles: true, shirt: "#8E7CC3" },
-  p7: { skin: "#F3CBAA", hair: "spiky", hairColor: "#E6C25C", eyes: "#4F86C6", shirt: "#43A047" },
-  p8: { skin: "#EFCBA6", hair: "bob", hairColor: "#1F1A17", eyes: "#3B2A1E", lashes: true, lips: "#C2185B", shirt: "#E53935" },
-  p9: { skin: "#C98E66", hair: "bald", hairColor: "#3A2A20", eyes: "#4A3020", beard: "full", beardColor: "#2E2018", shirt: "#455A64" },
-  p10: { skin: "#F2CDB2", hair: "bun", hairColor: "#CFCFCF", eyes: "#6E8FB5", lashes: true, glasses: "#7B5BA6", wrinkles: true, lips: "#C2566E", shirt: "#5C6BC0" },
-  p11: { skin: "#F7D7C2", hair: "long", hairColor: "#B5462A", eyes: "#3F8A5A", lashes: true, freckles: true, lips: "#C2185B", shirt: "#26A69A" },
-  p12: { skin: "#B47A55", hair: "curly", hairColor: "#2A1C14", eyes: "#3B2416", beard: "stubble", beardColor: "#2A1C14", shirt: "#FFB300" },
+  p5: { skin: "#F4D4BF", hair: "short", hairColor: "#BDBDBD", eyes: "#5B7A8C", glasses: "#3E3E3E", beard: "full", beardColor: "#D6D6D6", wrinkles: true, shirt: "#6D4C41" },
+  p6: { skin: "#F7D9C5", hair: "ponytail", hairColor: "#7A4A26", eyes: "#3F8A5A", lashes: true, lips: "#B84A5E", freckles: true, shirt: "#8E7CC3" },
+  p7: { skin: "#F8DCCA", hair: "spiky", hairColor: "#E6C25C", eyes: "#4F86C6", shirt: "#43A047" },
+  p8: { skin: "#F6DCC6", hair: "bob", hairColor: "#1F1A17", eyes: "#3B2A1E", lashes: true, lips: "#C2185B", shirt: "#E53935" },
+  p9: { skin: "#F1CDB4", hair: "bald", hairColor: "#3A2A20", eyes: "#4A3020", beard: "full", beardColor: "#2E2018", shirt: "#455A64" },
+  p10: { skin: "#F8E0D0", hair: "bun", hairColor: "#CFCFCF", eyes: "#6E8FB5", lashes: true, glasses: "#7B5BA6", wrinkles: true, lips: "#C2566E", shirt: "#5C6BC0" },
+  p11: { skin: "#FCE6D8", hair: "long", hairColor: "#B5462A", eyes: "#3F8A5A", lashes: true, freckles: true, lips: "#C2185B", shirt: "#26A69A" },
+  p12: { skin: "#EFC9AE", hair: "curly", hairColor: "#2A1C14", eyes: "#3B2416", beard: "stubble", beardColor: "#2A1C14", shirt: "#FFB300" },
 };
 
 /** SVG van een gezicht; de toestand (praten, blij, zielig) wordt met een class op het element gezet. */

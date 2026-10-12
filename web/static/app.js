@@ -1348,12 +1348,31 @@ function askNotifications() {
   }
 }
 
+
+const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const standalone = navigator.standalone === true || window.matchMedia("(display-mode: standalone)").matches;
+
+/** Waarom meldingen hier niet kunnen, of null als ze wel kunnen. */
+function notifyUnsupportedText() {
+  if (notifyPermission() !== "unsupported") return null;
+  if (isIOS && !standalone) {
+    return "Op iPhone en iPad kan een website alleen meldingen geven als je hem op je beginscherm zet: tik in Safari op Deel en dan op Zet op beginscherm, en open het spel daarna vanaf je beginscherm.";
+  }
+  return "Deze browser kan geen meldingen geven. Gebruik de Android-app of een andere browser, zoals Chrome.";
+}
+
 /** In de wachtkamer: een knop om meldingen aan te zetten, zolang dat nog niet is gebeurd. */
 function renderNotifyRow() {
   const state = notifyPermission();
   const row = $("#notify-row");
-  row.hidden = settings.notify === false || state === "granted" || state === "unsupported";
+  row.hidden = settings.notify === false || state === "granted";
+  const unsupported = notifyUnsupportedText();
   const blocked = state === "denied";
+  if (unsupported) {
+    $("#notify-text").textContent = unsupported;
+    $("#btn-notify").hidden = true;
+    return;
+  }
   $("#notify-text").textContent = blocked
     ? nativeApp
       ? "Meldingen staan uit voor deze app. Zet ze aan om te horen wanneer je aan de beurt bent."
@@ -2176,6 +2195,7 @@ function renderSettings() {
   $("#app-version").textContent = `Versie ${APP_VERSION}${nativeApp ? " (app)" : ""}`;
   $("#set-help").checked = settings.tinekeHelp;
   $("#set-notify").checked = settings.notify !== false;
+  renderNotifyStatus();
 }
 
 const RULES_TEXT = [
@@ -2210,7 +2230,7 @@ const clientId = () => {
 
 /** In de Android-app draait de website vanuit de app zelf; gedeelde links wijzen dan naar de echte website. */
 const nativeApp = window.TienApp ?? null;
-const APP_VERSION = "2.13";
+const APP_VERSION = "2.14";
 const SITE_URL = "https://robbert-coder.github.io/10-op-en-neer/";
 const tableLink = (code) => `${nativeApp ? SITE_URL : location.origin + location.pathname}?spel=${code}`;
 
@@ -2779,7 +2799,20 @@ $("#set-notify").addEventListener("change", (e) => {
   settings.notify = e.target.checked;
   saveSettings();
   askNotifications();
+  setTimeout(renderNotifyStatus, 1500);
+  renderNotifyStatus();
 });
+
+/** Onder de schakelaar bij Instellingen: kan dit apparaat meldingen geven? */
+function renderNotifyStatus() {
+  const el = $("#notify-status");
+  const state = notifyPermission();
+  el.textContent = settings.notify === false ? ""
+    : notifyUnsupportedText()
+      ?? (state === "denied"
+        ? (nativeApp ? "Meldingen staan uit voor deze app in de Android-instellingen." : "Meldingen zijn geblokkeerd voor deze website. Zet ze aan via het slotje naast het adres.")
+        : state === "granted" ? "Meldingen staan aan." : "Nog geen toestemming gegeven. Zet de schakelaar uit en weer aan om het te vragen.");
+}
 $("#set-help").addEventListener("change", (e) => { settings.tinekeHelp = e.target.checked; settings.tinekeAsked = true; helpLevel = 0; saveSettings(); });
 
 $("#bids").addEventListener("click", (e) => {
@@ -2883,8 +2916,6 @@ if (joinCode.length === 5 && !(online?.code === joinCode)) {
   show("menu");
 }
 
-const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-const standalone = navigator.standalone === true || window.matchMedia("(display-mode: standalone)").matches;
 $("#install-hint").hidden = !(isIOS && !standalone);
 
 if ("serviceWorker" in navigator && location.protocol === "https:" && !nativeApp) {
