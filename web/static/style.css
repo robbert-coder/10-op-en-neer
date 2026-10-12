@@ -889,3 +889,4 @@ button.primary { background: linear-gradient(180deg, #F7C761, var(--gold)); box-
 #lobby-title[hidden] { display: none; }
 #online-mode { margin-bottom: 12px; }
 .chat-msg.system { align-self: center; background: none; color: var(--muted); font-style: italic; font-size: 13px; text-align: center; }
+.pub-table .info .away { color: var(--gold); font-style: italic; }

@@ -54,7 +54,7 @@ const BROKERS = [
 ];
 const brokers = () => {
   const own = new URLSearchParams(location.search).get("relay");
-  return own ? [own] : BROKERS;
+  return own ? own.split(",") : BROKERS;
 };
 const topic = (code) => `tienopenneer/v2/${code}`;
 /** De openbare lobby: open tafels, wie er in de lobby is, en de lobbychat. */
@@ -63,10 +63,12 @@ const tableTopic = (code) => `${PUBLIC}/tafels/${code}`;
 const presenceTopic = (id) => `${PUBLIC}/lobby/${id}`;
 const CHAT_TOPIC = `${PUBLIC}/chat`;
 /** Openbare berichten worden zo vaak ververst; wat langer niet ververst is, is weg. */
-const PUBLIC_REFRESH_MS = 20000;
+const PUBLIC_REFRESH_MS = 15000;
 const PUBLIC_STALE_MS = 75000;
 /** Aan een openbare tafel neemt een computer het over van wie zo lang weg is (aan een privétafel alleen bij vertrekken). */
 const TAKEOVER_MS = 90000;
+/** Hoe lang een tafel in de lobby blijft staan als de gastheer even weg is (bijvoorbeeld een tabblad op de achtergrond). */
+const AWAY_MS = 5 * 60 * 1000;
 
 /** Hoe vaak we een teken van leven sturen, en na hoe lang zonder bericht iemand weg is. */
 const PING_MS = 4000;
@@ -106,7 +108,7 @@ class Relay {
       this.onState("open");
     });
     client.on("message", (t, payload) => {
-      if (!payload.length) { this.opts.onEmpty?.(t); return; }
+      if (!payload.length) { this.opts.onEmpty?.(t, this); return; }
       let msg;
       try { msg = JSON.parse(payload.toString()); } catch { return; }
       if (msg && typeof msg === "object") this.onMessage(msg, this, t);
@@ -221,7 +223,12 @@ export class Host {
       players: this.players.slice().sort((a, b) => a.seat - b.seat).map((p) => p.name),
       free: Math.max(0, this.seats - this.players.length), time: Date.now(),
     } : null;
-    for (const r of this.relays) r.publishRetained(tableTopic(this.code), info);
+    for (const r of this.relays) {
+      // Echt dicht (gestart of gesloten): eerst laten weten dat de tafel weg is, dan het bewaarde bericht wissen.
+      // Een leeg bericht alleen (bij wegvallen van de verbinding) betekent: gastheer even weg.
+      if (!info) r.publish(tableTopic(this.code), { v: 1, code: this.code, closed: true, time: Date.now() });
+      r.publishRetained(tableTopic(this.code), info);
+    }
   }
 
   incoming(msg, relay) {
@@ -581,11 +588,11 @@ export class PublicLobby {
     this.closed = false;
     const sub = () => [`${PUBLIC}/tafels/+`, `${PUBLIC}/lobby/+`, CHAT_TOPIC];
     // Op alle doorgeefservers tegelijk, want gastheren openen hun tafel ook op allemaal
-    this.relays = brokers().map((url) => new Relay([url], sub, (msg, relay, t) => this.receive(msg, t), (state) => {
+    this.relays = brokers().map((url) => new Relay([url], sub, (msg, relay, t) => this.receive(msg, t, relay), (state) => {
       if (state === "open") this.present();
       if (state === "unsupported") this.events.onStatus?.("Samen spelen werkt niet in deze browser.");
       else this.events.onStatus?.(this.relays?.some((r) => r.open) ? "" : "Verbinden met de lobby…");
-    }, { will: presenceTopic(me.id), onEmpty: (t) => this.removed(t) }));
+    }, { will: presenceTopic(me.id), onEmpty: (t, relay) => this.removed(t, relay) }));
     this.timer = setInterval(() => { this.present(); this.prune(); }, PUBLIC_REFRESH_MS);
   }
 
@@ -601,24 +608,28 @@ export class PublicLobby {
     this.present();
   }
 
-  receive(msg, t) {
-    const fresh = (time) => Number.isFinite(time) && Math.abs(Date.now() - time) < PUBLIC_STALE_MS;
+  receive(msg, t, relay) {
+    // De klok van de afzender kan wat afwijken; alleen echt oude berichten negeren
+    const fresh = (time) => Number.isFinite(time) && Math.abs(Date.now() - time) < 3 * PUBLIC_STALE_MS;
+    // Bij welke doorgeefservers staat dit nog? Pas weg als het bij geen enkele meer staat.
+    const via = (old) => { const set = old?.via ?? new Set(); set.add(relay); return set; };
     if (t.startsWith(`${PUBLIC}/tafels/`)) {
       const code = normalizeCode(t.slice(t.lastIndexOf("/") + 1));
       if (code.length !== 5 || msg.code !== code || !fresh(msg.time)) return;
+      if (msg.closed) { if (this.tables.delete(code)) this.emitTables(); return; }
       const seats = Math.max(2, Math.min(5, Math.round(Number(msg.seats)) || 4));
       const players = (Array.isArray(msg.players) ? msg.players : []).slice(0, 5).map((n) => cleanText(n, 16) || "Speler");
       this.tables.set(code, {
         code, host: cleanText(msg.host, 16) || "Speler", avatar: cleanAvatar(msg.avatar), seats, players,
         free: Math.max(0, Math.min(seats, Math.round(Number(msg.free)) || 0)),
         title: cleanText(msg.title, 40), variant: cleanText(msg.variant, 40), rounds: Math.max(0, Math.min(30, Math.round(Number(msg.rounds)) || 0)),
-        time: msg.time,
+        time: msg.time, seen: Date.now(), via: via(this.tables.get(code)), away: false,
       });
       this.emitTables();
     } else if (t.startsWith(`${PUBLIC}/lobby/`)) {
       const id = t.slice(t.lastIndexOf("/") + 1).slice(0, 40);
       if (!fresh(msg.time)) return;
-      this.people.set(id, { id, name: cleanText(msg.name, 16) || "Speler", avatar: cleanAvatar(msg.avatar), time: msg.time, me: id === this.me.id });
+      this.people.set(id, { id, name: cleanText(msg.name, 16) || "Speler", avatar: cleanAvatar(msg.avatar), time: msg.time, seen: Date.now(), via: via(this.people.get(id)), me: id === this.me.id });
       this.emitPeople();
     } else if (t === CHAT_TOPIC) {
       const id = cleanText(msg.id, 40);
@@ -632,17 +643,38 @@ export class PublicLobby {
     }
   }
 
-  removed(t) {
+  /**
+   * Een server meldt dat een tafel of persoon weg is. Een gastheer staat op alle servers tegelijk; valt
+   * zijn verbinding met één server even weg, dan staat de tafel bij de andere nog gewoon open.
+   */
+  removed(t, relay) {
     const key = t.slice(t.lastIndexOf("/") + 1);
-    if (t.startsWith(`${PUBLIC}/tafels/`) && this.tables.delete(key)) this.emitTables();
-    if (t.startsWith(`${PUBLIC}/lobby/`) && this.people.delete(key)) this.emitPeople();
+    const drop = (map) => {
+      const x = map.get(key);
+      if (!x) return false;
+      x.via.delete(relay);
+      if (x.via.size) return false;
+      map.delete(key);
+      return true;
+    };
+    if (t.startsWith(`${PUBLIC}/tafels/`)) {
+      // De verbinding van de gastheer viel weg: de tafel blijft staan, want hij komt vaak zo terug
+      const x = this.tables.get(key);
+      if (x) {
+        x.via.delete(relay);
+        if (!x.via.size && !x.away) { x.away = true; x.awaySince = Date.now(); this.emitTables(); }
+      }
+    }
+    if (t.startsWith(`${PUBLIC}/lobby/`) && drop(this.people)) this.emitPeople();
   }
 
   /** Wat al even niet ververst is, weghalen (bijvoorbeeld een gastheer die zonder afmelden verdween). */
   prune() {
-    const old = (x) => Date.now() - x.time > PUBLIC_STALE_MS;
+    const old = (x) => Date.now() - x.seen > PUBLIC_STALE_MS;
+    // Een gastheer die even weg is, krijgt langer de tijd
+    const gone = (x) => (x.away ? Date.now() - x.awaySince > AWAY_MS : old(x));
     let changed = false;
-    for (const [k, v] of this.tables) if (old(v)) { this.tables.delete(k); changed = true; }
+    for (const [k, v] of this.tables) if (gone(v)) { this.tables.delete(k); changed = true; }
     if (changed) this.emitTables();
     changed = false;
     for (const [k, v] of this.people) if (old(v) && !v.me) { this.people.delete(k); changed = true; }

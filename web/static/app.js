@@ -2382,7 +2382,7 @@ const clientId = () => {
 
 /** In de Android-app draait de website vanuit de app zelf; gedeelde links wijzen dan naar de echte website. */
 const nativeApp = window.TienApp ?? null;
-const APP_VERSION = "2.23";
+const APP_VERSION = "2.24";
 const SITE_URL = "https://robbert-coder.github.io/10-op-en-neer/";
 const tableLink = (code) => `${nativeApp ? SITE_URL : location.origin + location.pathname}?spel=${code}`;
 
@@ -2832,7 +2832,8 @@ function renderPublicLobby(scrollChat = false) {
       <div class="info"><b>${esc(title)}</b>
         <small>${esc(t.variant)}${t.rounds ? ` · ${t.rounds} rondes` : ""}</small>
         <small>${t.seats} spelers · ${taken} bezet · <span class="free">${t.free ? `${t.free} vrij` : "vol"}</span></small>
-        <small>${t.players.map(esc).join(", ")}</small></div>
+        <small>${t.players.map(esc).join(", ")}</small>
+        ${t.away ? `<small class="away">${esc(t.host)} is even weg. Schuif gerust aan: je komt binnen zodra ${esc(t.host)} terug is.</small>` : ""}</div>
       <button class="${t.free ? "primary" : ""}" data-pub-join="${esc(t.code)}" ${t.free ? "" : "disabled"}>${t.free ? "Aanschuiven" : "Vol"}</button></div>`;
   }).join("");
   $("#pub-tables").innerHTML = tables || `<p class="empty-note">Er staat nu geen openbare tafel open. Open er zelf een!</p>`;
