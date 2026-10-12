@@ -2,6 +2,7 @@ package nl.tienopenneer.engine
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -244,5 +245,48 @@ class GameTest {
         val r = Game.restore(rules, 4242L, Game.DEFAULT_NAMES, g.humanActions, true, seats, 3)
         while (r.canAdvance) r.advance()
         assertEquals(g.players.map { it.total }, r.players.map { it.total })
+    }
+
+    @Test
+    fun fivePlayersPlayLegallyAndRestore() {
+        val boeren10 = Rules.BOERENBRIDGE.copy(maxCards = 10)
+        assertEquals("Boerenbridge tot 10", boeren10.variantName)
+        assertEquals("10 op en neer tot 5", Rules.TIEN_OP_EN_NEER.copy(maxCards = 5).variantName)
+        for ((k, rules) in listOf(Rules.TIEN_OP_EN_NEER, boeren10).withIndex()) {
+            for (smart in listOf(false, true)) {
+                val seed = 900L + k
+                val seats = setOf(1, 4, 5)
+                val g = Game(rules, seed, smartComputers = smart, playerCount = 5)
+                g.humanSeats = seats
+                assertEquals(5, g.players.size)
+                var guard = 0
+                while (g.phase != Phase.GAME_OVER) {
+                    check(++guard < 200_000) { "Spel loopt vast" }
+                    val seat = g.humanToMove
+                    if (seat != 0) {
+                        if (g.phase == Phase.BIDDING) {
+                            assertNull(g.humanBid(g.hintBid(seat)))
+                        } else {
+                            val card = g.hintCard(seat)!!
+                            assertNull(g.humanPlay(card))
+                        }
+                    } else {
+                        g.advance()
+                    }
+                }
+                // Alle slagen van een ronde zijn verdeeld
+                for (round in 1..rules.rounds) {
+                    assertEquals(rules.cardsInRound(round), g.players.sumOf { it.tricksForRound(round) })
+                }
+                val r = Game.restore(rules, seed, Game.DEFAULT_NAMES, g.humanActions, smart, seats, 4, 5)
+                while (r.canAdvance) r.advance()
+                assertEquals(g.players.map { it.total }, r.players.map { it.total })
+            }
+        }
+    }
+
+    @Test
+    fun thirteenCardsDoNotFitFivePlayers() {
+        assertFailsWith<IllegalArgumentException> { Game(Rules.BOERENBRIDGE, 1L, playerCount = 5) }
     }
 }

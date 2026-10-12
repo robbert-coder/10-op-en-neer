@@ -1,7 +1,7 @@
 // Getekende gezichten van de computerspelers. Elk gezicht kan praten (bij het voorspellen),
 // blij kijken (goed voorspeld) en zielig kijken (nat).
 
-const SKIN = { henk: "#E9B98F", truus: "#F2C9A5", kees: "#D9A27A", tineke: "#F6D2B8" };
+const SKIN = { henk: "#E9B98F", truus: "#F2C9A5", kees: "#D9A27A", tineke: "#F6D2B8", ria: "#F4CFB4" };
 
 const HAIR = {
   // Henk: kale glimmende kruin met één zielige spriet, grijze plukken boven de oren
@@ -20,6 +20,14 @@ const HAIR = {
     </g>
     <g fill="#B8432A"><circle cx="36" cy="15" r="5"/><circle cx="68" cy="16" r="5"/><circle cx="20" cy="45" r="5"/></g>
     <path d="M58 6 L70 0 L70 14 Z M58 6 L46 0 L46 14 Z" fill="#7E57C2"/><circle cx="58" cy="7" r="3.5" fill="#9575CD"/>`,
+  // Ria: een grijs-paarse permanent met een knotje erbovenop
+  ria: `
+    <circle cx="50" cy="10" r="8" fill="#A99BC4"/><circle cx="50" cy="10" r="4" fill="#9585B5"/>
+    <g fill="#B8ABD1">
+      <circle cx="26" cy="32" r="9"/><circle cx="36" cy="24" r="9"/><circle cx="50" cy="21" r="10"/>
+      <circle cx="64" cy="24" r="9"/><circle cx="74" cy="32" r="9"/><circle cx="21" cy="43" r="7"/><circle cx="79" cy="43" r="7"/>
+    </g>
+    <g fill="#9F91BD"><circle cx="40" cy="27" r="3"/><circle cx="58" cy="25" r="3"/><circle cx="72" cy="35" r="3"/><circle cx="27" cy="36" r="3"/></g>`,
   // Kees: pet achterstevoren met een pluk haar door het gat
   kees: `
     <path d="M44 18 C40 8 48 6 50 12 C52 4 60 6 56 18 Z" fill="#6B4226"/>
@@ -40,15 +48,17 @@ const EYES = {
   truus: { rx: 6, ry: 7.5, px: [1, 1], pr: 3.2 },
   kees: { rx: 7, ry: 8, px: [2, -2.5], pr: 3.4 },
   tineke: { rx: 5.5, ry: 6.5, px: [0.8, 0.8], pr: 3 },
+  ria: { rx: 6, ry: 6.5, px: [-1.2, -1.2], pr: 3.2 },
 };
 
-const EARS = { henk: [6, 8], truus: [5, 7], kees: [9, 11], tineke: [5, 7] };
+const EARS = { henk: [6, 8], truus: [5, 7], kees: [9, 11], tineke: [5, 7], ria: [5, 7] };
 
 const NOSE = {
   henk: `<ellipse cx="50" cy="62" rx="8" ry="7" fill="#E07A6A"/><ellipse cx="47" cy="59.5" rx="2.4" ry="1.6" fill="#FFFFFF" opacity=".6"/>`,
   truus: `<path d="M50 56 C47 62 46 65 50 66" fill="none" stroke="#C98E6B" stroke-width="2.2" stroke-linecap="round"/>`,
   kees: `<ellipse cx="50" cy="63" rx="5" ry="4" fill="#C98660"/>`,
   tineke: `<path d="M50 57 C48 61 48 63 51 64" fill="none" stroke="#D9A88A" stroke-width="2" stroke-linecap="round"/>`,
+  ria: `<path d="M50 55 C46 63 45 66 51 67" fill="none" stroke="#C99478" stroke-width="2.4" stroke-linecap="round"/>`,
 };
 
 const EXTRA = {
@@ -65,12 +75,17 @@ const EXTRA = {
     </g>
     <circle cx="65" cy="68" r="1.4" fill="#5A3A2A"/>
     <g fill="#FFD54F" stroke="#E0A800" stroke-width="1"><circle cx="19" cy="68" r="4.5"/><circle cx="81" cy="68" r="4.5"/></g>`,
+  ria: `
+    <g fill="none" stroke="#C2185B" stroke-width="2.2"><circle cx="38" cy="51" r="9.5"/><circle cx="62" cy="51" r="9.5"/><path d="M47.5 50 h5"/></g>
+    <g fill="#FFFFFF" stroke="#D6D0C4" stroke-width=".6"><circle cx="34" cy="90" r="2.6"/><circle cx="40" cy="92" r="2.6"/><circle cx="46" cy="93" r="2.6"/>
+      <circle cx="52" cy="93" r="2.6"/><circle cx="58" cy="92" r="2.6"/><circle cx="64" cy="90" r="2.6"/></g>
+    <g fill="#E91E63"><circle cx="19" cy="68" r="3.5"/><circle cx="81" cy="68" r="3.5"/></g>`,
   kees: `
     <g fill="#B87A55" opacity=".6"><circle cx="31" cy="64" r="1.3"/><circle cx="35" cy="67" r="1.3"/><circle cx="38" cy="63" r="1.3"/>
       <circle cx="62" cy="63" r="1.3"/><circle cx="65" cy="67" r="1.3"/><circle cx="69" cy="64" r="1.3"/></g>`,
 };
 
-const LIPS = { henk: "#7A3B2E", truus: "#D81B60", kees: "#7A3B2E", tineke: "#D0476A" };
+const LIPS = { henk: "#7A3B2E", truus: "#D81B60", kees: "#7A3B2E", tineke: "#D0476A", ria: "#E53950" };
 
 /** SVG van een gezicht; de toestand (praten, blij, zielig) wordt met een class op het element gezet. */
 export function faceSvg(who) {
@@ -89,7 +104,7 @@ export function faceSvg(who) {
     <ellipse cx="${50 - 30 - earX / 2}" cy="58" rx="${earX}" ry="${earY}" fill="${skin}"/>
     <ellipse cx="${50 + 30 + earX / 2}" cy="58" rx="${earX}" ry="${earY}" fill="${skin}"/>
     <ellipse cx="50" cy="56" rx="30" ry="33" fill="${skin}"/>
-    ${who === "truus" || who === "tineke" ? "" : HAIR[who]}${who === "tineke" ? TINEKE_FRONT : ""}
+    ${who === "truus" || who === "tineke" ? "" : HAIR[who] ?? ""}${who === "tineke" ? TINEKE_FRONT : ""}
     <g class="brows" stroke="${who === "henk" ? "#BDB6AC" : "#5A4636"}" stroke-width="${who === "henk" ? 4.5 : 2.8}" stroke-linecap="round">
       <path class="brow l" d="M30 ${who === "henk" ? 38 : 41} Q37 ${who === "henk" ? 34 : 38} 44 40"/><path class="brow r" d="M56 40 Q63 ${who === "henk" ? 34 : 38} 70 ${who === "henk" ? 38 : 41}"/>
     </g>
@@ -130,13 +145,13 @@ export function emojiSvg(emoji) {
   </svg>`;
 }
 
-const SHIRT = { henk: "#8D6E63", truus: "#AB47BC", kees: "#E53935", tineke: "#26A69A" };
+const SHIRT = { henk: "#8D6E63", truus: "#AB47BC", kees: "#E53935", tineke: "#26A69A", ria: "#EC8FB0" };
 
 /** Lijf voor het juichende poppetje van de winnaar: armen omhoog, benen die meespringen. */
 export function puppetBodySvg(who) {
   const skin = SKIN[who] ?? "#F2C9A5";
   const shirt = SHIRT[who] ?? "#FFC94D";
-  const pants = who === "truus" ? "#5E35B1" : "#37474F";
+  const pants = who === "truus" ? "#5E35B1" : who === "ria" ? "#6D4C41" : "#37474F";
   const arm = (side) => {
     const x = side === "l" ? 30 : 70;
     const hx = side === "l" ? 8 : 92;
@@ -152,7 +167,7 @@ export function puppetBodySvg(who) {
   return `<svg class="pup-body" viewBox="0 0 100 100" aria-hidden="true">
     ${leg("l")}${leg("r")}${arm("l")}${arm("r")}
     <path d="M27 8 Q50 -1 73 8 L77 64 Q50 72 23 64 Z" fill="${shirt}"/>
-    ${who === "truus" ? `<path d="M23 50 L77 50 L86 70 Q50 80 14 70 Z" fill="${shirt}"/>` : ""}
+    ${who === "truus" || who === "ria" ? `<path d="M23 50 L77 50 L86 70 Q50 80 14 70 Z" fill="${shirt}"/>` : ""}
     <path d="M42 6 L50 16 L58 6" fill="none" stroke="rgba(0,0,0,.18)" stroke-width="3" stroke-linejoin="round"/>
   </svg>`;
 }

@@ -70,8 +70,9 @@ class Player internal constructor(val number: Int, var name: String, val isHuman
 }
 
 /**
- * Het spel "10 op en neer" / Boerenbridge voor vier spelers.
- * Speler 1 is de mens (onderaan), daarna met de klok mee 2 (links), 3 (boven) en 4 (rechts).
+ * Het spel "10 op en neer" / Boerenbridge voor vier (of vijf) spelers.
+ * Speler 1 is de mens (onderaan), daarna met de klok mee 2 (links), 3 (boven) en 4 (rechts); bij vijf
+ * spelers zit speler 5 ook rechts.
  *
  * De logica en de computerspelers zijn overgezet uit het Visual Basic-programma
  * "10 op en neer" van A.A. Brink (GPLv3).
@@ -84,19 +85,27 @@ class Game internal constructor(
     val smartComputers: Boolean,
     /** Een rekenkopie voor de sterkere computerspeler: er wordt niet gedeeld en er is geen status of geluid. */
     private val simulation: Boolean,
+    /** Aantal spelers aan tafel: 4, of 5 bij samen spelen met een grotere groep. */
+    val playerCount: Int,
 ) {
     constructor(
         rules: Rules,
         seed: Long,
         names: List<String> = DEFAULT_NAMES,
         smartComputers: Boolean = false,
-    ) : this(rules, seed, names, smartComputers, false)
+        playerCount: Int = 4,
+    ) : this(rules, seed, names, smartComputers, false, playerCount)
 
-    internal val p: Array<Player> = Array(5) { i ->
+    init {
+        require(playerCount in 4..MAX_PLAYERS) { "Er kunnen 4 of 5 spelers meedoen" }
+        require(rules.maxCards * playerCount <= 52) { "Te veel kaarten voor $playerCount spelers" }
+    }
+
+    internal val p: Array<Player> = Array(MAX_PLAYERS + 1) { i ->
         Player(i, if (i == 0) "" else names.getOrElse(i - 1) { DEFAULT_NAMES[i - 1] }, i == 1)
     }
 
-    val players: List<Player> get() = p.drop(1)
+    val players: List<Player> get() = p.slice(1..playerCount)
     fun player(nr: Int): Player = p[nr]
 
     var phase = Phase.BIDDING
@@ -109,9 +118,9 @@ class Game internal constructor(
     var trump: Card = Card.NONE
         internal set
 
-    /** Kaarten op tafel per speler (index 1..4). */
-    internal val table = Array(5) { Card.NONE }
-    internal val lastTrickCards = Array(5) { Card.NONE }
+    /** Kaarten op tafel per speler (index 1..playerCount). */
+    internal val table = Array(MAX_PLAYERS + 1) { Card.NONE }
+    internal val lastTrickCards = Array(MAX_PLAYERS + 1) { Card.NONE }
 
     /** Speler die de laatste (afgeronde) slag kreeg, 0 = nog geen. */
     var lastTrickWinner = 0
@@ -121,10 +130,10 @@ class Game internal constructor(
 
     internal var highestOnTable = 0
 
-    /** De speler die de slag krijgt zodra alle vier kaarten op tafel liggen, anders 0. */
+    /** De speler die de slag krijgt zodra alle kaarten op tafel liggen, anders 0. */
     val trickWinner: Int get() = if (phase == Phase.TRICK_COMPLETE) highestOnTable else 0
 
-    /** -3 = weg, -2 = tafel, -1 = troef, 0 = stapel, 1..4 = in handen van speler. */
+    /** -3 = weg, -2 = tafel, -1 = troef, 0 = stapel, 1..playerCount = in handen van speler. Index: [kleur][getal]. */
     internal val whereIsCard = Array(5) { IntArray(15) }
 
     /** Wie welke kaart in deze ronde heeft opgelegd (0 = nog niet gespeeld); dat heeft iedereen gezien. */
@@ -182,7 +191,7 @@ class Game internal constructor(
     /** Geeft de geluiden die sinds de vorige aanroep zijn ontstaan, en leegt de lijst. */
     fun takeSounds(): List<Sound> = sounds.toList().also { sounds.clear() }
 
-    private val dealtHands = Array(if (simulation) 0 else 26) { Array(5) { Array(14) { Card.NONE } } }
+    private val dealtHands = Array(if (simulation) 0 else 26) { Array(MAX_PLAYERS + 1) { Array(14) { Card.NONE } } }
     private val dealtTrumps = Array(if (simulation) 0 else 26) { Card.NONE }
     private var whoStarts = 1
 
@@ -200,10 +209,10 @@ class Game internal constructor(
      * Welke spelers de sterkere computerspeler gebruiken. Plaats 1 geldt voor de tips aan de mens.
      * Standaard volgens [smartComputers]; de tests mengen hiermee beide sterktes aan één tafel.
      */
-    internal val smartSeat = BooleanArray(5) { it >= 1 && smartComputers }
+    internal val smartSeat = BooleanArray(MAX_PLAYERS + 1) { it >= 1 && smartComputers }
 
     /** De rekenkopie waarin [SmartPlayer] rondes uitspeelt; pas aangemaakt als die nodig is. */
-    internal val simulator: Game by lazy { Game(rules, seed, DEFAULT_NAMES, false, true) }
+    internal val simulator: Game by lazy { Game(rules, seed, DEFAULT_NAMES, false, true, playerCount) }
 
     init {
         if (!simulation) {
@@ -239,7 +248,7 @@ class Game internal constructor(
             tricksOver == 0 -> "Rond"
             else -> "$tricksOver over"
         }
-        return if (numberBid < 4) "($t)" else t
+        return if (numberBid < playerCount) "($t)" else t
     }
 
     // ------------------------------------------------------------------------------------------
@@ -351,11 +360,11 @@ class Game internal constructor(
     private fun dealWholeGame() {
         // DetermineerSpel: alle kaarten voor het hele spel worden vooraf gedeeld.
         val rnd = Random(seed)
-        whoStarts = rnd.nextInt(4) + 1
+        whoStarts = rnd.nextInt(playerCount) + 1
         for (r in 1..rules.rounds) {
             val deck = MutableList(52) { k -> Card(k / 13 + 1, k % 13 + 2) }
             for (k in 1..rules.cardsInRound(r)) {
-                for (pl in 1..4) {
+                for (pl in 1..playerCount) {
                     val i = rnd.nextInt(deck.size)
                     dealtHands[r][pl][k] = deck[i]
                     deck[i] = deck[deck.size - 1]
@@ -375,18 +384,18 @@ class Game internal constructor(
         trickNumber = 0
         tricksOver = cardsThisRound
         cardsRemaining = cardsThisRound
-        for (pl in 1..4) {
+        for (pl in 1..playerCount) {
             p[pl].bid = -1
             p[pl].tricks = 0
             p[pl].hasNoSuit.fill(false)
             table[pl] = Card.NONE
-            suitTimesLed[pl] = 0
         }
+        suitTimesLed.fill(0)
         for (row in whereIsCard) row.fill(0)
         for (row in playedBy) row.fill(0)
 
         // Delen
-        for (pl in 1..4) {
+        for (pl in 1..playerCount) {
             for (k in 1..13) {
                 p[pl].hand[k] = if (k <= cardsThisRound) dealtHands[round][pl][k] else Card.NONE
                 p[pl].legal[k] = false
@@ -401,7 +410,7 @@ class Game internal constructor(
         if (!trump.isNone) whereIsCard[trump.suit][trump.rank] = -1
         sortHand(1)
 
-        leader = (whoStarts + round + 2) % 4 + 1
+        leader = (whoStarts + round + playerCount - 2) % playerCount + 1
         roundStarter = leader
         toPlay = leader
         toBid = leader
@@ -474,7 +483,7 @@ class Game internal constructor(
         cardsRemaining--
         val winner = highestOnTable
         p[winner].tricks++
-        for (pl in 1..4) {
+        for (pl in 1..playerCount) {
             lastTrickCards[pl] = table[pl]
             val c = table[pl]
             if (!c.isNone) whereIsCard[c.suit][c.rank] = -3
@@ -527,7 +536,7 @@ class Game internal constructor(
 
     /** SlagNaarHoogste: geluiden na een slag. */
     private fun trickSounds(winner: Int) {
-        val otherWet = (1..4).filter { it != viewSeat }.any { nr ->
+        val otherWet = (1..playerCount).filter { it != viewSeat }.any { nr ->
             val o = p[nr]
             (winner == nr && o.tricks == o.bid + 1) || (o.bid - o.tricks == o.cardCount + 1)
         }
@@ -544,7 +553,7 @@ class Game internal constructor(
 
     /** BerekenScore */
     private fun computeScore() {
-        for (nr in 1..4) {
+        for (nr in 1..playerCount) {
             val pl = p[nr]
             pl.roundTricks[round] = pl.tricks
             if (pl.tricks == pl.bid) {
@@ -571,9 +580,9 @@ class Game internal constructor(
 
     /** BepaalRangen */
     private fun computeRanks() {
-        val sorted = (1..4).sortedByDescending { p[it].total }
+        val sorted = (1..playerCount).sortedByDescending { p[it].total }
         p[sorted[0]].rank = 1
-        for (i in 1..3) {
+        for (i in 1 until playerCount) {
             p[sorted[i]].rank =
                 if (p[sorted[i]].total == p[sorted[i - 1]].total) p[sorted[i - 1]].rank else i + 1
         }
@@ -662,7 +671,7 @@ class Game internal constructor(
         tricksOver = src.tricksOver
         cardsRemaining = src.cardsRemaining
         for (s in 0..4) suitTimesLed[s] = src.suitTimesLed[s]
-        for (nr in 1..4) {
+        for (nr in 1..playerCount) {
             val a = src.p[nr]
             val b = p[nr]
             table[nr] = src.table[nr]
@@ -682,11 +691,12 @@ class Game internal constructor(
         }
     }
 
-    fun nextPlayer(pl: Int): Int = pl % 4 + 1
-    fun previousPlayer(pl: Int): Int = (pl + 2) % 4 + 1
+    fun nextPlayer(pl: Int): Int = pl % playerCount + 1
+    fun previousPlayer(pl: Int): Int = (pl + playerCount - 2) % playerCount + 1
 
     companion object {
-        val DEFAULT_NAMES = listOf("Speler", "Henk", "Truus", "Kees")
+        const val MAX_PLAYERS = 5
+        val DEFAULT_NAMES = listOf("Speler", "Henk", "Truus", "Kees", "Ria")
 
         /** Herstelt een spel door de handelingen van de mens opnieuw af te spelen. */
         fun restore(
@@ -697,8 +707,9 @@ class Game internal constructor(
             smartComputers: Boolean = false,
             humanSeats: Set<Int> = setOf(1),
             viewSeat: Int = 1,
+            playerCount: Int = 4,
         ): Game {
-            val g = Game(rules, seed, names, smartComputers)
+            val g = Game(rules, seed, names, smartComputers, playerCount)
             g.humanSeats = humanSeats
             g.viewSeat = viewSeat
             for (action in humanActions) {

@@ -24,10 +24,12 @@ class WebGame(
     seed: Double,
     names: Array<String>,
     actions: Array<Int>,
-    /** Stoelen (1..4) waar een mens zit; bij een gewoon spel alleen 1. */
+    /** Stoelen (1..playerCount) waar een mens zit; bij een gewoon spel alleen 1. */
     humanSeats: Array<Int>,
     /** De stoel van de speler op dit apparaat. De toestand wordt gedraaid zodat die stoel onderaan zit. */
     private val viewSeat: Int,
+    /** 4 of 5 spelers aan tafel. */
+    playerCount: Int,
 ) {
     private val game: Game = Game.restore(
         Rules(maxCards, pointsPerTrick, wrongScoresZero, penaltyPerTrick, negativeScores, roundingAllowed, mustTrump),
@@ -37,11 +39,13 @@ class WebGame(
         smart,
         humanSeats.toSet(),
         viewSeat,
+        playerCount,
     )
+    private val n = game.playerCount
 
     /** Stoel in het spel naar plaats op het scherm (1 = onderaan) en terug. */
-    private fun toView(seat: Int) = if (seat == 0) 0 else (seat - viewSeat + 4) % 4 + 1
-    private fun toSeat(view: Int) = (view - 1 + viewSeat - 1) % 4 + 1
+    private fun toView(seat: Int) = if (seat == 0) 0 else (seat - viewSeat + n) % n + 1
+    private fun toSeat(view: Int) = (view - 1 + viewSeat - 1) % n + 1
 
     val seed: Double get() = game.seed.toDouble()
 
@@ -89,6 +93,7 @@ class WebGame(
         sb.append('{')
         sb.append("\"variant\":").append(str(r.variantName))
         sb.append(",\"isTienOpEnNeer\":").append(r.isTienOpEnNeer)
+        sb.append(",\"playerCount\":").append(n)
         sb.append(",\"round\":").append(g.round)
         sb.append(",\"rounds\":").append(r.rounds)
         sb.append(",\"cards\":").append(g.cardsThisRound)
@@ -109,8 +114,8 @@ class WebGame(
         sb.append(",\"forbiddenBid\":").append(g.forbiddenHumanBid(viewSeat) ?: -1)
         sb.append(",\"trickWinner\":").append(toView(g.trickWinner))
         sb.append(",\"lastTrickWinner\":").append(toView(g.lastTrickWinner))
-        sb.append(",\"table\":").append(list((1..4).map { g.tableCard(toSeat(it)).code }))
-        sb.append(",\"lastTrick\":").append(list((1..4).map { g.lastTrickCard(toSeat(it)).code }))
+        sb.append(",\"table\":").append(list((1..n).map { g.tableCard(toSeat(it)).code }))
+        sb.append(",\"lastTrick\":").append(list((1..n).map { g.lastTrickCard(toSeat(it)).code }))
         sb.append(",\"hand\":[")
         g.player(viewSeat).handCards().forEachIndexed { i, c ->
             if (i > 0) sb.append(',')
@@ -118,7 +123,7 @@ class WebGame(
         }
         sb.append(']')
         sb.append(",\"players\":[")
-        for (view in 1..4) {
+        for (view in 1..n) {
             val seat = toSeat(view)
             val pl = g.player(seat)
             if (view > 1) sb.append(',')

@@ -54,7 +54,7 @@ function createGame(rules, smart, seed, names, actions, humanSeats = [1], viewSe
   return new WebGame(
     rules.maxCards, rules.pointsPerTrick, rules.wrongScoresZero, rules.penaltyPerTrick,
     rules.negativeScores, rules.roundingAllowed, rules.mustTrump, smart,
-    seed, names, actions, humanSeats, viewSeat,
+    seed, names, actions, humanSeats, viewSeat, rules.players ?? 4,
   );
 }
 
@@ -133,8 +133,8 @@ async function playSound(name) {
 // Toestand
 // ------------------------------------------------------------------------------------------
 
-/** Gezicht per stoel in het spel: 1 is de mens, dan Henk (links), Truus (boven) en Kees (rechts). */
-const SEAT_FACE = [null, null, "henk", "truus", "kees"];
+/** Gezicht per stoel in het spel: 1 is de mens, dan Henk (links), Truus (boven) en Kees (rechts); Ria bij vijf. */
+const SEAT_FACE = [null, null, "henk", "truus", "kees", "ria"];
 
 /** Gezicht van de speler op plaats nr van het scherm, of null voor een mens. */
 function faceFor(nr) {
@@ -171,7 +171,7 @@ let speechUntil = 0; // tot wanneer de laatste voorspelling nog uitgesproken wor
 let wetSpoken = false; // maar één nat-reactie tegelijk uitspreken
 const talkingUntil = [0, 0, 0, 0, 0];
 const previousTricks = [0, 0, 0, 0, 0];
-let previousTable = [0, 0, 0, 0];
+let previousTable = [0, 0, 0, 0, 0];
 let humanCardFrom = null; // plek van de kaart die de mens net speelde, voor de animatie
 let helpLevel = 0; // loopt op per slag, zodat Tineke steeds minder uitlegt
 let tinekeWaiting = null; // functie die het spel laat doorgaan na "Doorgaan"
@@ -186,6 +186,9 @@ let lastTurnKey = "";
 let newBase = TIEN_OP_EN_NEER;
 let newRounding = true;
 let newMustTrump = false;
+/** Aantal spelers en tot hoeveel kaarten; null = zo lang als de variant normaal is. */
+let newPlayers = 4;
+let newMax = null;
 let hsTab = "10openneer";
 
 /** De stoel (in het spel) van een andere mens die nu aan de beurt is, of 0. */
@@ -267,7 +270,7 @@ function startNewGame(rules) {
   endComment = null;
   highScorePlace = 0;
   showScores = false;
-  previousTable = [0, 0, 0, 0];
+  previousTable = [0, 0, 0, 0, 0];
   clearTransient();
   refresh();
   saveGame();
@@ -312,14 +315,14 @@ function announceBids() {
   if (announcedRound !== st.round) {
     announcedRound = st.round;
     // Bij een hersteld spel de al gedane voorspellingen niet opnieuw zeggen
-    for (let nr = 1; nr <= 4; nr++) {
+    for (let nr = 1; nr <= st.players.length; nr++) {
       announced[nr] = st.players[nr - 1].bid >= 0;
       wetShown[nr] = isWet(st.players[nr - 1]);
       previousTricks[nr] = st.players[nr - 1].tricks;
     }
     return;
   }
-  for (let nr = 1; nr <= 4; nr++) {
+  for (let nr = 1; nr <= st.players.length; nr++) {
     const p = st.players[nr - 1];
     if (p.bid >= 0 && !announced[nr]) {
       announced[nr] = true;
@@ -433,7 +436,9 @@ function handleGameOver() {
   if (gameOverHandled) return;
   gameOverHandled = true;
   const me = st.players[0];
-  highScorePlace = addHighScore(variantKey(st), me.name, me.total);
+  // Highscores alleen voor een volledig spel met vier spelers, anders zijn de scores niet te vergelijken
+  const full = st.players.length === 4 && !/ tot \d+$/.test(st.variant);
+  highScorePlace = full ? addHighScore(variantKey(st), me.name, me.total) : 0;
   // AfgelopenCommentaar: applaus bij een goed resultaat
   const aloneFirst = me.rank === 1 && st.players.filter((p) => p.rank === 1).length === 1;
   let applause = null;
@@ -829,9 +834,20 @@ const seatsKey = () => st.players.map((p, i) => {
 }).join(",");
 
 /** Stoelen één keer opbouwen, zodat de gezichten blijven knipperen en praten tussen de beurten door. */
+/** Plaats op het scherm per stoel, bij vier of vijf spelers. */
+const SEAT_POS = {
+  4: ["", "south", "west", "north", "east"],
+  5: ["", "south", "west", "north nw", "north ne", "east"],
+};
+
 function buildSeats() {
-  for (let nr = 1; nr <= 4; nr++) {
+  const n = st.players.length;
+  $("#arena").classList.toggle("five", n === 5);
+  $("#seat-5").hidden = n < 5;
+  $("#table .tcard.s5").hidden = n < 5;
+  for (let nr = 1; nr <= n; nr++) {
     const el = $(`#seat-${nr}`);
+    el.className = `seat ${SEAT_POS[n][nr]}`;
     el.innerHTML = `
       ${avatarHtml(nr, st.players[nr - 1].name)}
       <div class="info">
@@ -865,7 +881,7 @@ function moodFor(nr) {
 function updateSeats() {
   if (!st) return;
   if ($("#seat-1").dataset.key !== seatsKey() || !$("#seat-1 .avatar")) buildSeats();
-  for (let nr = 1; nr <= 4; nr++) {
+  for (let nr = 1; nr <= st.players.length; nr++) {
     const p = st.players[nr - 1];
     const el = $(`#seat-${nr}`);
     el.classList.toggle("active", st.active === nr);
@@ -1137,10 +1153,10 @@ const winnerFlag = (p) => (st.phase === "GAME_OVER" && p.rank === 1 ? NL_FLAG : 
 
 function gameOverHtml() {
   const me = st.players[0];
-  const title = { 1: "Gewonnen!", 2: "Tweede plaats", 3: "Derde plaats" }[me.rank] ?? "Vierde plaats";
+  const title = { 1: "Gewonnen!", 2: "Tweede plaats", 3: "Derde plaats", 4: "Vierde plaats" }[me.rank] ?? "Vijfde plaats";
   const ranking = st.players.map((p, i) => ({ ...p, nr: i + 1 })).sort((a, b) => a.rank - b.rank);
   const rows = ranking.map((p) => `<div class="result-row ${p.nr === 1 ? "me" : ""}">
-      ${avatarHtml(p.nr, p.name, p.rank === 1 ? "happy" : p.rank === 4 ? "sad" : "")}
+      ${avatarHtml(p.nr, p.name, p.rank === 1 ? "happy" : p.rank === st.players.length ? "sad" : "")}
       <div class="name">${esc(p.name)}${winnerFlag(p)}</div><div class="rank">${p.rank}e</div><div class="tot">${p.total}</div></div>`).join("");
   const hs = highScorePlace > 0 ? `<p class="gold">Je staat op plaats ${highScorePlace} in de highscore van ${esc(st.variant)}.</p>` : "";
   const say = settings.tinekeHelp || settings.tinekeComments ? endComment ??= tineke.comment("afgelopen", st) : null;
@@ -1242,7 +1258,7 @@ function show(name) {
   renderChat();
   if (name === "game") {
     buildSeats();
-    previousTable = [0, 0, 0, 0];
+    previousTable = [0, 0, 0, 0, 0];
     $$("#table .tcard").forEach((el) => { el.dataset.key = ""; });
     renderGame();
     previousTable = st.table.slice();
@@ -1257,22 +1273,38 @@ function renderMenu() {
 }
 
 function rulesVariantName(rules) {
-  const isTien = rules.maxCards === 10 && rules.wrongScoresZero && rules.penaltyPerTrick === 0 &&
-    rules.roundingAllowed && !rules.mustTrump && rules.pointsPerTrick === 1;
-  const isBoeren = rules.maxCards === 13 && rules.penaltyPerTrick > 0 && !rules.roundingAllowed && !rules.mustTrump;
-  if (isTien) return "10 op en neer";
-  if (isBoeren) return "Boerenbridge";
-  return `Hybride (${rules.roundingAllowed ? "r" : "nr"}${rules.mustTrump ? ", iv" : ""})`;
+  const tien = rules.wrongScoresZero && rules.penaltyPerTrick === 0 && rules.roundingAllowed && !rules.mustTrump &&
+    rules.pointsPerTrick === 1;
+  const boeren = rules.penaltyPerTrick > 0 && !rules.roundingAllowed && !rules.mustTrump;
+  const m = rules.maxCards;
+  if (tien) return m === 10 ? "10 op en neer" : `10 op en neer tot ${m}`;
+  if (boeren) return m === 13 ? "Boerenbridge" : `Boerenbridge tot ${m}`;
+  return `Hybride (${rules.roundingAllowed ? "r" : "nr"}${rules.mustTrump ? ", iv" : ""})${m !== 10 && m !== 13 ? ` tot ${m}` : ""}`;
 }
 
-const newRules = () => ({ ...newBase, roundingAllowed: newRounding, mustTrump: newMustTrump });
+/** Hoogste aantal kaarten dat kan: 52 kaarten moeten genoeg zijn voor iedereen. */
+const maxCardsFor = (base, players) => Math.min(base.maxCards, Math.floor(52 / players));
+const newMaxCards = () => Math.min(newMax ?? newBase.maxCards, maxCardsFor(newBase, newPlayers));
+const newRules = () => ({
+  ...newBase, maxCards: newMaxCards(), players: newPlayers, roundingAllowed: newRounding, mustTrump: newMustTrump,
+});
 
 let newOnline = false; // wordt het nieuwe spel een tafel voor samen spelen?
 
 function renderNewGame() {
   $("#newgame h2").textContent = newOnline ? "Tafel openen" : "Nieuw spel";
   $("#btn-start").textContent = newOnline ? "Tafel openen" : "Start";
-  $$(".variant").forEach((el) => el.classList.toggle("selected", Number(el.dataset.variant) === newBase.maxCards));
+  $$(".variant").forEach((el) => el.classList.toggle("selected", (el.dataset.variant === "13") === (newBase === BOERENBRIDGE)));
+  $$("#opt-players button").forEach((b) => b.classList.toggle("selected", Number(b.dataset.players) === newPlayers));
+  $("#players-note").textContent = newPlayers === 5
+    ? `Ria doet als vijfde mee.${newBase === BOERENBRIDGE ? " Boerenbridge gaat dan tot hoogstens 10 kaarten." : ""}`
+    : newOnline ? "Lege plaatsen worden computerspelers." : "";
+  const slider = $("#opt-max");
+  slider.max = String(maxCardsFor(newBase, newPlayers));
+  slider.value = String(newMaxCards());
+  $("#max-label").textContent = `${newMaxCards()}`;
+  const rounds = 2 * newMaxCards() - 1;
+  $("#max-note").textContent = `1 tot en met ${newMaxCards()} kaarten en weer terug: ${rounds} rondes.`;
   $("#opt-smart").checked = settings.smart;
   $("#opt-rounding").checked = newRounding;
   $("#opt-musttrump").checked = newMustTrump;
@@ -1444,7 +1476,8 @@ let chatOpen = false;
 const QUICK = ["👍", "😂", "😮", "😢", "👏", "🔥", "Goed gespeeld!", "Pech!", "Haha", "Even wachten"];
 
 /** Plaats op het scherm (1 = onderaan) van een stoel in het spel. */
-const viewOfSeat = (seat) => (seat - online.seat + 4) % 4 + 1;
+const tableSize = () => online?.game?.rules?.players ?? online?.rules?.players ?? 4;
+const viewOfSeat = (seat) => (seat - online.seat + tableSize()) % tableSize() + 1;
 
 function onChatMessage(m, own) {
   if (!online) return;
@@ -1592,7 +1625,7 @@ function openTable(rules) {
     role: "host", code, seat: 1, players: [{ name: settings.playerName, seat: 1, online: true, avatar: myAvatar() }],
     queue: new Map(), game: null, rules, smart: settings.smart, status: "Tafel openen…", error: "", chat: [], unread: 0,
   };
-  online.link = new Host(code, settings.playerName, netEvents(), null, myAvatar());
+  online.link = new Host(code, settings.playerName, netEvents(), null, myAvatar(), rules.players ?? 4);
   show("online");
 }
 
@@ -1632,7 +1665,7 @@ function startOnlineGame(g, log) {
   showScores = false;
   lastTurnKey = "";
   announcedRound = 0;
-  previousTable = [0, 0, 0, 0];
+  previousTable = [0, 0, 0, 0, 0];
   clearTransient();
   refresh();
   saveOnline();
@@ -1683,7 +1716,7 @@ function resumeOnline() {
         rules: saved.started.rules, smart: saved.started.smart, status: "", error: "",
         chat: saved.chat ?? [], unread: 0,
       };
-      online.link = new Host(saved.code, settings.playerName, netEvents(), saved, myAvatar());
+      online.link = new Host(saved.code, settings.playerName, netEvents(), saved, myAvatar(), saved.started.rules.players ?? 4);
       online.game = saved.started;
       currentRules = saved.started.rules;
       currentSmart = saved.started.smart;
@@ -1724,7 +1757,7 @@ function renderOnline() {
   const rules = online.rules ?? online.game?.rules;
   $("#lobby-variant").textContent = rules ? rulesVariantName(rules) : "";
   const names = Array.from(defaultNames());
-  const rows = [1, 2, 3, 4].map((seat) => {
+  const rows = Array.from({ length: tableSize() }, (_, i) => i + 1).map((seat) => {
     const p = online.players.find((x) => x.seat === seat);
     if (p) {
       const me = seat === online.seat;
@@ -1739,7 +1772,8 @@ function renderOnline() {
   const humans = online.players.length;
   const start = $("#btn-online-start");
   start.hidden = !isHost || !!online.game;
-  start.textContent = humans >= 4 ? "Start het spel" : `Start met ${4 - humans} ${4 - humans === 1 ? "computerspeler" : "computerspelers"}`;
+  const free = tableSize() - humans;
+  start.textContent = free <= 0 ? "Start het spel" : `Start met ${free} ${free === 1 ? "computerspeler" : "computerspelers"}`;
   let note = "";
   if (online.game) note = "Het spel is begonnen.";
   else if (isHost) note = humans === 1 ? "Deel de link en wacht tot anderen aanschuiven." : "Start zodra iedereen er is.";
@@ -1816,12 +1850,24 @@ $("#btn-new").addEventListener("click", () => { newOnline = false; show("newgame
 
 $$(".variant").forEach((el) => el.addEventListener("click", () => {
   newBase = el.dataset.variant === "13" ? BOERENBRIDGE : TIEN_OP_EN_NEER;
+  newMax = null;
   newRounding = newBase.roundingAllowed;
   newMustTrump = newBase.mustTrump;
   renderNewGame();
 }));
 $("#opt-smart").addEventListener("change", (e) => { settings.smart = e.target.checked; saveSettings(); });
 $("#opt-rounding").addEventListener("change", (e) => { newRounding = e.target.checked; renderNewGame(); });
+$("#opt-players").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-players]");
+  if (!b) return;
+  newPlayers = Number(b.dataset.players);
+  renderNewGame();
+});
+$("#opt-max").addEventListener("input", (e) => {
+  const v = Number(e.target.value);
+  newMax = v >= maxCardsFor(newBase, newPlayers) ? null : v;
+  renderNewGame();
+});
 $("#opt-musttrump").addEventListener("change", (e) => { newMustTrump = e.target.checked; renderNewGame(); });
 $("#btn-start").addEventListener("click", () => {
   const rules = newRules();

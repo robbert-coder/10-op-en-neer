@@ -213,7 +213,7 @@ private fun Game.decisionSeed(pl: Int, kind: Int): Long {
     mix(pl)
     mix(kind)
     mix(numberBid)
-    for (nr in 1..4) mix(table[nr].code)
+    for (nr in 1..playerCount) mix(table[nr].code)
     for (s in 1..4) {
         for (r in 2..14) {
             if (whereIsCard[s][r] == -3) mix(100 * s + r)
@@ -229,8 +229,9 @@ private fun Game.decisionSeed(pl: Int, kind: Int): Long {
 private class WorldSampler(private val game: Game, private val pl: Int) {
     /** De onbekende kaarten, de meest beperkte kleuren eerst. */
     private val pool: Array<Card>
-    private val need = IntArray(5)
-    private val excluded = Array(5) { BooleanArray(5) }
+    private val need = IntArray(Game.MAX_PLAYERS + 1)
+    private val excluded = Array(Game.MAX_PLAYERS + 1) { BooleanArray(5) }
+    private val n = game.playerCount
 
     init {
         val unknown = ArrayList<Card>()
@@ -242,7 +243,7 @@ private class WorldSampler(private val game: Game, private val pl: Int) {
             }
         }
         var dealt = 0
-        for (nr in 1..4) {
+        for (nr in 1..n) {
             if (nr == pl) continue
             need[nr] = game.p[nr].cardCount
             dealt += need[nr]
@@ -250,17 +251,17 @@ private class WorldSampler(private val game: Game, private val pl: Int) {
         }
         need[0] = unknown.size - dealt
         check(need[0] >= 0) { "Te weinig onbekende kaarten" }
-        pool = unknown.sortedByDescending { c -> (1..4).count { excluded[it][c.suit] } }.toTypedArray()
+        pool = unknown.sortedByDescending { c -> (1..n).count { excluded[it][c.suit] } }.toTypedArray()
     }
 
-    private val left = IntArray(5)
+    private val left = IntArray(Game.MAX_PLAYERS + 1)
 
     /**
      * Trekt [count] verdelingen. Als er al anderen voorspeld hebben, worden er meer getrokken en
      * blijven ze over naar rato van hoe goed ze bij die voorspellingen passen.
      */
     fun plausible(sim: Game, rng: Random, count: Int): List<IntArray> {
-        val bidders = (1..4).filter { it != pl && game.p[it].bid >= 0 }
+        val bidders = (1..n).filter { it != pl && game.p[it].bid >= 0 }
         if (bidders.isEmpty()) return List(count) { draw(rng) }
         val drawn = List(count * OVERSAMPLE) { draw(rng) }
         val weights = DoubleArray(drawn.size) { fit(sim, drawn[it], bidders) }
@@ -327,7 +328,7 @@ private class WorldSampler(private val game: Game, private val pl: Int) {
         for (i in pool.indices) {
             val suit = pool[i].suit
             var total = 0
-            for (h in 0..4) {
+            for (h in 0..n) {
                 if (respectVoids && excluded[h][suit]) continue
                 total += left[h]
             }
@@ -356,7 +357,7 @@ private class WorldSampler(private val game: Game, private val pl: Int) {
             mine[k] = own[k]
             if (!own[k].isNone) sim.whereIsCard[own[k].suit][own[k].rank] = pl
         }
-        val next = IntArray(5)
+        val next = IntArray(Game.MAX_PLAYERS + 1)
         for (i in pool.indices) {
             val h = holders[i]
             val c = pool[i]

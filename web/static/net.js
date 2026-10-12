@@ -8,6 +8,7 @@ const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 /** Volgorde waarin mensen een stoel krijgen: eerst tegenover elkaar. */
 export const SEAT_ORDER = [1, 3, 2, 4];
+const SEAT_ORDER_5 = [1, 3, 4, 2, 5];
 
 export function makeCode() {
   let c = "";
@@ -59,9 +60,11 @@ const peerError = (err) => {
  * events: onLobby(players), onAction({index, seat, value}), onStatus(text), onError(text)
  */
 export class Host {
-  constructor(code, myName, events, saved = null, myAvatar = null) {
+  constructor(code, myName, events, saved = null, myAvatar = null, seats = 4) {
     this.code = code;
     this.events = events;
+    /** Aantal plaatsen aan tafel: 4 of 5. */
+    this.seats = seats;
     this.players = [{ id: "host", name: myName, seat: 1, online: true, avatar: cleanAvatar(myAvatar) }];
     this.conns = new Map(); // clientId -> verbinding
     this.started = null; // startgegevens zodra het spel loopt
@@ -115,7 +118,8 @@ export class Host {
       let p = this.players.find((x) => x.id === id);
       if (!p) {
         if (this.started) { conn.send({ t: "full", text: "Dit spel is al begonnen." }); return; }
-        const free = SEAT_ORDER.find((s) => !this.players.some((x) => x.seat === s));
+        const order = this.seats === 5 ? SEAT_ORDER_5 : SEAT_ORDER;
+        const free = order.find((s) => !this.players.some((x) => x.seat === s));
         if (!free) { conn.send({ t: "full", text: "De tafel is vol." }); return; }
         p = { id, name, seat: free, online: true };
         this.players.push(p);

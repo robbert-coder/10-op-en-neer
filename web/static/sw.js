@@ -3,7 +3,7 @@
 const VERSION = "__BUILD__";
 const CACHE = `tienopenneer-${VERSION}`;
 
-const VOICES = ["speler", "henk", "truus", "kees"];
+const VOICES = ["speler", "henk", "truus", "kees", "ria"];
 const EVENTS = [
   "slag_te_veel", "slag_te_weinig", "onvoorkombare_ondergang", "goed_voorspeld",
   "medespeler_nat", "goed_gespeeld", "zeer_goed_gespeeld",

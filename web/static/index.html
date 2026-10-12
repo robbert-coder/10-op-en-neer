@@ -56,8 +56,22 @@
           </button>
         </div>
         <div class="group">
+          <div class="field">Aantal spelers
+            <div class="seg" id="opt-players">
+              <button type="button" data-players="4">4 spelers</button>
+              <button type="button" data-players="5">5 spelers</button>
+            </div>
+            <small class="field-note" id="players-note"></small>
+          </div>
+          <label class="field">Tot hoeveel kaarten: <b id="max-label"></b>
+            <input type="range" id="opt-max" min="3" max="10" step="1">
+            <span class="range-labels"><small>Kort spel</small><small>Lang spel</small></span>
+            <small class="field-note" id="max-note"></small>
+          </label>
+        </div>
+        <div class="group">
           <label class="switch-row">
-            <span><b>Sterke computerspelers</b><small>Henk, Truus en Kees rekenen vooruit en spelen slimmer dan in het originele spel.</small></span>
+            <span><b>Sterke computerspelers</b><small>De computerspelers rekenen vooruit en spelen slimmer dan in het originele spel.</small></span>
             <input type="checkbox" id="opt-smart" class="switch">
           </label>
           <label class="switch-row">
@@ -144,6 +158,7 @@
         <div class="seat north" id="seat-3"></div>
         <div class="seat west" id="seat-2"></div>
         <div class="seat east" id="seat-4"></div>
+        <div class="seat east" id="seat-5" hidden></div>
         <button class="tineke-btn" id="tineke" aria-label="Tineke"></button>
         <div class="tineke-panel" id="tineke-panel" hidden>
           <p id="tineke-text"></p>
@@ -153,7 +168,7 @@
           </div>
         </div>
         <div class="felt" id="table">
-          <div class="tcard s1"></div><div class="tcard s2"></div><div class="tcard s3"></div><div class="tcard s4"></div>
+          <div class="tcard s1"></div><div class="tcard s2"></div><div class="tcard s3"></div><div class="tcard s4"></div><div class="tcard s5" hidden></div>
           <span class="table-label" id="table-label" hidden>Laatste slag</span>
         </div>
       </div>

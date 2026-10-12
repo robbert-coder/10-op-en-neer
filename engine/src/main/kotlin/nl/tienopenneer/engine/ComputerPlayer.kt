@@ -25,11 +25,11 @@ internal fun vbRound(x: Double): Int = round(x).toInt()
 
 /** KaartenOverVoorDezeSpeler */
 internal fun Game.cardsLeftForThisPlayer(): Double =
-    if (numberBid < 4) (cardsThisRound - totalBid).toDouble() / (4 - numberBid) else 0.0
+    if (numberBid < playerCount) (cardsThisRound - totalBid).toDouble() / (playerCount - numberBid) else 0.0
 
 /** SamenSlagenNodig / TotaalSlagenNodig: hoeveel slagen willen de spelers samen nog. */
 internal fun Game.totalTricksNeeded(): Int =
-    (1..4).sumOf { val n = p[it].bid - p[it].tricks; if (n > 0) n else 0 }
+    (1..playerCount).sumOf { val n = p[it].bid - p[it].tricks; if (n > 0) n else 0 }
 
 /** TaxeerKaarten: schatting van het aantal slagen dat de speler zal halen. */
 internal fun Game.estimate(pl: Int): Double {
@@ -38,7 +38,7 @@ internal fun Game.estimate(pl: Int): Double {
         if (!p[pl].hand[k].isNone) sum += positive(cardValue(pl, k, true))
     }
     var t = sum
-    if (numberBid < 4) {
+    if (numberBid < playerCount) {
         // Voorspellen
         val w = 0.07 * numberBid
         t = w * cardsLeftForThisPlayer() + (1 - w) * t
@@ -109,16 +109,16 @@ internal fun Game.cardsAbove(pl: Int, slot: Int): Int {
     var above = 0
     for (r in card.rank + 1..14) {
         val w = whereIsCard[card.suit][r]
-        if (w in 0..4 && w != pl) above++
+        if (w in 0..playerCount && w != pl) above++
     }
     if (card.suit != trump.suit && trump.suit != 0) {
         for (r in 2..14) {
             val w = whereIsCard[trump.suit][r]
-            if (w in 0..4 && w != pl) above++
+            if (w in 0..playerCount && w != pl) above++
         }
     }
     var surelyNotHigher = 0
-    for (other in 1..4) {
+    for (other in 1..playerCount) {
         if (other == pl) continue
         if (card.suit == trump.suit) {
             if (p[other].hasNoSuit[card.suit]) surelyNotHigher++
@@ -126,7 +126,7 @@ internal fun Game.cardsAbove(pl: Int, slot: Int): Int {
             if (p[other].hasNoSuit[card.suit] && p[other].hasNoSuit[trump.suit]) surelyNotHigher++
         }
     }
-    if (surelyNotHigher == 3) above = 0
+    if (surelyNotHigher == playerCount - 1) above = 0
     return above
 }
 

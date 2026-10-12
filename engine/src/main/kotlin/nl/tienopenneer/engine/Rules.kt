@@ -29,22 +29,30 @@ data class Rules(
 
     fun cardsInRound(round: Int): Int = -abs(round - maxCards) + maxCards
 
+    /** Spelregels van 10 op en neer, los van tot hoeveel kaarten er gespeeld wordt. */
+    private val tienRules: Boolean
+        get() = wrongScoresZero && penaltyPerTrick == 0 && roundingAllowed && !mustTrump && pointsPerTrick == 1
+
+    private val boerenRules: Boolean
+        get() = penaltyPerTrick > 0 && !roundingAllowed && !mustTrump
+
     val isTienOpEnNeer: Boolean
-        get() = maxCards == 10 && wrongScoresZero && penaltyPerTrick == 0 &&
-            roundingAllowed && !mustTrump && pointsPerTrick == 1
+        get() = maxCards == 10 && tienRules
 
     val isBoerenbridge: Boolean
-        get() = maxCards == 13 && penaltyPerTrick > 0 && !roundingAllowed && !mustTrump
+        get() = maxCards == 13 && boerenRules
 
+    /** Een korter spel (of bij vijf spelers bij Boerenbridge: tot 10) krijgt "tot ..." achter de naam. */
     val variantName: String
         get() = when {
-            isTienOpEnNeer -> "10 op en neer"
-            isBoerenbridge -> "Boerenbridge"
+            tienRules -> if (maxCards == 10) "10 op en neer" else "10 op en neer tot $maxCards"
+            boerenRules -> if (maxCards == 13) "Boerenbridge" else "Boerenbridge tot $maxCards"
             else -> buildString {
                 append("Hybride (")
                 append(if (roundingAllowed) "r" else "nr")
                 if (mustTrump) append(", iv")
                 append(")")
+                if (maxCards != 10 && maxCards != 13) append(" tot $maxCards")
             }
         }
 
