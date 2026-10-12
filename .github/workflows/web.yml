@@ -35,7 +35,11 @@ jobs:
           [ -n "$web" ] && [ "$web" = "$app" ]
 
       - name: Website bouwen
-        run: ./gradlew :web:site
+        run: |
+          ./gradlew :web:site
+          # Hieraan ziet een geopende website dat er een nieuwe versie is
+          web=$(sed -n 's/^const APP_VERSION = "\(.*\)";/\1/p' web/static/app.js)
+          echo "{\"v\":\"$web\"}" > web/build/site/versie.json
 
       - uses: actions/upload-pages-artifact@v3
         with:

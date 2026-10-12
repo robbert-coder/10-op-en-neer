@@ -28,16 +28,35 @@ export const normalizeCloudCode = (s) => String(s || "").toUpperCase().replace(/
 export const formatCloudCode = (c) => c.replace(/(.{4})(?=.)/g, "$1-");
 export const validCloudCode = (c) => c.length === 12 && [...c].every((ch) => ALPHABET.includes(ch));
 
+/** Hoe lang we op de database wachten; daarna geven we het op (het spel wacht er nooit op). */
+const TIMEOUT_MS = 10000;
+
+/** Wordt aangeroepen met true of false: werkt de database op dit moment? */
+let healthListener = null;
+export const onCloudHealth = (fn) => { healthListener = fn; };
+
 async function rpc(name, body) {
-  const res = await fetch(`${URL_BASE}/rest/v1/rpc/${name}`, {
-    method: "POST",
-    // Een oude "anon"-sleutel is een JWT en mag ook als Bearer mee; een nieuwe "publishable" sleutel alleen als apikey
-    headers: { apikey: KEY, ...(KEY.startsWith("eyJ") ? { Authorization: `Bearer ${KEY}` } : {}), "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) throw new Error(`server ${res.status}`);
-  const text = await res.text();
-  return text ? JSON.parse(text) : null;
+  const ctrl = typeof AbortController === "function" ? new AbortController() : null;
+  const timer = ctrl ? setTimeout(() => ctrl.abort(), TIMEOUT_MS) : null;
+  try {
+    const res = await fetch(`${URL_BASE}/rest/v1/rpc/${name}`, {
+      method: "POST",
+      // Een oude "anon"-sleutel is een JWT en mag ook als Bearer mee; een nieuwe "publishable" sleutel alleen als apikey
+      headers: { apikey: KEY, ...(KEY.startsWith("eyJ") ? { Authorization: `Bearer ${KEY}` } : {}), "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: ctrl?.signal,
+    });
+    if (!res.ok) throw new Error(`server ${res.status}`);
+    const text = await res.text();
+    const data = text ? JSON.parse(text) : null;
+    healthListener?.(true);
+    return data;
+  } catch (e) {
+    healthListener?.(false);
+    throw e;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 /** De bewaarde gegevens bij een code: {games, clearedAt}, of null als er nog niets is. */

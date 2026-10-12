@@ -27,6 +27,7 @@
       <h1>10 op en neer</h1>
       <p class="sub">en Boerenbridge</p>
       <div class="menu-faces" id="menu-faces"></div>
+      <div class="news" id="news" hidden></div>
       <div class="buttons">
         <button id="btn-resume" class="primary">Doorgaan met spel</button>
         <button id="btn-new" class="primary">Nieuw spel tegen computers</button>
@@ -39,6 +40,8 @@
         </div>
       </div>
       <a id="update-banner" class="update-banner" hidden></a>
+      <p id="cloud-down" class="cloud-down" hidden></p>
+      <a id="android-link" class="android-link" href="https://github.com/robbert-coder/10-op-en-neer/releases/latest/download/tienopenneer.apk" hidden>📱 Download de Android-app<small>Gratis, zonder Play Store. Werkt ook samen met de website.</small></a>
       <p id="install-hint" class="install-hint" hidden>Tip: kies in Safari <b>Deel</b> en dan <b>Zet op beginscherm</b>. Dan start het spel als een gewone app en werkt het ook zonder internet.</p>
       <p class="credits">Gebaseerd op "10 op en neer" van A.A. Brink<br>Vrije software onder de GNU GPL v3<br><span id="menu-version"></span></p>
     </section>
@@ -111,6 +114,12 @@
           </label>
         </div>
         </details>
+        <div class="group">
+          <label class="switch-row">
+            <span><b>Tips toestaan</b><small id="tips-note"></small></span>
+            <input type="checkbox" id="opt-tips" class="switch">
+          </label>
+        </div>
         <p class="variant-name" id="variant-name"></p>
         <button class="primary wide" id="btn-start">Start</button>
       </div>
@@ -145,7 +154,7 @@
           <div id="online-private" hidden>
           <div class="group pad">
             <b>Privé tafel openen</b>
-            <p class="note">Je opent een tafel en deelt de link met bekenden. Wie de link opent, schuift aan. Zijn er minder dan vier mensen, dan vul je de lege plaatsen aan met Henk, Truus of Kees.</p>
+            <p class="note">Je opent een tafel en deelt de link met bekenden. Wie de link opent, schuift aan. Zijn er minder mensen dan plaatsen, dan vul je de lege plaatsen aan met computerspelers.</p>
             <button class="wide" id="btn-host">Privé tafel openen</button>
           </div>
           <div class="group pad">
@@ -361,8 +370,12 @@
             <span><b>Geluid</b><small>De geluidjes uit het originele spel, bijvoorbeeld bij een slag te veel of een goede voorspelling.</small></span>
             <input type="checkbox" id="set-sound" class="switch">
           </label>
+          <label class="switch-row" id="row-cards">
+            <span><b>Kaartgeluiden</b><small>Je hoort de kaarten schudden, over tafel schuiven en bij elkaar vegen.</small></span>
+            <input type="checkbox" id="set-cards" class="switch">
+          </label>
           <label class="switch-row" id="row-speak">
-            <span><b>Voorspellingen uitspreken</b><small>Iedere speler zegt zijn voorspelling hardop, met een eigen stem en een rijmpje.</small></span>
+            <span><b>Voorspellingen uitspreken</b><small>Iedere speler zegt zijn voorspelling hardop, met een eigen stem en op zijn eigen manier.</small></span>
             <input type="checkbox" id="set-speak" class="switch">
           </label>
           <label class="switch-row" id="row-speak-humans">

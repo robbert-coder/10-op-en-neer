@@ -4,7 +4,9 @@ import { WebGame, describeCard, defaultNames } from "./tienopenneer.mjs";
 import { faceSvg, initialSvg, emojiSvg, puppetBodySvg } from "./faces.js";
 import * as tineke from "./tineke.js";
 import { BID_LINES, WET_LINES, BID_MS } from "./voices.js";
-import { cloudEnabled, makeCloudCode, normalizeCloudCode, formatCloudCode, validCloudCode, fetchStats, saveStats, fetchHallOfFame, sendHofScore, sendHofPlayer } from "./cloud.js";
+import { CHARACTERS, CLASSIC_CAST, REACTIONS, drawCast } from "./characters.js";
+import { CHANGES } from "./changelog.js";
+import { cloudEnabled, makeCloudCode, normalizeCloudCode, formatCloudCode, validCloudCode, fetchStats, saveStats, fetchHallOfFame, sendHofScore, sendHofPlayer, onCloudHealth } from "./cloud.js";
 import { Host, Guest, PublicLobby, makeCode, normalizeCode, AVATAR_EMOJIS, AVATAR_FACES, cleanAvatar, cleanStats } from "./net.js";
 
 const $ = (sel) => document.querySelector(sel);
@@ -35,7 +37,7 @@ const store = {
 
 const settings = Object.assign(
   {
-    playerName: "Speler", speed: 3, sortDescending: false, sound: true, speakBids: true, smart: true,
+    playerName: "Speler", tips: false, speed: 3, sortDescending: false, sound: true, speakBids: true, smart: true,
     tinekeHelp: true, tinekeComments: true, tinekeAsked: false,
   },
   store.get("instellingen", {}),
@@ -97,6 +99,7 @@ function recordStats() {
     rounds: played.length,
     good: played.filter((r) => r[4]).length,
     others: st.players.slice(1).map((p) => p.name),
+    tips: tipUsed() || undefined,
   });
   store.set("statistiek", list.slice(0, MAX_STATS));
   shareStats();
@@ -105,13 +108,15 @@ function recordStats() {
 
 /** Een spel dat helemaal tot het hoogste aantal kaarten ging (niet "… tot 3"). */
 const isFullGame = (g) => !/ tot \d+$/.test(g.variant);
+/** Telt een spel mee voor de sterren? Niet als je er tips bij gebruikte. */
+const countsForRating = (g) => isFullGame(g) && !g.tips;
 
 /** Kort overzicht van al je spellen, om met de anderen aan tafel te delen. */
 function statsSummary() {
   const all = loadStats();
   if (!all.length) return null;
   // Alleen volledige spellen tellen mee: korte spellen zeggen te weinig over hoe goed je speelt
-  const list = all.filter(isFullGame);
+  const list = all.filter(countsForRating);
   // Plaats omgerekend naar 0 (laatste) .. 100 (eerste), zodat tafels van 2 en 5 spelers te vergelijken zijn
   const place = (g) => (g.players > 1 ? (g.players - g.rank) / (g.players - 1) : 1);
   return {
@@ -156,7 +161,7 @@ function statsOfSeat(nr) {
 let playerCard = null; // {name, avatar, stats, computer} als je op iemand hebt getikt
 
 function playerCardHtml() {
-  const { name, avatarHtml: face, stats, computer } = playerCard;
+  const { name, avatarHtml: face, stats, computer, starsOpen } = playerCard;
   const pct = (a, b) => (b ? Math.round((100 * a) / b) : 0);
   const body = computer
     ? `<p>Een computerspeler. Die houdt geen statistiek bij.</p>`
@@ -168,7 +173,13 @@ function playerCardHtml() {
           <div class="stat-tile"><b>${pct(stats.w, stats.g)}%</b><small>gewonnen (${stats.w})</small></div>
           <div class="stat-tile"><b>${pct(stats.ok, stats.r)}%</b><small>goed voorspeld</small></div>
         </div><p class="pcard-note">Over ${stats.g} volledige ${stats.g === 1 ? "spel" : "spellen"}${stats.a > stats.g ? `; daarnaast ${stats.a - stats.g} kort` : ""}.</p>`;
-  return `<div class="pcard">${face}<h3>${esc(name)}</h3>${body}</div>
+  const about = computer ? "" : `<details class="stars-about" ${starsOpen ? "open" : ""}><summary>Hoe werken de sterren?</summary>
+    <p>De sterren (een halve tot vijf) laten zien hoe goed iemand speelt. Alleen volledige spellen tellen mee,
+    en geen spellen waarin tips zijn gebruikt.</p>
+    <ul><li>Voor 60% telt hoe hoog je eindigt: eerste is het best, laatste het minst. Zo zijn tafels van 2 tot 5 spelers te vergelijken.</li>
+    <li>Voor 40% telt hoe vaak je voorspelling precies klopte.</li>
+    <li>Met weinig spellen blijven de sterren dicht bij het midden; hoe meer je speelt, hoe eerlijker het beeld.</li></ul></details>`;
+  return `<div class="pcard">${face}<h3>${esc(name)}</h3>${body}${about}</div>
     <div class="actions"><button class="primary" data-action="close-card">Sluiten</button></div>`;
 }
 
@@ -342,6 +353,21 @@ function addHighScore(key, name, score, detail = "") {
 /** Doe je mee aan de Hall of Fame (je naam, plaatje en scores zijn dan voor iedereen te zien)? */
 const hofOn = () => cloudEnabled() && settings.hof !== false;
 
+/**
+ * Is de online database (Hall of Fame en statistieken) even niet bereikbaar, dan blijft alles speelbaar:
+ * alleen een melding in het hoofdmenu en bij de Hall of Fame. Scores gaan later alsnog mee.
+ */
+let cloudDown = false;
+const CLOUD_DOWN_TEXT = "De online Hall of Fame en statistieken zijn even niet bereikbaar. Je kunt gewoon spelen: "
+  + "je scores en statistieken worden op dit apparaat bewaard en later vanzelf doorgestuurd. Alleen de Hall of Fame van anderen is even niet te zien.";
+onCloudHealth((ok) => {
+  if (cloudDown === !ok) return;
+  cloudDown = !ok;
+  const el = $("#cloud-down");
+  el.textContent = CLOUD_DOWN_TEXT;
+  el.hidden = !cloudDown;
+});
+
 /** Je vaste, willekeurige nummer in de Hall of Fame (los van de geheime statistiekcode). */
 function hofId() {
   if (!/^[A-Za-z0-9]{16}$/.test(settings.hofId ?? "")) {
@@ -393,7 +419,7 @@ const hofCache = new Map();
 // Geluid
 // ------------------------------------------------------------------------------------------
 
-const VOICES = ["speler", "henk", "truus", "kees"];
+const VOICES = ["speler"];
 let audio = null;
 const buffers = new Map();
 let currentSource = null;
@@ -404,12 +430,67 @@ function unlockAudio() {
     if (!AC) return;
     audio = new AC();
     // Alvast laden, zodat het eerste geluid niet hapert
-    for (const v of VOICES) BID_LINES[v].forEach((row, n) => row.forEach((_, k) => loadSound(`bod_${v}_${n}_${k}`)));
-    for (const v of Object.keys(WET_LINES)) WET_LINES[v].forEach((_, k) => loadSound(`nat_${v}_${k}`));
+    for (const v of VOICES) BID_LINES[v].forEach((row, n) => loadSound(`bod_${v}_${n}_0`));
+    preloadCast();
   }
   if (audio.state === "suspended") audio.resume();
 }
 for (const ev of ["touchend", "click", "keydown"]) document.addEventListener(ev, unlockAudio, true);
+
+/**
+ * Kaartgeluiden, ter plekke gemaakt met ruis (geen bestanden): schudden bij een nieuwe ronde, een kaart die
+ * over tafel schuift en het bij elkaar vegen van een slag. Ze lopen naast de stemmen, zonder die te onderbreken.
+ */
+function cardSound(kind) {
+  if (!audio || !settings.sound || settings.cardSounds === false || inBackground() || audio.state !== "running") return;
+  const now = audio.currentTime;
+  const rate = audio.sampleRate;
+  const noise = (sec) => {
+    const buf = audio.createBuffer(1, Math.max(1, Math.floor(rate * sec)), rate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    return buf;
+  };
+  // Eén schuifje: gefilterde ruis die snel opkomt en wegsterft, met een licht dalende toon
+  const swish = (at, sec, freq, vol, q = 0.9) => {
+    const src = audio.createBufferSource();
+    src.buffer = noise(sec);
+    const f = audio.createBiquadFilter();
+    f.type = "bandpass";
+    f.Q.value = q;
+    f.frequency.setValueAtTime(freq, at);
+    f.frequency.exponentialRampToValueAtTime(freq * 0.6, at + sec);
+    const g = audio.createGain();
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(vol, at + Math.min(0.02, sec / 4));
+    g.gain.exponentialRampToValueAtTime(0.0001, at + sec);
+    src.connect(f).connect(g).connect(audio.destination);
+    src.start(at);
+    src.stop(at + sec + 0.02);
+  };
+  if (kind === "slide") {
+    swish(now, 0.16, 2600 + Math.random() * 600, 0.35);
+    swish(now + 0.13, 0.05, 1800, 0.18, 2); // het tikje als hij neerkomt
+  } else if (kind === "collect") {
+    swish(now, 0.28, 2000, 0.3, 0.6);
+    swish(now + 0.08, 0.2, 2800, 0.15, 0.8);
+  } else if (kind === "shuffle") {
+    // Ritselend schudden: een snelle reeks klikjes, daarna het delen
+    for (let i = 0; i < 16; i++) swish(now + i * 0.028 + Math.random() * 0.01, 0.03, 3200 + Math.random() * 1500, 0.22, 3);
+    for (let i = 0; i < 4; i++) swish(now + 0.62 + i * 0.13, 0.11, 2400 + Math.random() * 500, 0.25);
+  }
+}
+
+/** De stemmen van de computerspelers in het huidige spel alvast laden. */
+function preloadCast() {
+  if (!audio || !st) return;
+  for (let nr = 2; nr <= st.players.length; nr++) {
+    const v = faceFor(nr);
+    if (!v || !BID_LINES[v]) continue;
+    BID_LINES[v].forEach((row, n) => row.forEach((_, k) => loadSound(`bod_${v}_${n}_${k}`)));
+    WET_LINES[v].forEach((_, k) => loadSound(`nat_${v}_${k}`));
+  }
+}
 
 function loadSound(name) {
   if (!buffers.has(name)) {
@@ -442,14 +523,26 @@ async function playSound(name) {
 // Toestand
 // ------------------------------------------------------------------------------------------
 
-/** Gezicht per stoel in het spel: 1 is de mens, dan Henk (links), Truus (boven) en Kees (rechts); Ria bij vijf. */
-const SEAT_FACE = [null, null, "henk", "truus", "kees", "ria"];
+/** Gezicht per stoel in de lobby (voor het spel begint): de vaste bezetting van vroeger. */
+const SEAT_FACE = [null, null, ...CLASSIC_CAST];
+/** Welke computerspeler op welke stoel zit in het huidige spel (stoel 2 t/m 5). */
+let currentCast = SEAT_FACE.slice();
+function castOf(seat) {
+  const c = (online?.game ? online.game.cast : currentCast)?.[seat];
+  return typeof c === "string" && CHARACTERS[c] ? c : SEAT_FACE[seat];
+}
+/** Namen voor een nieuw spel: jij en de geloofde computerspelers. */
+function castNames(cast) {
+  const names = Array.from(defaultNames());
+  for (let seat = 2; seat <= 5; seat++) if (cast[seat]) names[seat - 1] = CHARACTERS[cast[seat]].name;
+  return names;
+}
 
 /** Gezicht van de speler op plaats nr van het scherm, of null voor een mens. */
 function faceFor(nr) {
   const p = st?.players[nr - 1];
-  if (!p) return SEAT_FACE[nr];
-  return p.human ? null : SEAT_FACE[p.seat];
+  if (!p) return castOf(nr);
+  return p.human ? null : castOf(p.seat);
 }
 const voiceFor = (nr) => faceFor(nr) ?? "speler";
 
@@ -469,6 +562,10 @@ let highScorePlace = 0;
 let message = null;
 let hintCard = 0;
 let hintBid = -1;
+// Tips: mogen ze in dit spel (instelling bij het starten) en heb je er een gebruikt? Dan telt het spel niet mee
+let currentTips = false;
+const tipsAllowed = () => (online?.game ? !!online.game.tips : currentTips);
+const tipUsed = () => !!game && store.get("tip-gebruikt", null) === game.seed;
 let showLastTrick = false;
 let showScores = false;
 let confirmDialog = null;
@@ -540,6 +637,8 @@ function restoreSavedGame() {
   try {
     currentRules = saved.rules;
     currentSmart = saved.smart ?? false;
+    currentTips = !!saved.tips;
+    currentCast = Array.isArray(saved.cast) ? saved.cast.map((c) => (c && CHARACTERS[c] ? c : null)) : SEAT_FACE.slice();
     game = createGame(saved.rules, currentSmart, saved.seed, saved.names, saved.actions);
     game.setPlayerName(settings.playerName);
     refresh();
@@ -560,6 +659,8 @@ function saveGame() {
     seed: game.seed,
     names: st.players.map((p) => p.name),
     actions: Array.from(game.actions()),
+    tips: currentTips,
+    cast: currentCast,
   });
 }
 
@@ -583,10 +684,12 @@ function startNewGame(rules) {
   tinekeHide();
   helpLevel = 0;
   lastTurnKey = "";
-  const names = Array.from(defaultNames());
+  currentCast = drawCast();
+  const names = castNames(currentCast);
   names[0] = settings.playerName;
   currentRules = rules;
   currentSmart = settings.smart;
+  currentTips = !!settings.tips;
   game = createGame(rules, currentSmart, Math.floor(Math.random() * 2147483647), names, []);
   gameOverHandled = false;
   endComment = null;
@@ -597,6 +700,7 @@ function startNewGame(rules) {
   refresh();
   saveGame();
   show("game");
+  cardSound("shuffle");
   if (settings.tinekeHelp) {
     tinekeHelp("welkom").then(() => { onTurn(); drive(); });
   } else {
@@ -636,6 +740,8 @@ function refresh() {
 /** Spreekt nieuwe voorspellingen uit, laat het gezicht praten en toont een tekstballon. */
 function announceBids() {
   if (announcedRound !== st.round) {
+    // Nieuwe ronde: de kaarten worden geschud en gedeeld (niet bij het herstellen van een spel)
+    if (announcedRound && screen === "game" && st.phase === "BIDDING") cardSound("shuffle");
     announcedRound = st.round;
     // Bij een hersteld spel de al gedane voorspellingen niet opnieuw zeggen
     for (let nr = 1; nr <= st.players.length; nr++) {
@@ -681,41 +787,7 @@ function announceBids() {
 }
 
 // Karakters van de computerspelers -------------------------------------------------------------
-// Henk: rustige, droge oude heer. Truus: uitbundig en dramatisch. Kees: nuchter en brutaal.
-// Ria: gezellige, vrolijke oma. Ze reageren af en toe op elkaar, nooit altijd.
-
-const REACTIONS = {
-  slag: {
-    henk: ["Die is voor mij.", "Netjes.", "Zo gaat dat."],
-    truus: ["Hebbes!", "Joepie!", "Kijk eens aan!"],
-    kees: ["Mooi zo.", "Pak 'm!", "Yes."],
-    ria: ["Oh, die is van mij!", "Kijk nou!", "Haha, hebbes!"],
-  },
-  hoog: {
-    henk: ["Zo, flink.", "Dat is veel.", "Hm, ambitieus."],
-    truus: ["Wauw, durf jij!", "Zo! Dat is wat!", "Nou, nou!"],
-    kees: ["Ja ja, tuurlijk.", "Dat geloof je zelf niet.", "Stoer hoor."],
-    ria: ["Oh, dat is een hoop!", "Nou, succes ermee!", "Gut, zoveel?"],
-  },
-  rond: {
-    henk: ["Rond. Jammer.", "Hm. Mooi rond.", "Dat is jammer."],
-    truus: ["Ach, rond. Saai!", "Nee hè, rond!", "Wat zonde!"],
-    kees: ["Rond? Lekker dan.", "Pff, rond.", "Flauw hoor."],
-    ria: ["Oh, rond. Jammer.", "Ach, rond. Nou ja.", "Dat had ik liever niet."],
-  },
-  over: {
-    henk: ["Te veel gevraagd. Iemand gaat nat.", "Dat past niet.", "Dat gaat niet goed."],
-    truus: ["Dat gaat mis, hoor!", "Te veel! Spannend!", "Oei, te veel!"],
-    kees: ["Dat gaat bloeden.", "Te veel, jongens.", "Wie gaat er nat?"],
-    ria: ["Oei, dat wordt dringen!", "Dat zijn er te veel!", "Daar gaat iemand nat."],
-  },
-  onder: {
-    henk: ["Er blijven slagen over.", "Te weinig. Opletten.", "Er moet nog wat weg."],
-    truus: ["Er blijven er over!", "Wie neemt die extra?", "Te weinig, spannend!"],
-    kees: ["Iemand krijgt een cadeautje.", "Te weinig, let op.", "Wie pakt de rest?"],
-    ria: ["Er is nog wat over!", "Er moet nog wat verdeeld worden.", "Wie wil er nog een?"],
-  },
-};
+// Zie characters.js: per spel geloot, elk met een eigen manier van praten. Ze reageren af en toe op elkaar.
 
 /** Of de computerspelers nu mogen reageren: alleen in beeld en niet tijdens de uitleg van Tineke. */
 const canReact = () => screen === "game" && !inBackground();
@@ -767,6 +839,12 @@ function reactToBid(nr, ms) {
   }
   const fair = st.cards / st.players.length;
   if (p.bid >= 3 && p.bid >= fair + 2 && Math.random() < 0.4) react(other, "hoog", delay);
+}
+
+/** Je vraagt om een tip: een computerspeler heeft het gezien. */
+function reactToTip() {
+  const other = st ? otherComputer(1) : 0;
+  if (other) react(other, "tip", 300);
 }
 
 /** Een computerspeler haalt een slag: soms een klein gebaar, af en toe met een opmerking. */
@@ -881,7 +959,8 @@ function handleGameOver() {
   const bots = st.players.length - humans;
   const mix = `${st.players.length} spelers: ${[humans ? `${humans} ${humans === 1 ? "mens" : "mensen"}` : "", bots ? `${bots} ${bots === 1 ? "computer" : "computers"}` : ""].filter(Boolean).join(", ")}`;
   const gameId = `${game.seed}|${game.actionCount()}|${st.variant}`;
-  if (!short && st.players.length >= 3) {
+  if (tipUsed()) highScorePlace = 0; // met tips telt het spel niet mee
+  else if (!short && st.players.length >= 3) {
     highScorePlace = addHighScore(variantKey(st), me.name, me.total, mix);
     queueHof({ game: gameId, list: variantKey(st), score: me.total, detail: mix });
   } else if (short) {
@@ -1247,7 +1326,7 @@ function onBid(n) {
   if (error) message = error;
   if (!error) {
     tinekeHide();
-    tinekeOpinion = n <= adviceBid - 2 ? 1 : n >= adviceBid + 2 ? 2 : 0;
+    tinekeOpinion = adviceBid == null ? 0 : n <= adviceBid - 2 ? 1 : n >= adviceBid + 2 ? 2 : 0;
     if (tinekeOpinion === 1) tinekeComment("weinig voorspeld");
     if (tinekeOpinion === 2) tinekeComment("veel voorspeld");
   }
@@ -1287,6 +1366,8 @@ function onCardTap(code, el) {
 }
 
 function onTip() {
+  if (!tipsAllowed()) return;
+  markTipUsed();
   if (humanBidding()) {
     hintBid = game.hintBid();
     message = `Tip: voorspel ${hintBid}.`;
@@ -1295,6 +1376,14 @@ function onTip() {
     if (hintCard) message = `Tip: speel de ${describeCard(hintCard)}.`;
   }
   renderGame();
+}
+
+/** Je gebruikt een tip: het spel telt niet meer mee, en je medespelers horen het. */
+function markTipUsed() {
+  if (!game || tipUsed()) return;
+  store.set("tip-gebruikt", game.seed);
+  if (online?.game) sendChat("💡 Ik heb een tip gebruikt.");
+  else reactToTip();
 }
 
 async function onTableTap() {
@@ -1463,6 +1552,12 @@ $("#btn-notify").addEventListener("click", () => {
 /** Een melding als het spel op de achtergrond staat, bijvoorbeeld omdat je aan de beurt bent. */
 async function turnNotice(text) {
   if (settings.notify === false || !inBackground()) return;
+  await notifyAlways(text);
+}
+
+/** Een melding, ook als het spel in beeld is (zolang meldingen aan staan). */
+async function notifyAlways(text) {
+  if (settings.notify === false) return;
   if (nativeApp?.notify) { nativeApp.notify("10 op en neer", text); return; }
   if (!("Notification" in window) || Notification.permission !== "granted") return;
   const opts = { body: text, tag: "beurt", renotify: true, icon: "icons/icon-192.png", badge: "icons/icon-192.png" };
@@ -1495,7 +1590,9 @@ function onTurn() {
     else if (humanPlaying()) turnNotice("Je bent aan de beurt: leg een kaart op.");
   }
   if (humanBidding()) {
-    adviceBid = game.hintBid();
+    // Het advies van Tineke is ook een tip; alleen als tips mogen
+    adviceBid = tipsAllowed() ? game.hintBid() : null;
+    if (adviceBid != null && settings.tinekeHelp && helpLevel > 1) markTipUsed();
     tinekeHelp("voorspellen", { advice: adviceBid });
   } else if (humanPlaying()) {
     tinekeHelp("kies een kaart");
@@ -1535,6 +1632,14 @@ function cardHtml(code, extra = "", style = "") {
   const mid = rank >= 11 && rank <= 13 ? `<span class="mid face">${label}</span>` : `<span class="mid">${sym}</span>`;
   return `<div class="card ${red} ${extra}" style="${style}" data-code="${code}">` +
     `<span class="ci tl"><b>${label}</b><i>${sym}</i></span>${mid}<span class="ci br"><b>${label}</b><i>${sym}</i></span></div>`;
+}
+
+/** De troef rechtsboven: klein, maar met de kleur (klaver, schoppen…) groot genoeg om te herkennen. */
+function trumpMiniHtml(code) {
+  const suit = Math.floor(code / 100);
+  const rank = code % 100;
+  const red = suit === 2 || suit === 4 ? "red" : "";
+  return `<div class="card trumpmini ${red}" style="--w:36px" data-code="${code}"><b>${LABEL[rank] ?? rank}</b><i>${SUIT[suit]}</i></div>`;
 }
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
@@ -1624,6 +1729,8 @@ function updateSeats() {
     const el = $(`#seat-${nr}`);
     el.classList.toggle("active", st.active === nr);
     el.classList.toggle("done", hasHadTurn(nr));
+    // Tijdens het voorspellen springt een gedaan bod er goud uit, zodat je goed ziet wat de anderen zeiden
+    el.classList.toggle("bid-shown", st.phase === "BIDDING" && p.bid >= 0);
     const avatar = el.querySelector(".avatar");
     const stars = starRating(statsOfSeat(nr));
     const g = [...avatar.classList].filter((c) => c.startsWith("g-")).join(" ");
@@ -1709,6 +1816,7 @@ function animateFlyIn(slotEl, nr) {
 async function animateCollect(winner) {
   const cards = $$("#table .tcard .card:not(.empty)");
   if (!cards.length || !winner) return;
+  cardSound("collect");
   const target = seatCenter(winner);
   const felt = $("#table").getBoundingClientRect();
   const mid = { x: felt.left + felt.width / 2, y: felt.top + felt.height / 2 };
@@ -1848,7 +1956,7 @@ function renderGame() {
   $("#g-round").textContent = `Ronde ${st.round} van ${st.rounds}`;
   $("#g-cards").textContent = `${st.cards} ${st.cards === 1 ? "kaart" : "kaarten"} · ${st.variant}`;
   $("#g-over").textContent = st.tricksOver;
-  $("#g-trump").innerHTML = st.trump ? cardHtml(st.trump, "small", "--w:30px") : `<div class="none">geen<br>troef</div>`;
+  $("#g-trump").innerHTML = st.trump ? trumpMiniHtml(st.trump) : `<div class="none">geen<br>troef</div>`;
 
   updateSeats();
   renderTrumpBig();
@@ -1865,7 +1973,7 @@ function renderGame() {
     const isNew = !last && code && code !== previousTable[i];
     el.dataset.key = key;
     el.innerHTML = cardHtml(code, winner === i + 1 ? "hl" : "");
-    if (isNew) animateFlyIn(el, i + 1);
+    if (isNew) { animateFlyIn(el, i + 1); cardSound("slide"); }
   });
   if (!last) previousTable = st.table.slice();
   humanCardFrom = null;
@@ -1887,7 +1995,7 @@ function renderGame() {
   const status = $("#g-status");
   status.textContent = text;
   status.classList.toggle("msg", !!message);
-  $("#btn-tip").hidden = !(humanBidding() || humanPlaying());
+  $("#btn-tip").hidden = !tipsAllowed() || !(humanBidding() || humanPlaying());
 
   // Voorspellen
   const bids = $("#bids");
@@ -1927,13 +2035,16 @@ function renderGame() {
 function layout() {
   if (screen !== "game" || !st) return;
   $("#g-round").textContent = window.innerWidth < 380 ? `Ronde ${st.round}/${st.rounds}` : `Ronde ${st.round} van ${st.rounds}`;
-  const width = $("#game").clientWidth;
+  // Telefoon dwars: de hand staat in de rechterkolom en mag niet te hoog worden
+  const sideways = phoneSideways();
+  const width = sideways ? $("#seat-1").clientWidth : $("#game").clientWidth;
   const handEl = $("#hand");
   const cards = Array.from(handEl.children);
   const n = cards.length;
   const wide = isWide();
-  const maxW = wide ? Math.min(118, Math.max(74, window.innerHeight / 8.5)) : 74;
-  const available = Math.min(width - 24, wide ? 1000 : 640);
+  const maxW = wide ? Math.min(118, Math.max(74, window.innerHeight / 8.5)) : sideways ? Math.min(74, Math.max(44, window.innerHeight / 6))
+    : isTablet() ? Math.min(120, window.innerWidth / 7) : 74;
+  const available = Math.min(width - 24, wide || isTablet() ? 1000 : 640);
   const hw = n <= 1 ? maxW : Math.min(maxW, available / (0.58 * (n - 1) + 1));
   const spacing = n <= 1 ? 0 : Math.min(hw + 6, (available - hw) / (n - 1));
   handEl.style.setProperty("--hw", `${hw}px`);
@@ -1950,7 +2061,7 @@ function layout() {
   });
 
   const felt = $("#table");
-  const tw = Math.max(30, Math.min(wide ? 124 : 74, felt.clientWidth / 3.5, felt.clientHeight / (1.42 * 2.45)));
+  const tw = Math.max(30, Math.min(wide || isTablet() ? 124 : 74, felt.clientWidth / 3.5, felt.clientHeight / (1.42 * 2.45)));
   felt.style.setProperty("--tw", `${tw}px`);
 }
 window.addEventListener("resize", layout);
@@ -2012,7 +2123,8 @@ function gameOverHtml() {
   const rows = ranking.map((p) => `<div class="result-row ${p.nr === 1 ? "me" : ""}">
       ${avatarHtml(p.nr, p.name, p.rank === 1 ? "happy" : p.rank === st.players.length ? "sad" : "")}
       <div class="name">${esc(p.name)}${winnerFlag(p)}</div><div class="rank">${p.rank}e</div><div class="tot">${p.total}</div></div>`).join("");
-  const hs = highScorePlace > 0
+  const hs = tipUsed() ? `<p class="over-note">Je gebruikte tips, dus dit spel telt niet mee voor de highscores, de Hall of Fame en je sterren.</p>`
+    : highScorePlace > 0
     ? `<p class="gold">Je staat op plaats ${highScorePlace} in de highscore van ${highScoreShort ? "korte spellen " : ""}${esc(st.variant.replace(/ tot \d+$/, ""))}.</p>` : "";
   const say = settings.tinekeHelp ? endComment ??= tineke.comment("afgelopen", st) : null;
   if (!online?.game) {
@@ -2043,6 +2155,10 @@ const faceAvatar = (who, mood = "") => `<div class="avatar ${mood}">${faceSvg(wh
 /** Groot scherm (desktop): grotere kaarten en altijd de scorelijst ernaast. */
 const wideQuery = window.matchMedia("(min-width: 1000px) and (min-height: 640px)");
 const isWide = () => wideQuery.matches;
+const sidewaysQuery = window.matchMedia("(orientation: landscape) and (max-height: 639px) and (min-width: 600px)");
+const phoneSideways = () => sidewaysQuery.matches;
+const tabletQuery = window.matchMedia("(orientation: portrait) and (min-width: 700px) and (min-height: 900px)");
+const isTablet = () => tabletQuery.matches;
 wideQuery.addEventListener?.("change", () => { if (screen === "game") { buildSeats(); renderGame(); } });
 
 function renderSidebar() {
@@ -2129,6 +2245,7 @@ function show(name) {
   if (name !== "game" && name !== "online" && chatOpen) { chatOpen = false; }
   renderChat();
   if (name === "game") {
+    preloadCast();
     buildSeats();
     previousTable = [0, 0, 0, 0, 0];
     $$("#table .tcard").forEach((el) => { el.dataset.key = ""; });
@@ -2178,9 +2295,7 @@ function renderNewGame() {
   $$("#opt-players button").forEach((b) => b.classList.toggle("selected", Number(b.dataset.players) === newPlayers));
   $("#players-note").textContent = newOnline
     ? `Tot ${newPlayers} mensen kunnen aanschuiven. Je kiest bij het starten of lege plaatsen computerspelers worden.`
-    : newPlayers === 5
-      ? `Ria doet als vijfde mee.${newBase === BOERENBRIDGE ? " Boerenbridge gaat dan tot hoogstens 10 kaarten." : ""}`
-      : newPlayers === 2 ? "Jij tegen Henk." : newPlayers === 3 ? "Jij tegen Henk en Truus." : "";
+    : `Wie er tegen je spelen, wordt elk spel geloot uit Henk, Truus, Kees, Ria, Bram, Gerda, Sjef en Mo.${newPlayers === 5 && newBase === BOERENBRIDGE ? " Boerenbridge gaat met vijf spelers tot hoogstens 10 kaarten." : ""}`;
   const full = maxCardsFor(newBase, newPlayers);
   $$("#opt-length button").forEach((b) => b.classList.toggle("selected", (b.dataset.length === "normaal") === (newMax == null)));
   $("#len-normaal").textContent = `${2 * full - 1} rondes`;
@@ -2192,9 +2307,13 @@ function renderNewGame() {
   const rounds = 2 * newMaxCards() - 1;
   $("#max-note").textContent = `1 tot en met ${newMaxCards()} kaarten en weer terug: ${rounds} rondes.`;
   $("#opt-smart").checked = settings.smart;
+  $("#opt-tips").checked = !!settings.tips;
+  $("#tips-note").textContent = settings.tips
+    ? `Je kunt de knop Tip gebruiken${settings.tinekeHelp ? " en Tineke geeft advies" : ""}. Gebruik je een tip, dan telt dit spel niet mee voor de highscores, de Hall of Fame en je sterren, en zien je medespelers dat je een tip gebruikte.${newOnline ? " Dit geldt voor iedereen aan tafel." : ""}`
+    : `Geen Tip-knop en geen advies van Tineke. Het spel telt mee voor de highscores, de Hall of Fame en je sterren.${newOnline ? " Dit geldt voor iedereen aan tafel." : ""}`;
   $("#opt-rounding").checked = newRounding;
   $("#opt-musttrump").checked = newMustTrump;
-  $("#variant-name").textContent = `Je speelt: ${rulesVariantName(newRules())} met ${newPlayers} spelers`;
+  $("#variant-name").textContent = `Je speelt: ${rulesVariantName(newRules())} met ${newPlayers} spelers${settings.tips ? ", tips mogen" : ""}`;
 }
 
 const hsFiltered = () => !!hsPlayers || !!hsVs;
@@ -2265,7 +2384,7 @@ async function renderHallOfFame() {
       hofCache.set(key, { time: Date.now(), data });
     } catch {
       if (!data) {
-        if (hsScope === "hof" && cur() === key) $("#hs-list").innerHTML = `<p class="empty-note">De Hall of Fame is nu niet bereikbaar. Probeer het later nog eens.</p>`;
+        if (hsScope === "hof" && cur() === key) $("#hs-list").innerHTML = `<p class="empty-note">De Hall of Fame is nu niet bereikbaar. Je kunt gewoon spelen; je scores worden bewaard en later doorgestuurd. Je eigen highscores zie je bij "Op dit apparaat".</p>`;
         return;
       }
     }
@@ -2363,6 +2482,8 @@ function renderSettings() {
   $("#set-speak").checked = settings.speakBids;
   $("#set-speak-humans").checked = settings.speakHumans !== false;
   $("#row-speak").hidden = !settings.sound;
+  $("#row-cards").hidden = !settings.sound;
+  $("#set-cards").checked = settings.cardSounds !== false;
   $("#row-speak-humans").hidden = !settings.sound || !settings.speakBids;
   $("#app-version").textContent = `Versie ${APP_VERSION}${nativeApp ? " (app)" : ""}`;
   $("#set-help").checked = settings.tinekeHelp;
@@ -2383,7 +2504,7 @@ const RULES_TEXT = [
   ["Voorbeeld", "Harten is troef. Speler 1 komt uit met klaver heer. Speler 2 legt schoppen aas bij (dat mag, want hij heeft geen klaver). Speler 3 legt klaver vijf (hij heeft klaver en moet dus kleur bekennen). Speler 4 legt harten twee (een troef; dat mag, want hij heeft geen klaver). De slag gaat naar speler 4."],
   ["Punten bij 10 op en neer", "Haal je precies het aantal slagen dat je voorspeld hebt, dan krijg je 10 punten plus 1 punt per slag. Lukt dat niet, dan krijg je niets. Een score van 170 is zeer goed, boven de 200 is bijna niet te halen."],
   ["Punten bij Boerenbridge", "Goed voorspeld: 10 punten plus 3 punten per slag. Fout voorspeld: 10 punten min 3 punten per slag verschil (niet lager dan 0)."],
-  ["Sterke computerspelers", "Met deze instelling rekenen Henk, Truus en Kees bij elke beslissing een groot aantal mogelijke verdelingen van de kaarten door. Ze spelen dan slimmer dan in het originele spel. Zet je hem uit, dan spelen ze precies zoals in het origineel."],
+  ["Sterke computerspelers", "Met deze instelling rekenen de computerspelers bij elke beslissing een groot aantal mogelijke verdelingen van de kaarten door. Ze spelen dan slimmer dan in het originele spel. Zet je hem uit, dan spelen ze precies zoals in het origineel."],
   ["Tips", "Tik op Tip om te zien wat de computer zou doen. Tik op de tafel om een volle slag meteen binnen te halen. Via het menu linksboven kun je de laatste slag nog eens bekijken."],
   ["Op je beginscherm", "Op een iPhone of iPad: open deze pagina in Safari, tik op Deel en kies Zet op beginscherm. Op Android: kies in het menu van Chrome Toevoegen aan startscherm. Daarna start het spel als een gewone app en werkt het ook zonder internet."],
   ["Over dit spel", "Gebaseerd op het Windows-spel \"10 op en neer\" van A.A. Brink (sourceforge.net/projects/tienopenneer). Vrije software onder de GNU General Public License versie 3."],
@@ -2404,11 +2525,29 @@ const clientId = () => {
 
 /** In de Android-app draait de website vanuit de app zelf; gedeelde links wijzen dan naar de echte website. */
 const nativeApp = window.TienApp ?? null;
-const APP_VERSION = "2.27";
+const APP_VERSION = "2.28";
 const SITE_URL = "https://robbert-coder.github.io/10-op-en-neer/";
 const tableLink = (code) => `${nativeApp ? SITE_URL : location.origin + location.pathname}?spel=${code}`;
 
 /** "v2.16" tegenover "2.15": is de eerste nieuwer? */
+/**
+ * Kom je terug na een nieuwe versie, dan zie je dat in het hoofdmenu, met uitklapbaar wat er nieuw is.
+ * De vorige versie wordt onthouden; wie voor het eerst speelt, krijgt geen bericht.
+ */
+function showNews() {
+  const last = store.get("laatste-versie", null);
+  const el = $("#news");
+  if (!last) { store.set("laatste-versie", APP_VERSION); return; }
+  const fresh = CHANGES.filter((c) => isNewerVersion(c.v, last) && !isNewerVersion(c.v, APP_VERSION));
+  if (!isNewerVersion(APP_VERSION, last) || !fresh.length) { store.set("laatste-versie", APP_VERSION); el.hidden = true; return; }
+  el.innerHTML = `<div class="news-head"><b>🎉 Welkom terug! Er is een nieuwe versie: ${esc(APP_VERSION)}</b>
+    <button class="news-close" id="news-close" aria-label="Sluiten">✕</button></div>
+    <details><summary>Wat is er nieuw?</summary>${fresh.map((c) => `<div class="news-v"><small>Versie ${esc(c.v)}</small>
+      <ul>${c.items.map((t) => `<li>${esc(t)}</li>`).join("")}</ul></div>`).join("")}</details>`;
+  el.hidden = false;
+  $("#news-close").addEventListener("click", () => { store.set("laatste-versie", APP_VERSION); el.hidden = true; });
+}
+
 function isNewerVersion(tag, installed) {
   const parts = (v) => String(v).replace(/^v/, "").split(".").map((n) => parseInt(n, 10) || 0);
   const a = parts(tag), b = parts(installed);
@@ -2644,11 +2783,11 @@ function openTable(rules) {
   const code = makeCode();
   online = {
     role: "host", code, seat: 1, players: [{ name: settings.playerName, seat: 1, online: true, avatar: myAvatar() }],
-    queue: new Map(), game: null, rules, smart: settings.smart, status: "Tafel openen…", error: "", chat: [], unread: 0,
+    queue: new Map(), game: null, rules, smart: settings.smart, tips: !!settings.tips, status: "Tafel openen…", error: "", chat: [], unread: 0,
   };
   const pub = newPublic ? {
     title: newTitle.trim().slice(0, 40),
-    variant: rulesVariantName(rules), rounds: 2 * rules.maxCards - 1,
+    variant: rulesVariantName(rules) + (settings.tips ? " · tips mogen" : ""), rounds: 2 * rules.maxCards - 1,
   } : null;
   online.pub = pub;
   online.link = new Host(code, settings.playerName, netEvents(), null, myAvatar(), rules.players ?? 4, pub);
@@ -2679,13 +2818,14 @@ function startHostGame(fill) {
     online.chat = online.link.chat.slice(-100);
     renderChat();
   }
-  const names = Array.from(defaultNames());
+  const cast = drawCast();
+  const names = castNames(cast);
   const humanSeats = [];
   for (const p of online.players) {
     names[p.seat - 1] = p.seat === 1 ? settings.playerName : p.name;
     humanSeats.push(p.seat);
   }
-  const g = { rules: online.rules, smart: online.smart, seed: Math.floor(Math.random() * 2147483647), names, humanSeats };
+  const g = { rules: online.rules, smart: online.smart, tips: !!online.tips, cast, seed: Math.floor(Math.random() * 2147483647), names, humanSeats };
   online.link.start(g);
   startOnlineGame(g, []);
 }
@@ -3043,7 +3183,8 @@ function renderOnline() {
   const isHost = online.role === "host";
   $("#share-row").hidden = !isHost || !!online.pub;
   const rules = online.rules ?? online.game?.rules;
-  $("#lobby-variant").textContent = rules ? rulesVariantName(rules) : "";
+  const tipsText = online.game ? (online.game.tips ? " · tips mogen" : "") : online.role === "host" && online.tips ? " · tips mogen" : "";
+  $("#lobby-variant").textContent = rules ? rulesVariantName(rules) + tipsText : "";
   const names = Array.from(defaultNames());
   const rows = Array.from({ length: tableSize() }, (_, i) => i + 1).map((seat) => {
     const p = online.players.find((x) => x.seat === seat);
@@ -3056,7 +3197,7 @@ function renderOnline() {
         <span class="dot ${p.online === false ? "off" : ""}"></span></div>`;
     }
     return `<div class="lobby-seat waiting"><div class="avatar happy">${faceSvg(SEAT_FACE[seat])}</div>
-      <div class="nm">Nog vrij<small>Anders speelt ${names[seat - 1]} hier</small></div></div>`;
+      <div class="nm">Nog vrij<small>Anders speelt hier een computer</small></div></div>`;
   }).join("");
   $("#lobby-seats").innerHTML = rows;
   const humans = online.players.length;
@@ -3195,6 +3336,7 @@ $$(".variant").forEach((el) => el.addEventListener("click", () => {
   renderNewGame();
 }));
 $("#opt-smart").addEventListener("change", (e) => { settings.smart = e.target.checked; saveSettings(); });
+$("#opt-tips").addEventListener("change", (e) => { settings.tips = e.target.checked; saveSettings(); renderNewGame(); });
 $("#opt-rounding").addEventListener("change", (e) => { newRounding = e.target.checked; renderNewGame(); });
 $("#opt-players").addEventListener("click", (e) => {
   const b = e.target.closest("[data-players]");
@@ -3288,6 +3430,7 @@ $("#set-name").addEventListener("input", (e) => {
 $("#set-speed").addEventListener("input", (e) => { settings.speed = Number(e.target.value); saveSettings(); });
 $("#set-desc").addEventListener("change", (e) => { settings.sortDescending = e.target.checked; saveSettings(); });
 $("#set-sound").addEventListener("change", (e) => { settings.sound = e.target.checked; saveSettings(); renderSettings(); });
+$("#set-cards").addEventListener("change", (e) => { settings.cardSounds = e.target.checked; saveSettings(); });
 $("#set-speak-humans").addEventListener("change", (e) => { settings.speakHumans = e.target.checked; saveSettings(); });
 $("#set-speak").addEventListener("change", (e) => { settings.speakBids = e.target.checked; saveSettings(); renderSettings(); });
 $("#set-hof").addEventListener("change", (e) => {
@@ -3429,12 +3572,43 @@ if (joinCode.length === 5 && !(online?.code === joinCode)) {
 }
 
 $("#install-hint").hidden = !(isIOS && !standalone);
+// Op de website (niet in de app zelf, en niet op een iPhone of iPad) een link naar de Android-app
+$("#android-link").hidden = !!nativeApp || isIOS;
+showNews();
 $("#menu-version").textContent = `Versie ${APP_VERSION}${nativeApp ? " · app" : ""}`;
 checkForUpdate();
 
 if ("serviceWorker" in navigator && location.protocol === "https:" && !nativeApp) {
   navigator.serviceWorker.register("sw.js").catch(() => { /* bijvoorbeeld in een voorbeeldweergave */ });
 }
+
+/**
+ * Staat de website open (ook op de achtergrond), dan kijken we af en toe of er een nieuwe versie is.
+ * Zo ja: een melding (als meldingen aan staan) en een balk in het hoofdmenu om te verversen.
+ * De app zelf kijkt dagelijks op GitHub (zie checkForUpdate).
+ */
+let webUpdateTold = "";
+async function checkWebVersion() {
+  if (nativeApp || location.protocol !== "https:") return;
+  try {
+    const res = await fetch(`versie.json?t=${Date.now()}`, { cache: "no-store" });
+    if (!res.ok) return;
+    const v = String((await res.json()).v ?? "");
+    if (!v || !isNewerVersion(v, APP_VERSION) || webUpdateTold === v) return;
+    webUpdateTold = v;
+    const banner = $("#update-banner");
+    banner.href = location.pathname;
+    banner.innerHTML = `Nieuwe versie ${esc(v)} beschikbaar<small>Tik om te verversen${hasGameInProgress() ? "; je spel gaat gewoon verder" : ""}</small>`;
+    banner.hidden = false;
+    banner.onclick = (e) => { e.preventDefault(); location.reload(); };
+    await notifyAlways(`Er is een nieuwe versie (${v}) van 10 op en neer. Open het spel om te kijken wat er nieuw is.`);
+  } catch {
+    // Geen internet: later nog eens
+  }
+}
+setInterval(checkWebVersion, 30 * 60 * 1000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) checkWebVersion(); });
+setTimeout(checkWebVersion, 20000);
 
 /** De terugknop van Android: geeft true als de app er zelf iets mee deed. */
 window.tienBack = () => {
@@ -3462,11 +3636,15 @@ $("#lobby-seats").addEventListener("click", (e) => {
     stats: seat === online.seat ? statsSummary() : p.stats });
 });
 
-$("#arena").addEventListener("click", (e) => {
+// Tik op een gezicht, naam of de sterren (ook bij jezelf): het kaartje met statistiek en uitleg over de sterren
+function onSeatTap(e) {
   const seatEl = e.target.closest(".seat");
-  if (!seatEl || !e.target.closest(".avatar, .who") || !st) return;
+  if (!seatEl || !e.target.closest(".avatar, .who, .mini-stars") || !st) return;
   const nr = Number(seatEl.id.replace("seat-", ""));
   const p = st.players[nr - 1];
   if (!p) return;
-  openPlayerCard({ name: p.name, avatarHtml: avatarHtml(nr, p.name), stats: statsOfSeat(nr), computer: !p.human });
-});
+  openPlayerCard({ name: p.name, avatarHtml: avatarHtml(nr, p.name), stats: statsOfSeat(nr), computer: !p.human,
+    starsOpen: !!e.target.closest(".mini-stars") });
+}
+$("#arena").addEventListener("click", onSeatTap);
+$("#seat-1").addEventListener("click", onSeatTap);

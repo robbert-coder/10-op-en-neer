@@ -212,6 +212,17 @@ const PEOPLE = {
   // Ria: gezellige oma met een paarsgrijze permanent en een roze bril
   ria: { skin: "#F9E1D2", hair: "perm", hairColor: "#B8ABD1", brows: "#9C90B5", eyes: "#6E8FB5", lashes: true,
     glasses: "#C2185B", lips: "#D84367", earrings: "#E91E63", wrinkles: true, shirt: "#EC8FB0" },
+  // Bram: student, kuif, sportief shirt
+  bram: { skin: "#F3D2BC", hair: "quiff", hairColor: "#8A5A2B", brows: "#6B4426", eyes: "#4F7FA8", teeth: true, shirt: "#2E7D32" },
+  // Gerda: fanatieke kaartster, strak grijsblond kapsel, rode bril, parels
+  gerda: { skin: "#F7DCCB", hair: "bob", hairColor: "#D9CBB0", brows: "#9E8F74", eyes: "#5B7A8C", lashes: true,
+    glasses: "#B23A48", lips: "#A63A50", earrings: "#F5F5F5", wrinkles: true, shirt: "#37474F" },
+  // Sjef: gemoedelijke caféman, flinke snor, rode wangen
+  sjef: { skin: "#EDBFA3", hair: "wavy", hairColor: "#5A3B24", brows: "#4A2F1C", thickBrows: true, eyes: "#5C3B22",
+    beard: "moustache", beardColor: "#4A2F1C", nose: "big", wrinkles: true, shirt: "#C62828" },
+  // Mo: grappenmaker, krullen en een stoppelbaardje
+  mo: { skin: "#B98262", hair: "curly", hairColor: "#1E1612", brows: "#1E1612", eyes: "#3B2416", beard: "stubble",
+    beardColor: "#1E1612", teeth: true, shirt: "#7B1FA2" },
   // Tineke: de uitleg, blond bobkapsel
   tineke: { skin: "#FBE3D3", hair: "bob", hairColor: "#E8C35A", brows: "#B8913A", eyes: "#4F86C6", lashes: true,
     lips: "#D0476A", earrings: "#FFFFFF", shirt: "#26A69A" },

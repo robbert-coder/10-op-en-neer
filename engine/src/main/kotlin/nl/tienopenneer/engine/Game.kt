@@ -347,14 +347,14 @@ class Game internal constructor(
         return null
     }
 
-    /** Tip voor de mens op stoel [seat]: de voorspelling die de computer zou doen. */
+    /** Tip voor de mens op stoel [seat]: de voorspelling van de sterke computerspeler. */
     fun hintBid(seat: Int = 1): Int =
-        if (smartSeat[seat] && phase == Phase.BIDDING && toBid == seat) smartBid(seat) else legalBid(estimate(seat))
+        if (phase == Phase.BIDDING && toBid == seat) smartBid(seat) else legalBid(estimate(seat))
 
-    /** Tip voor de mens op stoel [seat]: de kaart die de computer zou spelen. */
+    /** Tip voor de mens op stoel [seat]: de kaart die de sterke computerspeler zou spelen. */
     fun hintCard(seat: Int = 1): Card? =
         if (phase == Phase.PLAYING && toPlay == seat) {
-            p[seat].hand[if (smartSeat[seat]) smartCard(seat) else chooseCardComputer(seat)]
+            p[seat].hand[smartCard(seat, forHint = true)]
         } else {
             null
         }

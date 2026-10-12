@@ -115,7 +115,7 @@ export function help(event, st, level, describe, extra = {}) {
     case "voorspellen":
       return level <= 1
         ? { text: `Je hebt ${st.cards === 1 ? "één kaart" : `${st.cards} kaarten`} gekregen. Je moet nu het aantal slagen voorspellen: hoeveel keer denk je deze ronde de hoogste kaart op tafel te hebben? Tik op een cijfer.`, wait: false }
-        : { text: `Je moet nu het aantal slagen voorspellen. Tik op een cijfer. Mijn advies: kies ${extra.advice}.`, wait: false };
+        : { text: `Je moet nu het aantal slagen voorspellen. Tik op een cijfer.${extra.advice != null ? ` Mijn advies: kies ${extra.advice}.` : ""}`, wait: false };
     case "voorspeld":
       if (level > 2) return null;
       return {

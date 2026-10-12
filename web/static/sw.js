@@ -3,19 +3,18 @@
 const VERSION = "__BUILD__";
 const CACHE = `tienopenneer-${VERSION}`;
 
-const VOICES = ["speler", "henk", "truus", "kees", "ria"];
 const EVENTS = [
   "slag_te_veel", "slag_te_weinig", "onvoorkombare_ondergang", "goed_voorspeld",
   "medespeler_nat", "goed_gespeeld", "zeer_goed_gespeeld",
 ];
 const FILES = [
-  "./", "index.html", "style.css", "app.js", "faces.js", "tineke.js", "voices.js", "net.js", "cloud.js", "vendor/mqtt.min.js", "tienopenneer.mjs", "kotlin-kotlin-stdlib.mjs",
+  "./", "index.html", "style.css", "app.js", "faces.js", "tineke.js", "voices.js", "characters.js", "changelog.js", "net.js", "cloud.js", "vendor/mqtt.min.js", "tienopenneer.mjs", "kotlin-kotlin-stdlib.mjs",
   "kotlin_org_jetbrains_kotlin_kotlin_dom_api_compat.mjs",
   "manifest.webmanifest", "icons/icon.svg", "icons/icon-180.png", "icons/icon-192.png", "icons/icon-512.png",
   ...EVENTS.map((e) => `sounds/${e}.mp3`),
-  ...VOICES.flatMap((v) => Array.from({ length: 14 * 3 }, (_, i) => `sounds/bod_${v}_${Math.floor(i / 3)}_${i % 3}.mp3`)),
-  ...VOICES.slice(1).flatMap((v) => [0, 1, 2].map((k) => `sounds/nat_${v}_${k}.mp3`)),
+  ...Array.from({ length: 14 }, (_, n) => `sounds/bod_speler_${n}_0.mp3`),
 ];
+// De stemmen van de computerspelers (veel kleine bestanden) worden bewaard zodra ze een keer gebruikt zijn
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(FILES)).then(() => self.skipWaiting()));
@@ -52,7 +51,13 @@ self.addEventListener("fetch", (event) => {
     return;
   }
   event.respondWith(
-    caches.match(event.request, { ignoreSearch: true }).then((hit) => hit || fetch(event.request)),
+    caches.match(event.request, { ignoreSearch: true }).then((hit) => hit || fetch(event.request).then((res) => {
+      if (res.ok && url.pathname.includes("/sounds/")) {
+        const copy = res.clone();
+        caches.open(CACHE).then((cache) => cache.put(event.request, copy));
+      }
+      return res;
+    })),
   );
 });
 

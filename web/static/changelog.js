@@ -1,0 +1,28 @@
+// Wat er per versie nieuw is. Wie na een nieuwe versie terugkomt, ziet dit in het hoofdmenu.
+export const CHANGES = [
+  { v: "2.28", items: [
+    "Vier nieuwe tegenstanders: Bram, Gerda, Sjef en Mo. Wie er tegen je speelt, wordt elk spel geloot.",
+    "Iedereen zegt veel meer verschillende dingen, elk op zijn eigen manier.",
+    "Je hoort de kaarten schudden, over tafel schuiven en bij elkaar vegen. Uit te zetten bij Instellingen.",
+    "Bij een nieuw spel kies je of tips mogen. Gebruik je een tip, dan telt het spel niet mee voor de highscores, de Hall of Fame en je sterren, en zien je medespelers dat.",
+    "De troef rechtsboven is beter te zien, ook bij klaveren en schoppen.",
+    "Telefoon dwars: de tafel links en je kaarten rechts, in plaats van een lange smalle tafel.",
+    "Op de website staat een link om de Android-app te downloaden, en staat de website open, dan krijg je een melding bij een nieuwe versie.",
+    "Op een tablet (staand en liggend) past alles beter en is alles groter.",
+    "Tijdens het voorspellen springen de biedingen van de anderen er goud uit.",
+    "Heb je al genoeg slagen, dan raadt de tip aan om je hoogste kaart kwijt te raken.",
+    "Tik op de sterren onder een gezicht voor uitleg over hoe ze werken.",
+    "Is de online Hall of Fame even niet bereikbaar, dan zie je een melding en speel je gewoon door.",
+    "Dit bericht: na een nieuwe versie zie je meteen wat er nieuw is.",
+  ] },
+  { v: "2.27", items: ["Geen kale mensen meer: Henk heeft weer haar."] },
+  { v: "2.26", items: ["Blije gezichten op het startscherm."] },
+  { v: "2.25", items: [
+    "Reageert iemand niet, dan krijgt die een waarschuwing en een aftelling. Daarna kunnen de anderen samen kiezen voor een computer.",
+    "Na afloop van een online spel kun je blijven chatten en nog een potje spelen met dezelfde spelers.",
+  ] },
+  { v: "2.24", items: ["Een openbare tafel verdwijnt niet meer uit de lobby als de gastheer even weg is."] },
+  { v: "2.23", items: ["Openbare tafels met een naam en een gezamenlijke lobby met chat."] },
+  { v: "2.22", items: ["De Hall of Fame filteren op aantal spelers en op tegen wie je speelde."] },
+  { v: "2.21", items: ["Bij een topscore staat met hoeveel spelers het was, en of het mensen of computers waren."] },
+];

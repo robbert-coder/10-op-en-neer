@@ -85,8 +85,12 @@ internal fun Game.smartBid(pl: Int): Int {
     return search.best(listOf(usual) + others)
 }
 
-/** Kaartkeuze van de sterkere computerspeler [pl]: de plaats van de kaart in de hand. */
-internal fun Game.smartCard(pl: Int): Int {
+/**
+ * Kaartkeuze van de sterkere computerspeler [pl]: de plaats van de kaart in de hand. Met [forHint] is het
+ * een tip voor een mens; alleen dan wordt bij gelijke uitkomst de gevaarlijkste kaart gekozen (de
+ * computerspelers zelf blijven precies hetzelfde spelen, zodat oudere versies online gelijk blijven lopen).
+ */
+internal fun Game.smartCard(pl: Int, forHint: Boolean = false): Int {
     val usual = chooseCardComputer(pl)
     findPossibleCards(pl)
     if (possibleCount == 1) return usual
@@ -103,6 +107,12 @@ internal fun Game.smartCard(pl: Int): Int {
         if (candidates.none { equivalent(pl, hand[it], hand[slot]) }) candidates.add(slot)
     }
     if (candidates.size == 1) return usual
+    // Al genoeg slagen: bij gelijke uitkomst liever de hoogste (gevaarlijkste) kaart kwijtraken, dan
+    // win je later minder makkelijk per ongeluk een slag. Troef telt als hoger dan de rest.
+    if (forHint && me.tricks >= me.bid) {
+        val danger = { slot: Int -> hand[slot].rank + if (!trump.isNone && hand[slot].suit == trump.suit) 20 else 0 }
+        candidates.sortByDescending(danger)
+    }
     return Search(this, pl, 1, isBid = false).best(candidates)
 }
 

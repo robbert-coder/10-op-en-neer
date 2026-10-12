@@ -160,6 +160,9 @@ h1 { font-size: 38px; margin: 18px 0 0; letter-spacing: -.5px; text-wrap: balanc
 .card .mid.face { font-size: calc(var(--w) * .46); font-weight: 800; }
 .card.small .ci.br { display: none; }
 .card.small .mid { inset: auto calc(var(--w) * .08) calc(var(--w) * .06) auto; font-size: calc(var(--w) * .5); }
+.card.trumpmini { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; line-height: .9; }
+.card.trumpmini b { font-size: calc(var(--w) * .42); font-weight: 800; letter-spacing: -.5px; }
+.card.trumpmini i { font-style: normal; font-size: calc(var(--w) * .66); }
 .card.dim { filter: brightness(.62) saturate(.5); }
 .card.hl { box-shadow: 0 0 0 3px var(--gold), 0 6px 18px rgba(255, 201, 77, .45); }
 .card.back { background: linear-gradient(135deg, #2D63D8, #1B3F9A); }
@@ -218,7 +221,13 @@ h1 { font-size: 38px; margin: 18px 0 0; letter-spacing: -.5px; text-wrap: balanc
 .avatar.active { box-shadow: 0 0 0 3px var(--gold), 0 0 18px rgba(255, 201, 77, .55); }
 /* Beurt: wie al geweest is staat in het donker, wie aan de beurt is in het licht met een pijl */
 .seat { transition: opacity .3s, filter .3s; }
-.seat.done { opacity: .42; filter: saturate(.35); }
+/* Wie al geweest is: gezicht en naam in het donker, maar het bod blijft goed leesbaar */
+.seat.done > .avatar, .seat.done .who { opacity: .42; filter: saturate(.35); transition: opacity .3s, filter .3s; }
+.seat.done .chip { opacity: .75; }
+.seat.bid-shown .chip { opacity: 1; transform: scale(1.12); transition: transform .25s; box-shadow: 0 0 0 2px rgba(255, 201, 77, .6), 0 4px 14px rgba(0,0,0,.35); }
+.seat.bid-shown .chip .bid { background: var(--gold); }
+.seat.bid-shown .chip .bid b { color: #1C120C; }
+.seat.bid-shown .chip .bid small { color: rgba(28, 18, 12, .7); }
 .seat.active .avatar { transform: scale(1.1); transition: transform .25s; }
 .turn-arrow { display: none; position: absolute; width: 22px; height: 22px; fill: none; stroke: var(--gold); stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 0 6px rgba(255, 201, 77, .7)); pointer-events: none; }
 .seat.active .turn-arrow { display: block; }
@@ -774,7 +783,7 @@ h1 { font-size: 38px; margin: 18px 0 0; letter-spacing: -.5px; text-wrap: balanc
 .stars.big { font-size: 30px; gap: 4px; margin: 6px 0 10px; }
 .lobby-seat[data-seat] { cursor: pointer; }
 .lobby-seat .nm .stars { display: flex; margin-top: 3px; }
-.mini-stars { position: absolute; left: 50%; top: 100%; transform: translate(-50%, 1px); pointer-events: none; z-index: 2; }
+.mini-stars { position: absolute; left: 50%; top: 100%; transform: translate(-50%, 1px); pointer-events: auto; cursor: pointer; z-index: 2; }
 .mini-stars .stars { font-size: 9px; background: rgba(0,0,0,.35); padding: 1px 4px; border-radius: 8px; }
 .mini-stars:empty { display: none; }
 @media (min-width: 1000px) and (min-height: 640px) { .mini-stars .stars { font-size: 12px; } }
@@ -909,3 +918,68 @@ button.primary { background: linear-gradient(180deg, #F7C761, var(--gold)); box-
 .idle-big { flex: none; font-size: 84px; font-weight: 900; line-height: .95; color: #D6452B; font-variant-numeric: tabular-nums; min-width: 1.2em; text-align: center; animation: idle-pulse 1s ease-in-out infinite; }
 @keyframes idle-pulse { 0%, 100% { scale: 1; } 50% { scale: 1.08; } }
 .over-note { margin: 12px 0 0; font-size: 14px; color: var(--muted); }
+
+/* ---------- Telefoon dwars: tafel links, je eigen kaarten rechts (anders wordt alles erg breed en plat) ---------- */
+@media (orientation: landscape) and (max-height: 639px) and (min-width: 600px) {
+  .screen.game.active {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 44%);
+    grid-template-rows: auto minmax(0, 1fr) auto auto auto auto auto;
+    grid-template-areas: "top top" "arena ." "arena status" "arena bids" "arena south" "arena hand" "dock dock";
+  }
+  .game .topbar { grid-area: top; padding-top: 4px; padding-bottom: 0; }
+  .game .arena { grid-area: arena; grid-template-columns: 76px minmax(0, 1fr) 76px; padding-bottom: 8px; }
+  .game .felt { max-width: 600px; border-radius: 30px; }
+  .game .status { grid-area: status; min-height: 34px; }
+  .game .bids { grid-area: bids; }
+  .game .seat.south { grid-area: south; }
+  .game .hand { grid-area: hand; justify-self: center; }
+  .game .chat-dock { grid-area: dock; }
+  .game .avatar { width: 38px; height: 38px; }
+}
+
+/* Bericht bij een nieuwe versie, en de link naar de Android-app */
+.news { width: 100%; max-width: 380px; margin: 0 0 16px; padding: 12px 14px; border-radius: 16px; background: rgba(255, 201, 77, .14); border: 1px solid rgba(255, 201, 77, .45); text-align: left; animation: fade-in .3s; }
+.news[hidden] { display: none; }
+.news-head { display: flex; align-items: flex-start; gap: 8px; }
+.news-head b { flex: 1; font-size: 15px; line-height: 1.35; color: var(--gold); }
+.news-close { flex: none; width: 30px; height: 30px; padding: 0; border-radius: 50%; font-size: 14px; background: rgba(0,0,0,.2); }
+.news details { margin-top: 6px; }
+.news summary { cursor: pointer; font-weight: 600; font-size: 14px; color: var(--text); padding: 4px 0; }
+.news-v small { display: block; color: var(--muted); margin-top: 8px; font-size: 12px; }
+.news ul { margin: 4px 0 0; padding-left: 20px; font-size: 14px; line-height: 1.45; }
+.news li + li { margin-top: 4px; }
+.android-link { display: block; margin-top: 14px; padding: 10px 16px; border-radius: 12px; border: 1px solid var(--line); color: var(--text); text-decoration: none; font-weight: 600; max-width: 380px; line-height: 1.35; text-align: center; }
+.android-link[hidden] { display: none; }
+.android-link small { display: block; font-weight: 400; color: var(--muted); font-size: 13px; }
+
+/* ---------- Tablet staand (bijvoorbeeld Galaxy Tab): alles groter, zodat het scherm gevuld wordt ---------- */
+@media (orientation: portrait) and (min-width: 700px) and (min-height: 900px) {
+  .game .topbar { padding: 12px 18px 6px; }
+  .game .icon-btn { width: 48px; height: 48px; padding: 11px; }
+  .game .round-info b { font-size: 21px; }
+  .game .round-info small { font-size: 15px; }
+  .game .pill small { font-size: 12px; }
+  .game .pill b { font-size: 19px; }
+  .trump .card.trumpmini { --w: 48px !important; }
+  .game .arena { grid-template-columns: 150px minmax(0, 1fr) 150px; padding: 0 12px; }
+  .game .felt { max-height: 560px; border-radius: 48px; }
+  .game .seat { font-size: 19px; }
+  .game .seat .avatar { width: 72px; height: 72px; }
+  .game .seat.south .avatar { width: 56px; height: 56px; }
+  .game .chip { border-radius: 12px; }
+  .game .chip .c { min-width: 50px; padding: 4px 10px; }
+  .game .chip .c small { font-size: 11px; }
+  .game .chip .c b { font-size: 24px; }
+  .game .status { font-size: 18px; min-height: 52px; padding: 6px 22px; }
+  .game .bids { max-width: 640px; gap: 10px; }
+  .game .bids button { flex-basis: 60px; height: 56px; font-size: 24px; }
+  .game .bids .bids-q { font-size: 20px; }
+}
+.stars-about { margin-top: 12px; text-align: left; font-size: 14px; line-height: 1.45; }
+.stars-about summary { cursor: pointer; font-weight: 600; color: var(--gold); text-align: center; }
+.stars-about p { margin: 8px 0 4px; }
+.stars-about ul { margin: 0; padding-left: 20px; }
+.stars-about li + li { margin-top: 4px; }
+.cloud-down { max-width: 380px; margin: 14px 0 0; padding: 10px 14px; border-radius: 12px; background: rgba(255, 122, 122, .12); border: 1px solid rgba(255, 122, 122, .4); font-size: 13px; line-height: 1.4; color: var(--text); text-align: left; }
+.cloud-down[hidden] { display: none; }
+.cloud-down::before { content: "⚠️ "; }
