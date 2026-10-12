@@ -11,11 +11,29 @@ android {
         applicationId = "nl.tienopenneer.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 13
-        versionName = "2.11"
+        versionCode = 14
+        versionName = "2.12"
+    }
+
+    // Vaste ondertekensleutel uit de GitHub-geheimen (SIGNING_KEY), zodat een nieuwe versie over de oude heen
+    // installeert. Zonder die sleutel (lokaal, pull requests) gewoon de debugsleutel.
+    val keyFile = System.getenv("SIGNING_KEYSTORE")?.let { file(it) }?.takeIf { it.exists() }
+    if (keyFile != null) {
+        signingConfigs {
+            create("vast") {
+                storeFile = keyFile
+                storeType = "PKCS12"
+                storePassword = "tienopenneer"
+                keyAlias = "tienopenneer"
+                keyPassword = "tienopenneer"
+            }
+        }
     }
 
     buildTypes {
+        debug {
+            if (keyFile != null) signingConfig = signingConfigs.getByName("vast")
+        }
         release {
             isMinifyEnabled = false
         }

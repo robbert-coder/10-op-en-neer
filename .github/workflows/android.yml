@@ -31,6 +31,19 @@ jobs:
       - name: Spellogica testen
         run: ./gradlew :engine:test
 
+      - name: Ondertekensleutel klaarzetten
+        env:
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+          VERSIE: ${{ inputs.versie }}
+        run: |
+          if [ -n "$SIGNING_KEY" ]; then
+            echo "$SIGNING_KEY" | tr -d ' \n\r' | base64 -d > "$RUNNER_TEMP/tienopenneer.p12"
+            echo "SIGNING_KEYSTORE=$RUNNER_TEMP/tienopenneer.p12" >> "$GITHUB_ENV"
+          elif [ -n "$VERSIE" ] || [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "::error::Het geheim SIGNING_KEY ontbreekt; zonder vaste sleutel installeert een update niet over de oude app heen."
+            exit 1
+          fi
+
       - name: APK bouwen
         run: ./gradlew :app:assembleDebug
 
