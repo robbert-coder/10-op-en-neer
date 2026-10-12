@@ -2215,7 +2215,7 @@ async function renderHallOfFame() {
     .sort((a, b) => b.stars - a.stars || b.s.f - a.s.f || b.s.g - a.s.g)
     .slice(0, 25);
   $("#hof-players").innerHTML = players.length === 0 ? "" : `<h3 class="stat-head">Beste spelers</h3>
-    <p class="hs-note">Op sterren: hoe hoog je eindigt en hoe vaak je goed voorspelt, over minstens vijf volledige spellen.</p>
+    <p class="hs-note">Op sterren: hoe hoog je eindigt en hoe vaak je goed voorspelt, gemiddeld over al je volledige spellen. Met weinig spellen blijven de sterren dicht bij het midden.</p>
     <div class="group">${players.map((p, i) => `<div class="hs-row hof${p.p === me ? " me" : ""}"><span class="pos">${i + 1}</span>${hofFace(p)}<span class="name">${esc(String(p.name ?? ""))}<small>${p.s.g} spellen · ${p.s.w} gewonnen · ${p.s.r ? Math.round((100 * p.s.ok) / p.s.r) : 0}% goed</small></span>${starsHtml(p.stars)}</div>`).join("")}</div>`;
 }
 
@@ -2335,7 +2335,7 @@ const clientId = () => {
 
 /** In de Android-app draait de website vanuit de app zelf; gedeelde links wijzen dan naar de echte website. */
 const nativeApp = window.TienApp ?? null;
-const APP_VERSION = "2.18";
+const APP_VERSION = "2.19";
 const SITE_URL = "https://robbert-coder.github.io/10-op-en-neer/";
 const tableLink = (code) => `${nativeApp ? SITE_URL : location.origin + location.pathname}?spel=${code}`;
 

@@ -69,7 +69,7 @@ begin
 end;
 $$;
 
--- De beste score per speler in een lijst (hoogstens 50), en de spelers met minstens vijf volledige spellen
+-- De beste score per speler in een lijst (hoogstens 50), en de spelers met minstens één volledig spel
 create or replace function public.hof_get(p_list text) returns jsonb
 language sql security definer set search_path = public as $$
   select jsonb_build_object(
@@ -80,7 +80,7 @@ language sql security definer set search_path = public as $$
       ) best order by score desc, date limit 50
     ) s), '[]'::jsonb),
     'players', coalesce((select jsonb_agg(jsonb_build_object('p', player, 'name', name, 'avatar', avatar, 'stats', stats))
-      from (select * from public.hof_players where (stats->>'g')::int >= 5 order by updated_at desc limit 500) x), '[]'::jsonb)
+      from (select * from public.hof_players where (stats->>'g')::int >= 1 order by updated_at desc limit 500) x), '[]'::jsonb)
   );
 $$;
 
