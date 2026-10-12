@@ -724,3 +724,6 @@ h1 { font-size: 38px; margin: 18px 0 0; letter-spacing: -.5px; text-wrap: balanc
   .arena.five .seat.north .who { flex-direction: row; align-items: baseline; gap: 6px; }
 }
 .status { position: relative; z-index: 3; }
+.notify-row p { margin: 0 0 10px; color: var(--muted); font-size: 14px; text-align: center; }
+.notify-row[hidden] { display: none; }
+.version { margin-top: 18px; font-size: 12px; opacity: .7; }

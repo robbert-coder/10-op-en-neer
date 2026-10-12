@@ -15,6 +15,7 @@ import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.webkit.JavascriptInterface
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
@@ -53,7 +54,9 @@ class MainActivity : ComponentActivity() {
     }
 
     /** Toestemming voor meldingen (nodig vanaf Android 13). */
-    private val askNotify = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    private val askNotify = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
+        if (::web.isInitialized) web.evaluateJavascript("window.tienNotifyChanged && window.tienNotifyChanged()", null)
+    }
 
     /** Staat de app in beeld? Alleen als dat niet zo is, komt er een melding. */
     @Volatile private var inForeground = false
@@ -232,7 +235,30 @@ class MainActivity : ComponentActivity() {
                 if (Build.VERSION.SDK_INT >= 33 &&
                     checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
                 ) {
+                    getPreferences(MODE_PRIVATE).edit().putBoolean(ASKED_NOTIFY, true).apply()
                     askNotify.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+            }
+        }
+
+        /** "granted", "default" (we mogen nog vragen) of "denied" (alleen via de instellingen aan te zetten). */
+        @JavascriptInterface
+        fun notificationState(): String {
+            if (NotificationManagerCompat.from(this@MainActivity).areNotificationsEnabled()) return "granted"
+            if (Build.VERSION.SDK_INT < 33) return "denied"
+            val asked = getPreferences(MODE_PRIVATE).getBoolean(ASKED_NOTIFY, false)
+            return if (!asked || shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS)) "default" else "denied"
+        }
+
+        @JavascriptInterface
+        fun openNotificationSettings() {
+            runOnUiThread {
+                try {
+                    startActivity(
+                        Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, packageName),
+                    )
+                } catch (_: ActivityNotFoundException) {
+                    // Geen instellingenscherm gevonden
                 }
             }
         }
@@ -276,6 +302,7 @@ class MainActivity : ComponentActivity() {
         const val START_URL = "https://${WebViewAssetLoader.DEFAULT_DOMAIN}/web/index.html"
         const val CHANNEL = "beurt"
         const val TURN_NOTIFICATION = 1
+        const val ASKED_NOTIFY = "askedNotify"
         val FELT = Color.rgb(0x06, 0x30, 0x1C)
         val MIME_TYPES = mapOf(
             "html" to "text/html",

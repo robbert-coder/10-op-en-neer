@@ -29,8 +29,28 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+// De pagina en de code eerst van internet, zodat je altijd de nieuwste versie hebt; zonder internet uit de
+// bewaarde kopie. Geluiden en plaatjes komen meteen uit de bewaarde kopie.
+const FRESH = /\.(html|js|mjs|css|webmanifest)$|\/$/;
+
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
+  const url = new URL(event.request.url);
+  if (url.origin !== location.origin) return;
+  if (FRESH.test(url.pathname)) {
+    event.respondWith(
+      fetch(event.request)
+        .then((res) => {
+          if (res.ok) {
+            const copy = res.clone();
+            caches.open(CACHE).then((cache) => cache.put(event.request, copy));
+          }
+          return res;
+        })
+        .catch(() => caches.match(event.request, { ignoreSearch: true })),
+    );
+    return;
+  }
   event.respondWith(
     caches.match(event.request, { ignoreSearch: true }).then((hit) => hit || fetch(event.request)),
   );

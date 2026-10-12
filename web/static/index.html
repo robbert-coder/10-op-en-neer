@@ -122,6 +122,10 @@
           </div>
           <div class="group" id="lobby-seats"></div>
           <p class="note center" id="lobby-note"></p>
+          <div class="group pad notify-row" id="notify-row" hidden>
+            <p id="notify-text">Krijg een melding als je aan de beurt bent en het spel op de achtergrond staat.</p>
+            <button class="wide" id="btn-notify">Meldingen aanzetten</button>
+          </div>
           <details class="group pad lobby-avatar">
             <summary>Jouw plaatje wijzigen</summary>
             <div class="avatar-pick"></div>
@@ -255,7 +259,12 @@
             <span><b>Voorspellingen uitspreken</b><small>Iedere speler zegt zijn voorspelling hardop, met een eigen stem en een rijmpje.</small></span>
             <input type="checkbox" id="set-speak" class="switch">
           </label>
+          <label class="switch-row" id="row-speak-humans">
+            <span><b>Stemmen van mensen</b><small>Ook de voorspelling van jezelf en je medespelers hardop, alleen het getal.</small></span>
+            <input type="checkbox" id="set-speak-humans" class="switch">
+          </label>
         </div>
+        <p class="note center version" id="app-version"></p>
       </div>
     </section>
   </main>

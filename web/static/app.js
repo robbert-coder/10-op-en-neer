@@ -329,9 +329,11 @@ function announceBids() {
     const p = st.players[nr - 1];
     if (p.bid >= 0 && !announced[nr]) {
       announced[nr] = true;
-      const speak = settings.sound && settings.speakBids;
+      // Mensen zeggen alleen het getal; hun stem kan apart uit
+      const human = !faceFor(nr);
+      const speak = settings.sound && settings.speakBids && !(human && settings.speakHumans === false);
       const v = voiceFor(nr);
-      const k = pickLine(`bod${nr}`, BID_LINES[v][p.bid].length, true);
+      const k = human ? 0 : pickLine(`bod${nr}`, BID_LINES[v][p.bid].length, true);
       if (speak) playSound(`bod_${v}_${p.bid}_${k}`);
       const line = BID_LINES[v][p.bid][k];
       const ms = speak ? BID_MS[v][p.bid][k] + 250 : 1300 + (k ? line.length * 25 : 0);
@@ -773,17 +775,47 @@ function tinekeComment(event, always = false) {
 let appVisible = true;
 window.tienVisible = (visible) => {
   appVisible = visible;
-  if (visible) { clearTurnNotice(); drive(); }
+  if (visible) { clearTurnNotice(); drive(); if (screen === "online") renderOnline(); }
 };
+window.tienNotifyChanged = () => { if (screen === "online") renderOnline(); };
 const inBackground = () => document.hidden || !appVisible;
 document.addEventListener("visibilitychange", () => { if (!document.hidden) clearTurnNotice(); });
 
-/** Toestemming vragen voor meldingen (bij het openen van of aanschuiven bij een tafel). */
+/** Mogen we meldingen tonen? "granted", "denied", "default" (nog niet gevraagd) of "unsupported". */
+function notifyPermission() {
+  if (nativeApp?.notificationState) return nativeApp.notificationState();
+  if (!("Notification" in window)) return "unsupported";
+  return Notification.permission;
+}
+
+/** Toestemming vragen voor meldingen (bij het openen van of aanschuiven bij een tafel, of via de knop). */
 function askNotifications() {
   if (settings.notify === false) return;
   if (nativeApp?.askNotifications) { nativeApp.askNotifications(); return; }
-  if ("Notification" in window && Notification.permission === "default") Notification.requestPermission().catch(() => {});
+  if (notifyPermission() === "default") {
+    Notification.requestPermission().then(() => { if (screen === "online") renderOnline(); }).catch(() => {});
+  }
 }
+
+/** In de wachtkamer: een knop om meldingen aan te zetten, zolang dat nog niet is gebeurd. */
+function renderNotifyRow() {
+  const state = notifyPermission();
+  const row = $("#notify-row");
+  row.hidden = settings.notify === false || state === "granted" || state === "unsupported";
+  const blocked = state === "denied";
+  $("#notify-text").textContent = blocked
+    ? nativeApp
+      ? "Meldingen staan uit voor deze app. Zet ze aan om te horen wanneer je aan de beurt bent."
+      : "Meldingen staan uit voor deze website. Zet ze aan in de instellingen van je browser (het slotje naast het adres)."
+    : "Krijg een melding als je aan de beurt bent en het spel op de achtergrond staat.";
+  $("#btn-notify").hidden = blocked && !nativeApp?.openNotificationSettings;
+  $("#btn-notify").textContent = blocked ? "Instellingen openen" : "Meldingen aanzetten";
+}
+$("#btn-notify").addEventListener("click", () => {
+  if (notifyPermission() === "denied") nativeApp?.openNotificationSettings?.();
+  else askNotifications();
+  setTimeout(() => { if (screen === "online") renderOnline(); }, 1500);
+});
 
 /** Een melding als het spel op de achtergrond staat, bijvoorbeeld omdat je aan de beurt bent. */
 async function turnNotice(text) {
@@ -1566,7 +1598,10 @@ function renderSettings() {
   $("#set-desc").checked = settings.sortDescending;
   $("#set-sound").checked = settings.sound;
   $("#set-speak").checked = settings.speakBids;
+  $("#set-speak-humans").checked = settings.speakHumans !== false;
   $("#row-speak").hidden = !settings.sound;
+  $("#row-speak-humans").hidden = !settings.sound || !settings.speakBids;
+  $("#app-version").textContent = `Versie ${APP_VERSION}${nativeApp ? " (app)" : ""}`;
   $("#set-help").checked = settings.tinekeHelp;
   $("#set-notify").checked = settings.notify !== false;
 }
@@ -1603,6 +1638,7 @@ const clientId = () => {
 
 /** In de Android-app draait de website vanuit de app zelf; gedeelde links wijzen dan naar de echte website. */
 const nativeApp = window.TienApp ?? null;
+const APP_VERSION = "2.8";
 const SITE_URL = "https://robbert-coder.github.io/10-op-en-neer/";
 const tableLink = (code) => `${nativeApp ? SITE_URL : location.origin + location.pathname}?spel=${code}`;
 
@@ -1987,6 +2023,7 @@ function renderOnline() {
   else if (isHost) note = humans === 1 ? "Deel de link en wacht tot anderen aanschuiven." : "Start zodra iedereen er is.";
   else if (online.seat) note = "Wachten tot de gastheer het spel start…";
   $("#lobby-note").textContent = note;
+  renderNotifyRow();
   $("#btn-leave").textContent = isHost ? "Tafel sluiten" : "Tafel verlaten";
 }
 
@@ -2126,7 +2163,8 @@ $("#set-name").addEventListener("input", (e) => {
 $("#set-speed").addEventListener("input", (e) => { settings.speed = Number(e.target.value); saveSettings(); });
 $("#set-desc").addEventListener("change", (e) => { settings.sortDescending = e.target.checked; saveSettings(); });
 $("#set-sound").addEventListener("change", (e) => { settings.sound = e.target.checked; saveSettings(); renderSettings(); });
-$("#set-speak").addEventListener("change", (e) => { settings.speakBids = e.target.checked; saveSettings(); });
+$("#set-speak-humans").addEventListener("change", (e) => { settings.speakHumans = e.target.checked; saveSettings(); });
+$("#set-speak").addEventListener("change", (e) => { settings.speakBids = e.target.checked; saveSettings(); renderSettings(); });
 $("#set-notify").addEventListener("change", (e) => {
   settings.notify = e.target.checked;
   saveSettings();
