@@ -86,16 +86,22 @@ function drawFace(p) {
   const dark = shade(skin, -0.1);
   const darker = shade(skin, -0.24);
   const hair = p.hairColor ?? "#5A3B24";
-  const [back, front] = (HAIR[p.hair] ?? HAIR.short)(hair, shade(hair, -0.22), shade(hair, 0.35), p.cap);
+  // Haar met een verloop: licht waar het licht erop valt, donker naar de randen
+  const [back, front] = (HAIR[p.hair] ?? HAIR.short)(`url(#${id}h)`, shade(hair, -0.28), shade(hair, 0.35), p.cap);
   const lips = p.lips ?? shade(skin, -0.38);
   const brow = p.brows ?? shade(hair, -0.1);
   const iris = p.eyes ?? "#6B4A2E";
   const lash = p.lashes ? `<path d="M30 49 C33 46 39 45 44 48 M30 49 L28 47 M56 48 C61 45 67 46 70 49 M70 49 L72 47" fill="none" stroke="#2A1E18" stroke-width="1.4" stroke-linecap="round"/>` : "";
   const eye = (cx) => `
-      <path d="M${cx - 7} 52 C${cx - 4} 47.5 ${cx + 4} 47.5 ${cx + 7} 52 C${cx + 4} 55.5 ${cx - 4} 55.5 ${cx - 7} 52 Z" fill="#FBFBF8"/>
-      <circle cx="${cx}" cy="52" r="3.3" fill="${iris}"/><circle cx="${cx}" cy="52" r="1.6" fill="#1B1410"/>
-      <circle cx="${cx - 1}" cy="50.9" r=".9" fill="#FFFFFF"/>
-      <path d="M${cx - 7.2} 51.6 C${cx - 4} 47 ${cx + 4} 47 ${cx + 7.2} 51.6" fill="none" stroke="#3A2A22" stroke-width="1.3" stroke-linecap="round"/>`;
+      <ellipse cx="${cx}" cy="50" rx="9" ry="5.5" fill="${darker}" opacity=".18"/>
+      <path d="M${cx - 7} 52 C${cx - 4} 47.5 ${cx + 4} 47.5 ${cx + 7} 52 C${cx + 4} 55.5 ${cx - 4} 55.5 ${cx - 7} 52 Z" fill="#F7F4EF"/>
+      <circle cx="${cx}" cy="52" r="3.4" fill="url(#${id}i)" stroke="${shade(iris, -0.45)}" stroke-width=".5"/>
+      <circle cx="${cx}" cy="52" r="1.5" fill="#120C09"/>
+      <circle cx="${cx - 1.1}" cy="50.8" r="1" fill="#FFFFFF"/><circle cx="${cx + 1.3}" cy="53.2" r=".45" fill="#FFFFFF" opacity=".8"/>
+      <path d="M${cx - 7} 52 C${cx - 4} 47.5 ${cx + 4} 47.5 ${cx + 7} 52 L${cx + 7} 50 L${cx - 7} 50 Z" fill="${darker}" opacity=".12"/>
+      <path d="M${cx - 7.2} 51.6 C${cx - 4} 47 ${cx + 4} 47 ${cx + 7.2} 51.6" fill="none" stroke="#3A2A22" stroke-width="1.4" stroke-linecap="round"/>
+      <path d="M${cx - 6} 48.3 C${cx - 3} 45.6 ${cx + 3} 45.6 ${cx + 6} 48.3" fill="none" stroke="${darker}" stroke-width=".7" opacity=".6" stroke-linecap="round"/>
+      <path d="M${cx - 5.5} 54.4 C${cx - 2} 56 ${cx + 2} 56 ${cx + 5.5} 54.4" fill="none" stroke="${darker}" stroke-width=".6" opacity=".45" stroke-linecap="round"/>`;
   const glasses = p.glasses ? `
     <g class="glasses" fill="#FFFFFF" fill-opacity=".12" stroke="${p.glasses}" stroke-width="2">
       <rect x="28" y="45" width="19" height="14" rx="6"/><rect x="53" y="45" width="19" height="14" rx="6"/>
@@ -124,7 +130,8 @@ function drawFace(p) {
     ? `<path d="M49 55 C45 62 41 66 44 69 C47 71 53 71 56 69 C59 66 55 62 51 55" fill="${dark}" opacity=".55"/>
        <ellipse cx="50" cy="66" rx="7.5" ry="5.5" fill="${shade(skin, 0.05)}"/><ellipse cx="47.5" cy="64" rx="2.2" ry="1.3" fill="#FFFFFF" opacity=".5"/>
        <path d="M44 68 C45.5 69.5 47 69.5 47.5 68.5 M56 68 C54.5 69.5 53 69.5 52.5 68.5" fill="none" stroke="${darker}" stroke-width="1" stroke-linecap="round"/>`
-    : `<path d="M50 54 C48.5 59 46.5 63 46.5 65 C46.5 67 48 67.5 50 67.5 C52 67.5 53.5 67 53.5 65" fill="none" stroke="${dark}" stroke-width="1.5" stroke-linecap="round"/>
+    : `<path d="M51.5 52 C53 58 55.5 62 54.5 66 C53.5 64 52 63 51 62 Z" fill="${darker}" opacity=".18"/>
+       <path d="M50 54 C48.5 59 46.5 63 46.5 65 C46.5 67 48 67.5 50 67.5 C52 67.5 53.5 67 53.5 65" fill="none" stroke="${dark}" stroke-width="1.5" stroke-linecap="round"/>
        <path d="M45.5 66.5 C46.5 67.5 47.5 67.5 48 67 M54.5 66.5 C53.5 67.5 52.5 67.5 52 67" fill="none" stroke="${darker}" stroke-width="1" stroke-linecap="round"/>
        <ellipse cx="50" cy="61" rx="1.5" ry="3" fill="#FFFFFF" opacity=".18"/>`;
   const teeth = `<path class="teeth" d="M41 76.5 C46 78.5 54 78.5 59 76.5 L58 79.5 C54 80.5 46 80.5 42 79.5 Z" fill="#FFFFFF"/>`;
@@ -133,6 +140,11 @@ function drawFace(p) {
   <defs>
     <radialGradient id="${id}s" cx="45%" cy="40%" r="62%"><stop offset="0" stop-color="${shade(skin, 0.12)}"/><stop offset=".7" stop-color="${skin}"/><stop offset="1" stop-color="${dark}"/></radialGradient>
     <clipPath id="${id}c"><circle cx="50" cy="50" r="48"/></clipPath>
+    <linearGradient id="${id}x" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${darker}" stop-opacity=".45"/><stop offset=".22" stop-color="${darker}" stop-opacity="0"/>
+      <stop offset=".78" stop-color="${darker}" stop-opacity="0"/><stop offset="1" stop-color="${darker}" stop-opacity=".5"/></linearGradient>
+    <radialGradient id="${id}i" cx="40%" cy="38%" r="70%"><stop offset="0" stop-color="${shade(iris, 0.45)}"/><stop offset=".6" stop-color="${iris}"/><stop offset="1" stop-color="${shade(iris, -0.4)}"/></radialGradient>
+    <linearGradient id="${id}h" x1="0" y1="0" x2=".35" y2="1"><stop offset="0" stop-color="${shade(hair, 0.28)}"/><stop offset=".45" stop-color="${hair}"/><stop offset="1" stop-color="${shade(hair, -0.3)}"/></linearGradient>
+    <linearGradient id="${id}l" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${shade(lips, -0.15)}"/><stop offset="1" stop-color="${shade(lips, 0.12)}"/></linearGradient>
   </defs>
   <g clip-path="url(#${id}c)">
     <path d="M10 104 C12 90 26 84 38 82 L62 82 C74 84 88 90 90 104 Z" fill="${p.shirt ?? "#546E7A"}"/>
@@ -145,6 +157,11 @@ function drawFace(p) {
     <ellipse cx="21.5" cy="58" rx="2.4" ry="4.5" fill="${darker}" opacity=".5"/><ellipse cx="78.5" cy="58" rx="2.4" ry="4.5" fill="${darker}" opacity=".5"/>
     <path d="M23 50 C23 30 35 20 50 20 C65 20 77 30 77 50 C77 66 72 78 62 85 C56 89 44 89 38 85 C28 78 23 66 23 50 Z" fill="${skin}"/>
     <path d="M23 50 C23 30 35 20 50 20 C65 20 77 30 77 50 C77 66 72 78 62 85 C56 89 44 89 38 85 C28 78 23 66 23 50 Z" fill="url(#${id}s)"/>
+    <path d="M23 50 C23 30 35 20 50 20 C65 20 77 30 77 50 C77 66 72 78 62 85 C56 89 44 89 38 85 C28 78 23 66 23 50 Z" fill="url(#${id}x)"/>
+    <ellipse cx="50" cy="31" rx="13" ry="6" fill="#FFFFFF" opacity=".12"/>
+    <ellipse cx="33" cy="60" rx="5" ry="2.5" fill="#FFFFFF" opacity=".14" transform="rotate(-20 33 60)"/>
+    <ellipse cx="67" cy="60" rx="5" ry="2.5" fill="#FFFFFF" opacity=".1" transform="rotate(20 67 60)"/>
+    <path d="M37 84 C43 88 57 88 63 84 C58 90 42 90 37 84 Z" fill="${darker}" opacity=".35"/>
     ${wrinkles}${freckles}
     <g class="cheeks" fill="#E57373" opacity=".22"><ellipse cx="31" cy="65" rx="6" ry="4"/><ellipse cx="69" cy="65" rx="6" ry="4"/></g>
     ${beard}
@@ -155,7 +172,12 @@ function drawFace(p) {
     <g class="eyes">${eye(37)}${eye(63)}${lash}</g>
     ${nose}
     ${glasses}${earrings}
-    <path class="mouth smile" d="M40 75 C45 79 55 79 60 75 C56 77.5 44 77.5 40 75 Z" fill="${lips}" stroke="${lips}" stroke-width="1.6" stroke-linejoin="round"/>
+    <g class="mouth smile">
+      <path d="M40 75.2 C43 73.4 46.5 73 50 74.2 C53.5 73 57 73.4 60 75.2 C56 76.2 44 76.2 40 75.2 Z" fill="${shade(lips, -0.12)}"/>
+      <path d="M40.5 75.4 C44 76.4 56 76.4 59.5 75.4 C57 79.6 43 79.6 40.5 75.4 Z" fill="url(#${id}l)"/>
+      <path d="M40 75.3 C45 76.6 55 76.6 60 75.3" fill="none" stroke="${shade(lips, -0.45)}" stroke-width=".9" stroke-linecap="round"/>
+      <ellipse cx="50" cy="77.4" rx="4" ry=".9" fill="#FFFFFF" opacity=".28"/>
+    </g>
     <g class="mouth grin"><path d="M38 73.5 C44 76 56 76 62 73.5 C60 82 54 85 50 85 C46 85 40 82 38 73.5 Z" fill="#5A1F1A"/>
       <path d="M40 74.5 C46 76.5 54 76.5 60 74.5 L59 77.5 C54 78.5 46 78.5 41 77.5 Z" fill="#FFFFFF"/>
       <path d="M38 73.5 C44 76 56 76 62 73.5" fill="none" stroke="${lips}" stroke-width="1.8" stroke-linecap="round"/></g>
