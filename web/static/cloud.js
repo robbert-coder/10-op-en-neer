@@ -31,7 +31,8 @@ export const validCloudCode = (c) => c.length === 12 && [...c].every((ch) => ALP
 async function rpc(name, body) {
   const res = await fetch(`${URL_BASE}/rest/v1/rpc/${name}`, {
     method: "POST",
-    headers: { apikey: KEY, Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" },
+    // Een oude "anon"-sleutel is een JWT en mag ook als Bearer mee; een nieuwe "publishable" sleutel alleen als apikey
+    headers: { apikey: KEY, ...(KEY.startsWith("eyJ") ? { Authorization: `Bearer ${KEY}` } : {}), "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`server ${res.status}`);
