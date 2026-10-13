@@ -12,7 +12,7 @@ import { chatLimit, cleanStartGame, cleanText, devParam } from "./validate.js";
 import { loadIdentity } from "./ident.js";
 import { $, $$, esc, nativeApp, reducedMotion } from "./dom.js";
 import { myAvatar, myVoice, saveSettings, settings, store } from "./storage.js";
-import { BOERENBRIDGE, TIEN_OP_EN_NEER, createGame, maxCardsFor, variantName } from "./rules.js";
+import { BOERENBRIDGE, TIEN_OP_EN_NEER, createGame, maxCardsFor, maxPlayersFor, variantName } from "./rules.js";
 import { addGame, addHighScore, loadHighScores, loadStats, mergeGames, starRating, starsHtml, statsSummary } from "./stats.js";
 import { flushHof, hofCache, hofId, queueHof, sha256Hex } from "./hof.js";
 import { cardSound, initSound, loadSound, playSound, soundReady } from "./sound.js";
@@ -1665,10 +1665,13 @@ function renderNewGame() {
   if ($("#opt-title").value !== newTitle) $("#opt-title").value = newTitle;
   $("#btn-start").textContent = newOnline ? "Tafel openen" : "Start";
   $$(".variant").forEach((el) => el.classList.toggle("selected", (el.dataset.variant === "13") === (newBase === BOERENBRIDGE)));
-  $$("#opt-players button").forEach((b) => b.classList.toggle("selected", Number(b.dataset.players) === newPlayers));
+  $$("#opt-players button").forEach((b) => {
+    b.classList.toggle("selected", Number(b.dataset.players) === newPlayers);
+    b.disabled = Number(b.dataset.players) > maxPlayersFor(newBase);
+  });
   $("#players-note").textContent = newOnline
     ? `Tot ${newPlayers} mensen kunnen aanschuiven. Je kiest bij het starten of lege plaatsen computerspelers worden.`
-    : `Wie er tegen je spelen, wordt elk spel geloot uit Henk, Truus, Kees, Ria, Bram, Gerda, Sjef en Mo.${newPlayers === 5 && newBase === BOERENBRIDGE ? " Boerenbridge gaat met vijf spelers tot hoogstens 10 kaarten." : ""}`;
+    : `Wie er tegen je spelen, wordt elk spel geloot uit Henk, Truus, Kees, Ria, Bram, Gerda, Sjef en Mo.${newBase === BOERENBRIDGE ? " Boerenbridge gaat tot 13 kaarten, dus met hoogstens 4 spelers." : ""}`;
   const full = maxCardsFor(newBase, newPlayers);
   $$("#opt-length button").forEach((b) => b.classList.toggle("selected", (b.dataset.length === "normaal") === (newMax == null)));
   $("#len-normaal").textContent = `${2 * full - 1} rondes`;
@@ -2772,6 +2775,7 @@ $("#btn-new").addEventListener("click", () => { newOnline = false; show("newgame
 $$(".variant").forEach((el) => el.addEventListener("click", () => {
   newBase = el.dataset.variant === "13" ? BOERENBRIDGE : TIEN_OP_EN_NEER;
   newMax = null;
+  newPlayers = Math.min(newPlayers, maxPlayersFor(newBase));
   newRounding = newBase.roundingAllowed;
   newMustTrump = newBase.mustTrump;
   renderNewGame();
@@ -2781,8 +2785,8 @@ $("#opt-tips").addEventListener("change", (e) => { settings.tips = e.target.chec
 $("#opt-rounding").addEventListener("change", (e) => { newRounding = e.target.checked; renderNewGame(); });
 $("#opt-players").addEventListener("click", (e) => {
   const b = e.target.closest("[data-players]");
-  if (!b) return;
-  newPlayers = Number(b.dataset.players);
+  if (!b || b.disabled) return;
+  newPlayers = Math.min(Number(b.dataset.players), maxPlayersFor(newBase));
   renderNewGame();
 });
 $("#opt-length").addEventListener("click", (e) => {

@@ -1,5 +1,6 @@
 // Wat er per versie nieuw is. Wie na een nieuwe versie terugkomt, ziet dit in het hoofdmenu.
 export const CHANGES = [
+  { v: "2.34", items: ["Boerenbridge gaat altijd tot 13 kaarten, en kan daarom met hoogstens 4 spelers."] },
   { v: "2.33", items: [
     "Achter de schermen opgeruimd: de code is opgesplitst in kleinere stukken, zodat verbeteringen sneller en veiliger gaan.",
     "Boerenbridge met 5 spelers (tot 10 kaarten, meer kan niet) telt nu als volledig spel voor de sterren en de highscores.",

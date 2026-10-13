@@ -33,5 +33,11 @@ export const variantName = (rules) => engineVariantName(
   rules.maxCards, rules.pointsPerTrick, rules.wrongScoresZero, rules.penaltyPerTrick, rules.roundingAllowed, rules.mustTrump,
 );
 
+/**
+ * Hoeveel spelers er mee kunnen doen met deze spelsoort, zonder minder kaarten te spelen: bij Boerenbridge
+ * (tot 13 kaarten) zijn dat er 4, bij 10 op en neer 5.
+ */
+export const maxPlayersFor = (base) => Math.min(5, Math.floor(52 / base.maxCards));
+
 /** Hoogste aantal kaarten dat kan: 52 kaarten moeten genoeg zijn voor iedereen. */
 export const maxCardsFor = (base, players) => Math.min(base.maxCards, Math.floor(52 / players));

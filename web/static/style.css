@@ -701,6 +701,7 @@ h1 { font-size: 38px; margin: 18px 0 0; letter-spacing: -.5px; text-wrap: balanc
 .seg { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 8px; }
 .seg button { padding: 10px; font-weight: 600; }
 .seg button.selected { background: var(--gold); color: var(--gold-ink); border-color: transparent; }
+.seg button:disabled { opacity: .35; cursor: not-allowed; }
 .field-note { display: block; margin-top: 6px; color: var(--muted); font-weight: 400; font-size: 13px; }
 .field-note:empty { display: none; }
 
