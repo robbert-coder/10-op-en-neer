@@ -196,5 +196,15 @@ fun variantName(
     mustTrump: Boolean,
 ): String = Rules(maxCards, pointsPerTrick, wrongScoresZero, penaltyPerTrick, false, roundingAllowed, mustTrump).variantName
 
+/** Soort spel ("10openneer", "boerenbridge", "hybride") bij de regels; sterren en highscores zijn per soort. */
+@JsExport
+fun variantKey(
+    pointsPerTrick: Int,
+    wrongScoresZero: Boolean,
+    penaltyPerTrick: Int,
+    roundingAllowed: Boolean,
+    mustTrump: Boolean,
+): String = Rules(10, pointsPerTrick, wrongScoresZero, penaltyPerTrick, false, roundingAllowed, mustTrump).variantKey
+
 @JsExport
 fun defaultNames(): Array<String> = Game.DEFAULT_NAMES.toTypedArray()

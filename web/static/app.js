@@ -12,8 +12,8 @@ import { chatLimit, cleanStartGame, cleanText, devParam } from "./validate.js";
 import { loadIdentity } from "./ident.js";
 import { $, $$, esc, nativeApp, reducedMotion } from "./dom.js";
 import { myAvatar, myVoice, saveSettings, settings, store } from "./storage.js";
-import { BOERENBRIDGE, TIEN_OP_EN_NEER, createGame, maxCardsFor, maxPlayersFor, variantName } from "./rules.js";
-import { addGame, addHighScore, loadHighScores, loadStats, mergeGames, starRating, starsHtml, statsSummary } from "./stats.js";
+import { BOERENBRIDGE, TIEN_OP_EN_NEER, createGame, maxCardsFor, maxPlayersFor, variantKey, variantName } from "./rules.js";
+import { KINDS, addGame, addHighScore, loadHighScores, loadStats, mergeGames, starRating, starsHtml, statsForKind, statsSummary } from "./stats.js";
 import { flushHof, hofCache, hofId, queueHof, sha256Hex } from "./hof.js";
 import { cardSound, initSound, loadSound, playSound, soundReady } from "./sound.js";
 import { celebrate, isCelebrating } from "./celebrate.js";
@@ -56,33 +56,49 @@ function recordStats() {
 /** Je eigen overzicht naar de tafel sturen (bij aanschuiven en na elk uitgespeeld spel). */
 const shareStats = () => online?.link?.setStats?.(statsSummary());
 
-/** De statistiek van speler nr in het spel: van jezelf uit je eigen lijst, van anderen zoals ze het delen. */
+/** Soort spel aan tafel (of aan de online tafel die nog moet beginnen): de sterren gelden per soort. */
+function tableKind() {
+  if (st?.variantKey) return st.variantKey;
+  const rules = online?.rules ?? online?.game?.rules;
+  return rules ? variantKey(rules) : "10openneer";
+}
+
+/**
+ * De statistiek van speler nr in het spel, voor de soort spel aan tafel: van jezelf uit je eigen lijst, van
+ * anderen zoals ze het delen.
+ */
 function statsOfSeat(nr) {
   const p = st?.players[nr - 1];
   if (!p?.human) return null;
-  if (!online) return nr === 1 ? statsSummary() : null;
-  if (p.seat === online.seat) return statsSummary();
-  return online.players.find((x) => x.seat === p.seat)?.stats ?? null;
+  if (!online) return nr === 1 ? statsForKind(statsSummary(), tableKind()) : null;
+  return seatStats(p.seat);
+}
+
+/** Het overzicht van wie op [seat] van de online tafel zit, voor de soort spel aan tafel. */
+function seatStats(seat) {
+  const all = seat === online.seat ? statsSummary() : online.players.find((x) => x.seat === seat)?.stats;
+  return statsForKind(all ?? null, tableKind());
 }
 
 let playerCard = null; // {name, avatar, stats, computer} als je op iemand hebt getikt
 
 function playerCardHtml() {
   const { name, avatarHtml: face, stats, computer, starsOpen } = playerCard;
+  const kind = KINDS[playerCard.kind ?? tableKind()];
   const pct = (a, b) => (b ? Math.round((100 * a) / b) : 0);
   const body = computer
     ? `<p>Een computerspeler. Die houdt geen statistiek bij.</p>`
     : !stats?.g
-      ? `<p>${esc(name)} heeft nog geen volledig spel uitgespeeld${stats?.a ? ` (wel ${stats.a} ${stats.a === 1 ? "kort spel" : "korte spellen"})` : ""}, dus er zijn nog geen sterren.</p>`
+      ? `<p>${esc(name)} heeft nog geen volledig spel ${esc(kind)} uitgespeeld${stats?.a ? ` (wel ${stats.a} ${stats.a === 1 ? "kort spel" : "korte spellen"})` : ""}, dus er zijn nog geen sterren.</p>`
       : `${starsHtml(starRating(stats), "big")}
         <div class="stat-tiles three">
           <div class="stat-tile"><b>${stats.g}</b><small>gespeeld</small></div>
           <div class="stat-tile"><b>${pct(stats.w, stats.g)}%</b><small>gewonnen (${stats.w})</small></div>
           <div class="stat-tile"><b>${pct(stats.ok, stats.r)}%</b><small>goed voorspeld</small></div>
-        </div><p class="pcard-note">Over ${stats.g} volledige ${stats.g === 1 ? "spel" : "spellen"}${stats.a > stats.g ? `; daarnaast ${stats.a - stats.g} kort` : ""}.</p>`;
+        </div><p class="pcard-note">Over ${stats.g} volledige ${stats.g === 1 ? "spel" : "spellen"} ${esc(kind)}${stats.a > stats.g ? `; daarnaast ${stats.a - stats.g} kort` : ""}.</p>`;
   const about = computer ? "" : `<details class="stars-about" ${starsOpen ? "open" : ""}><summary>Hoe werken de sterren?</summary>
     <p>De sterren (een halve tot vijf) laten zien hoe goed iemand speelt. Alleen volledige spellen tellen mee,
-    en geen spellen waarin tips zijn gebruikt.</p>
+    en geen spellen waarin tips zijn gebruikt. Ze gelden per soort spel: 10 op en neer en Boerenbridge apart.</p>
     <ul><li>Voor 60% telt hoe hoog je eindigt: eerste is het best, laatste het minst. Zo zijn tafels van 2 tot 5 spelers te vergelijken.</li>
     <li>Voor 40% telt hoe vaak je voorspelling precies klopte.</li>
     <li>Met weinig spellen blijven de sterren dicht bij het midden; hoe meer je speelt, hoe eerlijker het beeld.</li></ul></details>`;
@@ -219,9 +235,11 @@ function renderStats() {
   const recent = list.slice(0, 15).map((g) => `<div class="stat-row">
       <span class="name">${esc(g.variant)}<small>${date(g.time)} · ${g.online ? "samen" : "tegen de computer"} · ${g.players} spelers</small></span>
       <span class="num place">${g.rank === 1 ? `${NL_FLAG} 1e` : `${g.rank}e`}</span><span class="num best">${g.score}</span></div>`).join("");
-  const mine = statsTab === "alles" ? starRating(statsSummary()) : null;
+  // Sterren per soort spel, uit al je volledige spellen
+  const mine = statsTab === "alles" ? statsSummary(all) : null;
+  const stars = !mine ? [] : Object.entries(KINDS).map(([kind, label]) => [label, starRating(statsForKind(mine, kind))]).filter(([, s]) => s != null);
   $("#stats-body").innerHTML = `
-    ${mine != null ? `<div class="my-rating">${starsHtml(mine, "big")}<small>Uit je volledige spellen. Dit zien de anderen als je samen speelt.</small></div>` : ""}
+    ${stars.length ? `<div class="my-rating">${stars.map(([label, s]) => `<div class="kind-stars"><b>${esc(label)}</b>${starsHtml(s, "big")}</div>`).join("")}<small>Per soort spel, uit je volledige spellen. Dit zien de anderen als je samen speelt.</small></div>` : ""}
     <div class="stat-tiles">
       ${tile(list.length, "gespeeld")}
       ${tile(`${pct(won, list.length)}%`, `gewonnen (${won})`)}
@@ -1775,13 +1793,13 @@ async function renderHallOfFame() {
     : data.scores.map((h, i) => `<div class="hs-row hof${mine(h) ? " me" : ""}"><span class="pos">${i + 1}</span>${hofFace(h)}<span class="name">${esc(String(h.name ?? ""))}${h.detail ? `<small>${esc(String(h.detail))}</small>` : ""}</span><span class="date">${hofDate(h.date)}</span><span class="score">${Number(h.score) || 0}</span></div>`).join("");
   if (hsShort) { $("#hof-players").innerHTML = ""; return; }
   const players = data.players
-    .map((p) => ({ ...p, s: cleanStats(p.stats) }))
+    .map((p) => ({ ...p, s: statsForKind(cleanStats(p.stats), hsTab) }))
     .map((p) => ({ ...p, stars: starRating(p.s) }))
     .filter((p) => p.stars != null)
     .sort((a, b) => b.stars - a.stars || b.s.f - a.s.f || b.s.g - a.s.g)
     .slice(0, 25);
   $("#hof-players").innerHTML = players.length === 0 ? "" : `<h3 class="stat-head">Beste spelers</h3>
-    <p class="hs-note">Op sterren: hoe hoog je eindigt en hoe vaak je goed voorspelt, gemiddeld over al je volledige spellen. Met weinig spellen blijven de sterren dicht bij het midden.</p>
+    <p class="hs-note">Op sterren: hoe hoog je eindigt en hoe vaak je goed voorspelt, gemiddeld over je volledige spellen van deze soort. Met weinig spellen blijven de sterren dicht bij het midden.</p>
     <div class="group">${players.map((p, i) => `<div class="hs-row hof${mine(p) ? " me" : ""}"><span class="pos">${i + 1}</span>${hofFace(p)}<span class="name">${esc(String(p.name ?? ""))}<small>${p.s.g} spellen · ${p.s.w} gewonnen · ${p.s.r ? Math.round((100 * p.s.ok) / p.s.r) : 0}% goed</small></span>${starsHtml(p.stars)}</div>`).join("")}</div>`;
 }
 
@@ -2630,7 +2648,7 @@ function renderOnline() {
     const p = online.players.find((x) => x.seat === seat);
     if (p) {
       const me = seat === online.seat;
-      const stats = me ? statsSummary() : p.stats;
+      const stats = seatStats(seat);
       const games = stats?.a ? `${stats.a} ${stats.a === 1 ? "spel" : "spellen"}` : "nog geen spellen";
       return `<div class="lobby-seat" data-seat="${seat}" role="button" tabindex="0"><div class="avatar">${humanAvatarHtml(p.avatar, p.name)}</div>
         <div class="nm">${esc(p.name)}${me ? " (jij)" : ""}<small>${seat === 1 ? "Gastheer" : "Speler"} · ${games}</small>${starsHtml(starRating(stats))}</div>
@@ -3100,7 +3118,7 @@ $("#lobby-seats").addEventListener("click", (e) => {
   const p = online.players.find((x) => x.seat === seat);
   if (!p) return;
   openPlayerCard({ name: p.name, avatarHtml: `<div class="avatar">${humanAvatarHtml(p.avatar, p.name)}</div>`,
-    stats: seat === online.seat ? statsSummary() : p.stats });
+    stats: seatStats(seat) });
 });
 
 // Tik op een gezicht, naam of de sterren (ook bij jezelf): het kaartje met statistiek en uitleg over de sterren

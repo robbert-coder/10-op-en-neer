@@ -114,3 +114,9 @@ test("cleanGame: soort en volledig (sinds 2.33) alleen als ze kloppen", () => {
   assert.equal("key" in bad, false);
   assert.equal("full" in bad, false);
 });
+
+test("cleanStats: overzicht per soort spel alleen met bekende soorten", () => {
+  const s = cleanStats({ a: 3, g: 3, w: 1, r: 9, ok: 4, f: 50, v: { boerenbridge: { a: 2, g: 2, w: 9, r: 6, ok: 2, f: 40 }, "<x>": { a: 1, g: 1 } } });
+  assert.deepEqual(Object.keys(s.v), ["boerenbridge"]);
+  assert.equal(s.v.boerenbridge.w, 2); // nooit meer gewonnen dan gespeeld
+});

@@ -1,6 +1,6 @@
 // Spelregels aan de kant van de webpagina: de standaardregels, een spel maken in de spelmotor en de naam van
 // een spelsoort. De regels zelf staan in de spelcode (Kotlin, Rules.kt); hier alleen wat het scherm nodig heeft.
-import { WebGame, variantName as engineVariantName } from "./tienopenneer.mjs";
+import { WebGame, variantKey as engineVariantKey, variantName as engineVariantName } from "./tienopenneer.mjs";
 
 /** Standaardregels voor het scherm Nieuw spel; gelijk aan Rules.TIEN_OP_EN_NEER in de spelcode. */
 export const TIEN_OP_EN_NEER = Object.freeze({
@@ -38,6 +38,11 @@ export const variantName = (rules) => engineVariantName(
  * (tot 13 kaarten) zijn dat er 4, bij 10 op en neer 5.
  */
 export const maxPlayersFor = (base) => Math.min(5, Math.floor(52 / base.maxCards));
+
+/** Soort spel bij deze regels ("10openneer", "boerenbridge" of "hybride"), zoals de spelcode die ook geeft. */
+export const variantKey = (rules) => engineVariantKey(
+  rules.pointsPerTrick, rules.wrongScoresZero, rules.penaltyPerTrick, rules.roundingAllowed, rules.mustTrump,
+);
 
 /** Hoogste aantal kaarten dat kan: 52 kaarten moeten genoeg zijn voor iedereen. */
 export const maxCardsFor = (base, players) => Math.min(base.maxCards, Math.floor(52 / players));

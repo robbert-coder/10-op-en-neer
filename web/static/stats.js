@@ -31,8 +31,35 @@ export const isFullGame = (g) => (typeof g.full === "boolean" ? g.full : !/ tot 
 /** Telt een spel mee voor de sterren? Niet als je er tips bij gebruikte. */
 export const countsForRating = (g) => isFullGame(g) && !g.tips;
 
-/** Kort overzicht van al je spellen, om met de anderen aan tafel te delen. */
+/** De soorten spel; highscores, de Hall of Fame en de sterren zijn per soort. */
+export const KINDS = { "10openneer": "10 op en neer", boerenbridge: "Boerenbridge", hybride: "Hybride" };
+
+/** Soort van een bewaard spel. Nieuwe spellen weten het zelf (key); bij oudere leiden we het af uit de naam. */
+export const gameKind = (g) => g.key
+  ?? (g.variant.startsWith("10 op en neer") ? "10openneer" : g.variant.startsWith("Boerenbridge") ? "boerenbridge" : "hybride");
+
+/**
+ * Kort overzicht van al je spellen, om met de anderen aan tafel te delen: in totaal, en in v per soort spel
+ * (de sterren zijn per soort, want Boerenbridge en 10 op en neer zijn verschillende spellen).
+ */
 export function statsSummary(all = loadStats()) {
+  const sum = summarize(all);
+  if (!sum) return null;
+  const v = {};
+  for (const kind of Object.keys(KINDS)) {
+    const s = summarize(all.filter((g) => gameKind(g) === kind));
+    if (s) v[kind] = s;
+  }
+  return { ...sum, v };
+}
+
+/**
+ * Het overzicht van één soort spel uit een gedeeld overzicht. Oudere versies (voor 2.35) deelden alleen het
+ * totaal; dan dat.
+ */
+export const statsForKind = (stats, kind) => (!stats ? null : stats.v ? stats.v[kind] ?? null : stats);
+
+function summarize(all) {
   if (!all.length) return null;
   // Alleen volledige spellen tellen mee: korte spellen zeggen te weinig over hoe goed je speelt
   const list = all.filter(countsForRating);

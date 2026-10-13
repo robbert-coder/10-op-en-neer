@@ -34,7 +34,9 @@ test("volledig spel: uit de spelcode, en bij oude spellen uit de naam", () => {
 test("samenvatting en sterren tellen alleen volledige spellen zonder tips", () => {
   const all = [game("g1"), game("g2", { rank: 4, won: false }), game("g3", { full: false }), game("g4", { tips: true })];
   const s = stats.statsSummary(all);
-  assert.deepEqual(s, { a: 4, g: 2, w: 1, r: 38, ok: 24, f: 50 });
+  const { v, ...total } = s;
+  assert.deepEqual(total, { a: 4, g: 2, w: 1, r: 38, ok: 24, f: 50 });
+  assert.deepEqual(v["10openneer"], total); // allemaal 10 op en neer
   const stars = stats.starRating(s);
   assert.ok(stars >= 0.5 && stars <= 5 && Number.isInteger(stars * 2));
   assert.equal(stats.starRating({ g: 0 }), null);
@@ -79,4 +81,15 @@ test("hand sorteren: rood en zwart om en om, binnen een kleur op waarde", () => 
   assert.deepEqual(up.filter((c) => Math.floor(c / 100) === 2), [202, 214]);
   const down = sortHand(hand, true).map((c) => c.code);
   assert.deepEqual(down.filter((c) => Math.floor(c / 100) === 2), [214, 202]);
+});
+
+test("sterren per soort spel: 10 op en neer en Boerenbridge apart", () => {
+  const all = [game("g1"), game("g2", { variant: "Boerenbridge", key: "boerenbridge", rank: 4, won: false }), game("g3", { variant: "Boerenbridge" })];
+  const s = stats.statsSummary(all);
+  assert.equal(s.g, 3);
+  assert.equal(stats.statsForKind(s, "10openneer").g, 1);
+  assert.equal(stats.statsForKind(s, "boerenbridge").g, 2); // ook een ouder spel zonder key, uit de naam
+  assert.equal(stats.statsForKind(s, "hybride"), null);
+  // Oudere versies deelden alleen het totaal
+  assert.equal(stats.statsForKind({ a: 1, g: 1 }, "boerenbridge").g, 1);
 });

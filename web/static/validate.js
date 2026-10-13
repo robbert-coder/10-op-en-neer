@@ -55,8 +55,22 @@ export function cleanAvatar(v) {
   return null;
 }
 
-/** Het statistiekoverzicht van een ander: alleen nette getallen, of null. */
+/**
+ * Het statistiekoverzicht van een ander: alleen nette getallen, of null. Met per soort spel (v) nog een
+ * overzicht van dezelfde vorm.
+ */
 export function cleanStats(v) {
+  const sum = cleanSummary(v);
+  if (!sum || !isObject(v.v)) return sum;
+  const kinds = {};
+  for (const k of ["10openneer", "boerenbridge", "hybride"]) {
+    const s = cleanSummary(v.v[k]);
+    if (s) kinds[k] = s;
+  }
+  return { ...sum, v: kinds };
+}
+
+function cleanSummary(v) {
   if (!isObject(v)) return null;
   const n = (x, max) => cleanInt(x, 0, max, 0);
   const g = n(v.g, 100000);

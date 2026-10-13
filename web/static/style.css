@@ -822,6 +822,8 @@ h1 { font-size: 38px; margin: 18px 0 0; letter-spacing: -.5px; text-wrap: balanc
 .pcard .stat-tiles.three { grid-template-columns: repeat(3, 1fr); margin-bottom: 4px; }
 .my-rating { display: flex; flex-direction: column; align-items: center; margin-top: 8px; }
 .my-rating small { color: var(--muted); font-size: 12px; }
+.kind-stars { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.kind-stars b { min-width: 120px; text-align: right; font-size: 14px; }
 .seat .avatar.has-stars { margin-bottom: 13px; }
 @media (min-width: 1000px) and (min-height: 640px) { .seat .avatar.has-stars { margin-bottom: 16px; } }
 #hs-length { margin-top: 8px; }
