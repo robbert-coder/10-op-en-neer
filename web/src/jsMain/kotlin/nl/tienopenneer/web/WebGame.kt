@@ -102,6 +102,8 @@ class WebGame(
         sb.append('{')
         sb.append("\"variant\":").append(str(r.variantName))
         sb.append(",\"isTienOpEnNeer\":").append(r.isTienOpEnNeer)
+        sb.append(",\"variantKey\":").append(str(r.variantKey))
+        sb.append(",\"fullGame\":").append(r.isFullGame(n))
         sb.append(",\"playerCount\":").append(n)
         sb.append(",\"round\":").append(g.round)
         sb.append(",\"rounds\":").append(r.rounds)
@@ -179,6 +181,20 @@ fun describeCard(code: Int): String {
     val c = Card.fromCode(code)
     return "${Card.suitName(c.suit)} ${Card.rankName(c.rank)}"
 }
+
+/**
+ * Naam van een spelsoort ("10 op en neer", "Boerenbridge tot 7", "Hybride (nr, iv)"), voor het scherm
+ * Nieuw spel en de lobby, nog voordat er een spel is. Zo staat die regel alleen in de spelcode (Rules).
+ */
+@JsExport
+fun variantName(
+    maxCards: Int,
+    pointsPerTrick: Int,
+    wrongScoresZero: Boolean,
+    penaltyPerTrick: Int,
+    roundingAllowed: Boolean,
+    mustTrump: Boolean,
+): String = Rules(maxCards, pointsPerTrick, wrongScoresZero, penaltyPerTrick, false, roundingAllowed, mustTrump).variantName
 
 @JsExport
 fun defaultNames(): Array<String> = Game.DEFAULT_NAMES.toTypedArray()

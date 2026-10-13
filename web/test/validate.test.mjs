@@ -105,3 +105,12 @@ test("BoundedMap: groeit niet voorbij het maximum", () => {
   assert.equal(m.size, 2);
   assert.equal(m.has("a"), false);
 });
+
+test("cleanGame: soort en volledig (sinds 2.33) alleen als ze kloppen", () => {
+  const g = cleanGame({ id: "x", variant: "Boerenbridge tot 10", key: "boerenbridge", full: true });
+  assert.equal(g.key, "boerenbridge");
+  assert.equal(g.full, true);
+  const bad = cleanGame({ id: "y", key: "<script>", full: "ja" });
+  assert.equal("key" in bad, false);
+  assert.equal("full" in bad, false);
+});

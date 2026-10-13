@@ -29,7 +29,7 @@ jobs:
 
       - name: Versienummers van app en website gelijk
         run: |
-          web=$(sed -n 's/^const APP_VERSION = "\(.*\)";/\1/p' web/static/app.js)
+          web=$(sed -n 's/^export const APP_VERSION = "\(.*\)";/\1/p' web/static/version.js)
           app=$(sed -n 's/^ *versionName = "\(.*\)"/\1/p' app/build.gradle.kts)
           echo "website $web, app $app"
           [ -n "$web" ] && [ "$web" = "$app" ]
@@ -41,7 +41,7 @@ jobs:
         run: |
           ./gradlew :web:site
           # Hieraan ziet een geopende website dat er een nieuwe versie is
-          web=$(sed -n 's/^const APP_VERSION = "\(.*\)";/\1/p' web/static/app.js)
+          web=$(sed -n 's/^export const APP_VERSION = "\(.*\)";/\1/p' web/static/version.js)
           echo "{\"v\":\"$web\"}" > web/build/site/versie.json
 
       - uses: actions/upload-pages-artifact@v3

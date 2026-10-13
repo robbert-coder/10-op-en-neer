@@ -1,109 +1,43 @@
 // Webversie van "10 op en neer". De spelregels en computerspelers komen uit de Kotlin-code
 // van de Android-app (tienopenneer.mjs); dit bestand tekent alleen het scherm.
-import { WebGame, describeCard, defaultNames } from "./tienopenneer.mjs";
-import { faceSvg, initialSvg, emojiSvg, puppetBodySvg } from "./faces.js";
+import { describeCard, defaultNames } from "./tienopenneer.mjs";
+import { faceSvg, initialSvg, emojiSvg } from "./faces.js";
 import * as tineke from "./tineke.js";
 import { BID_LINES, WET_LINES, BID_MS } from "./voices.js";
 import { CHARACTERS, CHARACTER_IDS, CLASSIC_CAST, REACTIONS, drawCast } from "./characters.js";
 import { CHANGES } from "./changelog.js";
-import { cloudEnabled, makeCloudCode, normalizeCloudCode, formatCloudCode, validCloudCode, fetchStats, saveStats, fetchHallOfFame, sendHofScore, sendHofPlayer, onCloudHealth } from "./cloud.js";
+import { cloudEnabled, makeCloudCode, normalizeCloudCode, formatCloudCode, validCloudCode, fetchStats, saveStats, fetchHallOfFame, onCloudHealth } from "./cloud.js";
 import { Host, Guest, PublicLobby, makeCode, normalizeCode, useIdentity, AVATAR_EMOJIS, AVATAR_FACES, cleanAvatar, cleanStats, cleanVoice } from "./net.js";
-import { chatLimit, cleanGame, cleanList, cleanStartGame, cleanText, devParam } from "./validate.js";
+import { chatLimit, cleanStartGame, cleanText, devParam } from "./validate.js";
 import { loadIdentity } from "./ident.js";
+import { $, $$, esc, nativeApp, reducedMotion } from "./dom.js";
+import { myAvatar, myVoice, saveSettings, settings, store } from "./storage.js";
+import { BOERENBRIDGE, TIEN_OP_EN_NEER, createGame, maxCardsFor, variantName } from "./rules.js";
+import { addGame, addHighScore, loadHighScores, loadStats, mergeGames, starRating, starsHtml, statsSummary } from "./stats.js";
+import { flushHof, hofCache, hofId, queueHof, sha256Hex } from "./hof.js";
+import { cardSound, initSound, loadSound, playSound, soundReady } from "./sound.js";
+import { celebrate, isCelebrating } from "./celebrate.js";
+import { askNotifications, clearTurnNotice, inBackground, iosBrowser, isIOS, notifyAlways, notifyPermission, notifyUnsupportedText, setAppVisible, turnNotice } from "./notify.js";
+import { cardHtml, sortHand, trumpMiniHtml } from "./cards.js";
+import { APP_VERSION, isNewerVersion } from "./version.js";
 
 // Je sleutel voor samen spelen (ident.js). Lukt dat niet (zeer oude browser), dan werkt alleen samen spelen niet.
 const identity = await loadIdentity().catch((e) => { console.warn("Geen sleutel:", e); return null; });
 useIdentity(identity);
 
-const $ = (sel) => document.querySelector(sel);
-const $$ = (sel) => Array.from(document.querySelectorAll(sel));
-const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-// ------------------------------------------------------------------------------------------
-// Opslag
-// ------------------------------------------------------------------------------------------
-
-const store = {
-  get(key, fallback) {
-    try {
-      const v = localStorage.getItem(key);
-      return v === null ? fallback : JSON.parse(v);
-    } catch {
-      return fallback;
-    }
-  },
-  set(key, value) {
-    try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* privémodus */ }
-  },
-  remove(key) {
-    try { localStorage.removeItem(key); } catch { /* privémodus */ }
-  },
-};
-
-const settings = Object.assign(
-  {
-    playerName: "Speler", tips: false, speed: 3, sortDescending: false, sound: true, speakBids: true, smart: true,
-    tinekeHelp: true, tinekeComments: true, tinekeAsked: false,
-  },
-  store.get("instellingen", {}),
-);
-const saveSettings = () => store.set("instellingen", settings);
-
-const TIEN_OP_EN_NEER = {
-  maxCards: 10, pointsPerTrick: 1, wrongScoresZero: true, penaltyPerTrick: 0,
-  negativeScores: false, roundingAllowed: true, mustTrump: false,
-};
-const BOERENBRIDGE = {
-  maxCards: 13, pointsPerTrick: 3, wrongScoresZero: false, penaltyPerTrick: 3,
-  negativeScores: false, roundingAllowed: false, mustTrump: false,
-};
-
-/**
- * Een spel maken in de spelmotor (Kotlin, via WebGame). Alle regels als losse waarden, in de volgorde van WebGame.
- */
-function createGame(rules, smart, seed, names, actions, humanSeats = [1], viewSeat = 1) {
-  return new WebGame(
-    rules.maxCards, rules.pointsPerTrick, rules.wrongScoresZero, rules.penaltyPerTrick,
-    rules.negativeScores, rules.roundingAllowed, rules.mustTrump, smart,
-    seed, names, actions, humanSeats, viewSeat, rules.players ?? 4,
-  );
-}
-
-/**
- * Welke soort spel dit is, voor de highscorelijsten (die per soort apart zijn).
- */
-function variantKey(s) {
-  if (s.isTienOpEnNeer) return "10openneer";
-  if (s.variant === "Boerenbridge") return "boerenbridge";
-  return "hybride";
-}
-
-/** Spelsoort van een kort spel uit de naam ("10 op en neer tot 3"): de regels zelf wijken dan af van het volledige spel. */
-const shortVariantKey = (name) =>
-  name.startsWith("10 op en neer") ? "10openneer" : name.startsWith("Boerenbridge") ? "boerenbridge" : "hybride";
-
-const MAX_HIGHSCORES = 10;
-
 // Statistieken ---------------------------------------------------------------------------
 
-/** Elk uitgespeeld spel van jezelf, nieuwste eerst (op dit apparaat). */
-const MAX_STATS = 1000;
-/** Je bewaarde spellen; elk gecontroleerd, want ze kunnen ook uit de database komen (zie validate.js). */
-const loadStats = () => cleanList(store.get("statistiek", []), MAX_STATS, cleanGame);
-
-/** Een afgelopen spel bewaren; een spel dat al bewaard is (bijvoorbeeld na herladen) telt niet nog eens. */
+/** Een afgelopen spel bewaren (stats.js); een spel dat al bewaard is (bijvoorbeeld na herladen) telt niet nog eens. */
 function recordStats() {
   if (!st || !game) return;
   const me = st.players[0];
-  const id = `${game.seed}|${game.actionCount()}|${st.variant}`;
-  const list = loadStats();
-  if (list.some((g) => g.id === id)) return;
   const played = me.rounds.filter((r) => r[2] >= 0);
-  list.unshift({
-    id,
+  const added = addGame({
+    id: `${game.seed}|${game.actionCount()}|${st.variant}`,
     time: Date.now(),
     variant: st.variant,
+    key: st.variantKey,
+    full: st.fullGame,
     players: st.players.length,
     online: !!online?.game,
     score: me.total,
@@ -114,49 +48,9 @@ function recordStats() {
     others: st.players.slice(1).map((p) => p.name),
     tips: tipUsed() || undefined,
   });
-  store.set("statistiek", list.slice(0, MAX_STATS));
+  if (!added) return;
   shareStats();
   syncStats();
-}
-
-/** Een spel dat helemaal tot het hoogste aantal kaarten ging (niet "… tot 3"). */
-const isFullGame = (g) => !/ tot \d+$/.test(g.variant);
-/** Telt een spel mee voor de sterren? Niet als je er tips bij gebruikte. */
-const countsForRating = (g) => isFullGame(g) && !g.tips;
-
-/** Kort overzicht van al je spellen, om met de anderen aan tafel te delen. */
-function statsSummary() {
-  const all = loadStats();
-  if (!all.length) return null;
-  // Alleen volledige spellen tellen mee: korte spellen zeggen te weinig over hoe goed je speelt
-  const list = all.filter(countsForRating);
-  // Plaats omgerekend naar 0 (laatste) .. 100 (eerste), zodat tafels van 2 en 5 spelers te vergelijken zijn
-  const place = (g) => (g.players > 1 ? (g.players - g.rank) / (g.players - 1) : 1);
-  return {
-    a: all.length,
-    g: list.length,
-    w: list.filter((g) => g.won).length,
-    r: list.reduce((n, g) => n + g.rounds, 0),
-    ok: list.reduce((n, g) => n + g.good, 0),
-    f: list.length ? Math.round((100 * list.reduce((n, g) => n + place(g), 0)) / list.length) : 0,
-  };
-}
-
-/**
- * Sterren (0,5 tot 5, in halve stappen) uit hoe hoog je eindigt en hoe vaak je goed voorspelt.
- * Met weinig spellen trekt de waardering naar het midden, zodat één gelukje geen vijf sterren geeft.
- */
-function starRating(s) {
-  if (!s?.g) return null;
-  const raw = 0.6 * (s.f / 100) + 0.4 * (s.r ? s.ok / s.r : 0.5);
-  const sure = (raw * s.g + 0.45 * 3) / (s.g + 3);
-  return Math.max(0.5, Math.min(5, Math.round((1 + (4 * (sure - 0.15)) / 0.6) * 2) / 2));
-}
-
-function starsHtml(stars, cls = "") {
-  if (stars == null) return "";
-  const one = (i) => `<i class="${stars >= i ? "full" : stars >= i - 0.5 ? "half" : ""}">★</i>`;
-  return `<span class="stars ${cls}" title="${String(stars).replace(".", ",")} van 5 sterren" aria-label="${String(stars).replace(".", ",")} van 5 sterren">${[1, 2, 3, 4, 5].map(one).join("")}</span>`;
 }
 
 /** Je eigen overzicht naar de tafel sturen (bij aanschuiven en na elk uitgespeeld spel). */
@@ -206,13 +100,6 @@ function openPlayerCard(card) {
 let cloudBusy = null; // lopende synchronisatie
 let cloudStatus = "";
 let cloudError = false;
-
-/** Twee lijsten spellen samenvoegen (op id), zonder spellen van voor het laatste wissen. */
-function mergeGames(a, b, clearedAt) {
-  const byId = new Map();
-  for (const g of [...a, ...b]) if (g.time > clearedAt && !byId.has(g.id)) byId.set(g.id, g);
-  return [...byId.values()].sort((x, y) => y.time - x.time).slice(0, MAX_STATS);
-}
 
 /**
  * Statistieken van dit apparaat en van de server samenvoegen en terugschrijven.
@@ -346,26 +233,6 @@ function renderStats() {
 }
 
 $$("#stats-tabs button").forEach((b) => b.addEventListener("click", () => { statsTab = b.dataset.tab; renderStats(); }));
-const loadHighScores = (key) => store.get("highscore." + key, []);
-
-/** Voegt een score toe en geeft de plaats (1..10), of 0 als de score de lijst niet haalt. */
-function addHighScore(key, name, score, detail = "") {
-  const list = loadHighScores(key);
-  const d = new Date();
-  const date = `${String(d.getDate()).padStart(2, "0")}-${String(d.getMonth() + 1).padStart(2, "0")}-${d.getFullYear()}`;
-  let pos = list.findIndex((h) => score > h.score);
-  if (pos < 0) pos = list.length;
-  if (pos >= MAX_HIGHSCORES) return 0;
-  list.splice(pos, 0, detail ? { name, score, date, detail } : { name, score, date });
-  store.set("highscore." + key, list.slice(0, MAX_HIGHSCORES));
-  return pos + 1;
-}
-
-// Hall of Fame ------------------------------------------------------------------------------
-
-/** Doe je mee aan de Hall of Fame (je naam, plaatje en scores zijn dan voor iedereen te zien)? */
-const hofOn = () => cloudEnabled() && settings.hof !== false;
-
 /**
  * Is de online database (Hall of Fame en statistieken) even niet bereikbaar, dan blijft alles speelbaar:
  * alleen een melding in het hoofdmenu en bij de Hall of Fame. Scores gaan later alsnog mee.
@@ -381,185 +248,22 @@ onCloudHealth((ok) => {
   el.hidden = !cloudDown;
 });
 
-/** SHA-256 als hex, zoals de database die van je Hall of Fame-nummer teruggeeft. */
-async function sha256Hex(text) {
-  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
-  return Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-/** Je vaste, willekeurige nummer in de Hall of Fame (los van de geheime statistiekcode). */
-function hofId() {
-  if (!/^[A-Za-z0-9]{16}$/.test(settings.hofId ?? "")) {
-    const abc = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-    settings.hofId = Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => abc[b % abc.length]).join("");
-    saveSettings();
-  }
-  return settings.hofId;
-}
-
-/** Alleen een getekend gezicht of een emoji gaat mee; een eigen foto blijft op je apparaat. */
-const hofAvatar = () => { const a = myAvatar(); return a && a.length <= 16 ? a : ""; };
-const hofName = () => (settings.playerName || "Speler").trim().slice(0, 24) || "Speler";
-
-/** Scores die nog naar de Hall of Fame moeten (bijvoorbeeld omdat er geen internet was). */
-let hofBusy = null;
-let hofRetrying = false; // één extra ronde, geen eindeloze herhaling zonder internet
-function flushHof() {
-  if (!hofOn()) return Promise.resolve();
-  if (hofBusy) return hofBusy;
-  const run = async () => {
-    try {
-      for (const e of store.get("hof-wachtrij", [])) {
-        await sendHofScore(hofId(), hofName(), hofAvatar(), e);
-        store.set("hof-wachtrij", store.get("hof-wachtrij", []).filter((x) => x.game !== e.game));
-      }
-      const sum = statsSummary();
-      if (sum?.g) await sendHofPlayer(hofId(), hofName(), hofAvatar(), sum);
-      hofCache.clear();
-    } catch {
-      // Geen verbinding of de Hall of Fame is nog niet ingesteld: later opnieuw
-    }
-  };
-  // Pas na het starten opruimen: zonder iets te versturen is run() meteen klaar
-  // Kwam er tijdens het versturen iets bij in de wachtrij, dan dat er meteen achteraan
-  hofBusy = run().finally(() => {
-    hofBusy = null;
-    if (store.get("hof-wachtrij", []).length && !hofRetrying) { hofRetrying = true; flushHof().finally(() => { hofRetrying = false; }); }
-  });
-  return hofBusy;
-}
-
-/**
- * Een score voor de Hall of Fame in de wachtrij zetten: zonder internet gaat hij later alsnog mee.
- */
-function queueHof(entry) {
-  if (!hofOn()) return;
-  const q = store.get("hof-wachtrij", []).filter((x) => x.game !== entry.game);
-  q.push(entry);
-  store.set("hof-wachtrij", q.slice(-50));
-  flushHof();
-}
-
-const hofCache = new Map();
-
-// ------------------------------------------------------------------------------------------
-// Geluid
-// ------------------------------------------------------------------------------------------
-
-let audio = null;
-const buffers = new Map();
-let currentSource = null;
-
-function unlockAudio() {
-  if (!audio) {
-    const AC = window.AudioContext || window.webkitAudioContext;
-    if (!AC) return;
-    audio = new AC();
-    // Alvast laden, zodat het eerste geluid niet hapert
-    BID_LINES[`speler_${myVoice()}`].forEach((row, n) => loadSound(`bod_speler_${myVoice()}_${n}_0`));
-    preloadCast();
-  }
-  if (audio.state === "suspended") audio.resume();
-}
-for (const ev of ["touchend", "click", "keydown"]) document.addEventListener(ev, unlockAudio, true);
-
-/**
- * Kaartgeluiden, ter plekke gemaakt met ruis (geen bestanden): schudden bij een nieuwe ronde, een kaart die
- * over tafel schuift en het bij elkaar vegen van een slag. Ze lopen naast de stemmen, zonder die te onderbreken.
- */
-function cardSound(kind) {
-  if (!audio || !settings.sound || settings.cardSounds === false || inBackground() || audio.state !== "running") return;
-  const now = audio.currentTime;
-  const rate = audio.sampleRate;
-  const noise = (sec) => {
-    const buf = audio.createBuffer(1, Math.max(1, Math.floor(rate * sec)), rate);
-    const d = buf.getChannelData(0);
-    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-    return buf;
-  };
-  // Eén schuifje: gefilterde ruis die snel opkomt en wegsterft, met een licht dalende toon
-  const swish = (at, sec, freq, vol, q = 0.9) => {
-    const src = audio.createBufferSource();
-    src.buffer = noise(sec);
-    const f = audio.createBiquadFilter();
-    f.type = "bandpass";
-    f.Q.value = q;
-    f.frequency.setValueAtTime(freq, at);
-    f.frequency.exponentialRampToValueAtTime(freq * 0.6, at + sec);
-    const g = audio.createGain();
-    g.gain.setValueAtTime(0.0001, at);
-    g.gain.exponentialRampToValueAtTime(vol, at + Math.min(0.02, sec / 4));
-    g.gain.exponentialRampToValueAtTime(0.0001, at + sec);
-    src.connect(f).connect(g).connect(audio.destination);
-    src.start(at);
-    src.stop(at + sec + 0.02);
-  };
-  if (kind === "slide") {
-    // Papier dat over het laken schuift: zachte, brede ruis die rustig aanzwelt en wegglijdt, zonder tik
-    const sec = 0.3 + Math.random() * 0.06;
-    const src = audio.createBufferSource();
-    src.buffer = noise(sec);
-    const hp = audio.createBiquadFilter();
-    hp.type = "highpass";
-    hp.frequency.value = 700;
-    const lp = audio.createBiquadFilter();
-    lp.type = "lowpass";
-    lp.frequency.setValueAtTime(2200, now);
-    lp.frequency.linearRampToValueAtTime(4200 + Math.random() * 800, now + sec * 0.45);
-    lp.frequency.exponentialRampToValueAtTime(1500, now + sec);
-    const g = audio.createGain();
-    g.gain.setValueAtTime(0.0001, now);
-    g.gain.exponentialRampToValueAtTime(0.16, now + sec * 0.35);
-    g.gain.exponentialRampToValueAtTime(0.0001, now + sec);
-    src.connect(hp).connect(lp).connect(g).connect(audio.destination);
-    src.start(now);
-    src.stop(now + sec + 0.02);
-  } else if (kind === "collect") {
-    swish(now, 0.28, 2000, 0.3, 0.6);
-    swish(now + 0.08, 0.2, 2800, 0.15, 0.8);
-  } else if (kind === "shuffle") {
-    // Ritselend schudden: een snelle reeks klikjes, daarna het delen
-    for (let i = 0; i < 16; i++) swish(now + i * 0.028 + Math.random() * 0.01, 0.03, 3200 + Math.random() * 1500, 0.22, 3);
-    for (let i = 0; i < 4; i++) swish(now + 0.62 + i * 0.13, 0.11, 2400 + Math.random() * 500, 0.25);
-  }
-}
+// Geluid (sound.js): bij de eerste tik alvast je eigen stem en die van de computerspelers laden, zodat het
+// eerste geluid niet hapert
+initSound(() => {
+  BID_LINES[`speler_${myVoice()}`].forEach((row, n) => loadSound(`bod_speler_${myVoice()}_${n}_0`));
+  preloadCast();
+});
 
 /** De stemmen van de computerspelers in het huidige spel alvast laden. */
 function preloadCast() {
-  if (!audio || !st) return;
+  if (!soundReady() || !st) return;
   for (let nr = 2; nr <= st.players.length; nr++) {
     const v = faceFor(nr);
     if (!v || !BID_LINES[v]) continue;
     BID_LINES[v].forEach((row, n) => row.forEach((_, k) => loadSound(`bod_${v}_${n}_${k}`)));
     WET_LINES[v].forEach((_, k) => loadSound(`nat_${v}_${k}`));
   }
-}
-
-function loadSound(name) {
-  if (!buffers.has(name)) {
-    const p = fetch(`sounds/${name}.mp3`)
-      .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(r.status)))
-      .then((data) => new Promise((resolve, reject) => audio.decodeAudioData(data, resolve, reject)))
-      .catch(() => null);
-    buffers.set(name, p);
-  }
-  return buffers.get(name);
-}
-
-/** Speelt een geluid; een nieuw geluid onderbreekt het vorige, net als in het origineel. Geeft de duur in ms. */
-async function playSound(name) {
-  if (!audio) return 0;
-  const buffer = await loadSound(name);
-  if (!buffer) return 0;
-  if (currentSource) {
-    try { currentSource.stop(); } catch { /* al gestopt */ }
-  }
-  const src = audio.createBufferSource();
-  src.buffer = buffer;
-  src.connect(audio.destination);
-  src.start();
-  currentSource = src;
-  return buffer.duration * 1000;
 }
 
 // ------------------------------------------------------------------------------------------
@@ -589,8 +293,6 @@ function faceFor(nr) {
 }
 const voiceFor = (nr) => faceFor(nr) ?? `speler_${humanVoice(nr)}`;
 
-/** De gekozen stem van een mens aan tafel: man, vrouw of neutraal. */
-const myVoice = () => cleanVoice(settings.voice) ?? "neutraal";
 function humanVoice(nr) {
   const p = st?.players[nr - 1];
   if (online && p && p.seat !== online.seat) return cleanVoice(online.players.find((x) => x.seat === p.seat)?.voice) ?? "neutraal";
@@ -696,7 +398,7 @@ function restoreSavedGame() {
     currentSmart = saved.smart ?? false;
     currentTips = !!saved.tips;
     currentCast = Array.isArray(saved.cast) ? saved.cast.map((c) => (c && CHARACTERS[c] ? c : null)) : SEAT_FACE.slice();
-    game = createGame(saved.rules, currentSmart, saved.seed, saved.names, saved.actions);
+    game = createGame({ rules: saved.rules, smart: currentSmart, seed: saved.seed, names: saved.names, actions: saved.actions });
     game.setPlayerName(settings.playerName);
     refresh();
   } catch (e) {
@@ -750,7 +452,7 @@ function startNewGame(rules) {
   currentRules = rules;
   currentSmart = settings.smart;
   currentTips = !!settings.tips;
-  game = createGame(rules, currentSmart, Math.floor(Math.random() * 2147483647), names, []);
+  game = createGame({ rules, smart: currentSmart, seed: Math.floor(Math.random() * 2147483647), names });
   gameOverHandled = false;
   endComment = null;
   highScorePlace = 0;
@@ -1038,19 +740,20 @@ function handleGameOver() {
   const me = st.players[0];
   // Volledige spellen vanaf drie spelers hebben een eigen lijst; korte spellen komen in de lijst "kort",
   // met erbij tot hoeveel kaarten, want die scores zijn onderling minder te vergelijken
-  const short = st.variant.match(/ tot (\d+)$/);
-  highScoreShort = !!short;
+  const short = !st.fullGame;
+  const upTo = `tot ${(st.rounds + 1) / 2}`;
+  highScoreShort = short;
   const humans = st.players.filter((p) => p.human).length;
   const bots = st.players.length - humans;
   const mix = `${st.players.length} spelers: ${[humans ? `${humans} ${humans === 1 ? "mens" : "mensen"}` : "", bots ? `${bots} ${bots === 1 ? "computer" : "computers"}` : ""].filter(Boolean).join(", ")}`;
   const gameId = `${game.seed}|${game.actionCount()}|${st.variant}`;
   if (tipUsed()) highScorePlace = 0; // met tips telt het spel niet mee
   else if (!short && st.players.length >= 3) {
-    highScorePlace = addHighScore(variantKey(st), me.name, me.total, mix);
-    queueHof({ game: gameId, list: variantKey(st), score: me.total, detail: mix });
+    highScorePlace = addHighScore(st.variantKey, me.name, me.total, mix);
+    queueHof({ game: gameId, list: st.variantKey, score: me.total, detail: mix });
   } else if (short) {
-    highScorePlace = addHighScore(`${shortVariantKey(st.variant)}.kort`, me.name, me.total, `tot ${short[1]} · ${mix}`);
-    queueHof({ game: gameId, list: `${shortVariantKey(st.variant)}.kort`, score: me.total, detail: `tot ${short[1]} · ${mix}` });
+    highScorePlace = addHighScore(`${st.variantKey}.kort`, me.name, me.total, `${upTo} · ${mix}`);
+    queueHof({ game: gameId, list: `${st.variantKey}.kort`, score: me.total, detail: `${upTo} · ${mix}` });
   }
   else highScorePlace = 0;
   // AfgelopenCommentaar: applaus bij een goed resultaat
@@ -1062,341 +765,17 @@ function handleGameOver() {
   else if (st.isTienOpEnNeer && me.total >= 180) applause = "goed_gespeeld";
   if (applause && settings.sound) playSound(applause);
   store.remove("spel");
-  celebrate().then(renderDialog);
+  celebrateWinners().then(renderDialog);
   renderDialog();
 }
 
-// ------------------------------------------------------------------------------------------
-// Feestje aan het einde: stuiterende kaarten die een spoor achterlaten, zoals bij het oude Patience
-// ------------------------------------------------------------------------------------------
-
-let celebrating = false;
-
-/** Tekent één kaart op een eigen klein canvas, zodat hij snel steeds opnieuw getekend kan worden. */
-function cardSprite(code, w, dpr) {
-  const h = Math.round(w * 1.42);
-  const c = document.createElement("canvas");
-  c.width = w * dpr;
-  c.height = h * dpr;
-  const g = c.getContext("2d");
-  g.scale(dpr, dpr);
-  const suit = Math.floor(code / 100);
-  const rank = code % 100;
-  const color = suit === 2 || suit === 4 ? "#D93636" : "#1E2430";
-  const sym = SUIT[suit].replace("\uFE0E", "");
-  const label = LABEL[rank] ?? String(rank);
-  const rad = w * 0.12;
-  g.beginPath();
-  if (g.roundRect) g.roundRect(0.5, 0.5, w - 1, h - 1, rad);
-  else g.rect(0.5, 0.5, w - 1, h - 1);
-  g.fillStyle = "#FFFFFF";
-  g.fill();
-  g.strokeStyle = "rgba(0,0,0,.25)";
-  g.stroke();
-  g.fillStyle = color;
-  g.textAlign = "center";
-  g.textBaseline = "middle";
-  const font = (px) => `700 ${px}px ui-rounded, "SF Pro Rounded", system-ui, sans-serif`;
-  g.font = font(w * 0.26);
-  g.fillText(label, w * 0.2, h * 0.14);
-  g.font = font(w * 0.2);
-  g.fillText(sym, w * 0.2, h * 0.3);
-  g.font = font(rank >= 11 && rank <= 13 ? w * 0.5 : w * 0.56);
-  g.fillText(rank >= 11 && rank <= 13 ? label : sym, w / 2, h * 0.56);
-  return c;
-}
-
-/** De winnaar(s) springen als poppetje uit het speelbord en juichen. */
-const WINNER_MODES = ["juichen", "lopen", "dansen", "salto"];
-
-function winnerStage(mode = null) {
-  if (!st) return null;
-  const winners = st.players.map((p, i) => ({ p, nr: i + 1 })).filter((x) => x.p.rank === 1);
-  if (!winners.length) return null;
-  const felt = $("#table").getBoundingClientRect();
-  const stage = document.createElement("div");
-  // Elke keer een verrassing: juichen, over het bord lopen, dansen of een salto
-  const act = WINNER_MODES.includes(mode) ? mode : WINNER_MODES[Math.floor(Math.random() * WINNER_MODES.length)];
-  stage.className = `winner-stage mode-${act}`;
-  const pw = Math.max(64, Math.min(130, (window.innerWidth * 0.3) / winners.length, felt.height * 0.32));
-  stage.style.setProperty("--pw", `${pw}px`);
-  stage.style.setProperty("--n", String(winners.length));
-  stage.style.setProperty("--walk", `${Math.max(0, felt.width / 2 - (pw * winners.length) / 2 - 6)}px`);
-  stage.style.left = `${felt.left + felt.width / 2}px`;
-  stage.style.top = `${felt.top + felt.height * 0.8}px`;
-  const me = (nr) => nr === 1 && st.players[0].human;
-  const title = winners.length === 1
-    ? (me(winners[0].nr) ? "Jij wint!" : `${esc(winners[0].p.name)} wint!`)
-    : `${winners.map((w) => (me(w.nr) ? "Jij" : esc(w.p.name))).join(", ").replace(/, ([^,]*)$/, " en $1")} winnen!`;
-  const slices = Array.from({ length: 14 }, (_, i) => `<i style="--i:${i}"></i>`).join("");
-  stage.innerHTML = `<div class="winner-banner">${title}</div><div class="nl-waving" aria-hidden="true"><span class="pole"></span><span class="cloth">${slices}</span></div><div class="puppets">${winners.map(({ p, nr }, i) => {
+/** Het feestje aan het einde (celebrate.js), met de winnaars van dit spel als poppetjes. */
+function celebrateWinners(mode = null, kind = undefined) {
+  const winners = (st?.players ?? []).map((p, i) => ({ p, nr: i + 1 })).filter((x) => x.p.rank === 1).map(({ p, nr }) => {
     const face = faceFor(nr);
-    const head = face ? faceSvg(face) : humanAvatarHtml(customAvatar(nr), p.name);
-    return `<div class="puppet" style="--d:${i * 0.15}s"><div class="pup-inner">
-      <div class="avatar happy pup-head" data-who="${face ?? "mens"}">${head}</div>${puppetBodySvg(face ?? "mens")}</div></div>`;
-  }).join("")}</div>`;
-  document.body.appendChild(stage);
-  return stage;
-}
-
-/** De eindanimaties met hun kans; de tienen die op en neer gaan komen het vaakst. */
-const CELEBRATIONS = [["tien", 4], ["stuiter", 2], ["sneeuw", 2], ["weg", 2], ["vliegtuig", 2]];
-
-function pickCelebration() {
-  const forced = devParam("anim");
-  if (CELEBRATIONS.some(([k]) => k === forced)) return forced;
-  let r = Math.random() * CELEBRATIONS.reduce((n, [, w]) => n + w, 0);
-  for (const [kind, weight] of CELEBRATIONS) if ((r -= weight) < 0) return kind;
-  return "tien";
-}
-
-/** Speelt een eindanimatie af (elke keer een andere); tikken slaat hem over. */
-function celebrate(mode = null, kind = pickCelebration()) {
-  if (celebrating || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return Promise.resolve();
-  celebrating = true;
-  return new Promise((resolve) => {
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
-    const W = window.innerWidth;
-    const H = window.innerHeight;
-    const canvas = document.createElement("canvas");
-    canvas.className = "celebrate";
-    canvas.dataset.kind = kind;
-    canvas.width = W * dpr;
-    canvas.height = H * dpr;
-    document.body.appendChild(canvas);
-    const g = canvas.getContext("2d");
-    g.scale(dpr, dpr);
-    const w = Math.round(Math.max(46, Math.min(90, W / 8)));
-    const h = Math.round(w * 1.42);
-    const sprites = new Map();
-    const sprite = (code) => {
-      if (!sprites.has(code)) sprites.set(code, cardSprite(code, w, dpr));
-      return sprites.get(code);
-    };
-    const deck = [];
-    for (let rank = 14; rank >= 2; rank--) for (let suit = 1; suit <= 4; suit++) deck.push(suit * 100 + rank);
-    const randomCard = () => deck[Math.floor(Math.random() * deck.length)];
-    let done = false;
-    let started = performance.now();
-
-    const stage = winnerStage(mode);
-    const finish = () => {
-      if (done) return;
-      done = true;
-      canvas.classList.add("out");
-      stage?.classList.add("out");
-      setTimeout(() => { canvas.remove(); stage?.remove(); celebrating = false; resolve(); }, 450);
-    };
-    canvas.addEventListener("pointerdown", finish);
-    stage?.addEventListener("pointerdown", finish);
-
-    /** Tekent een kaart gedraaid rond zijn midden; sx < 1 knijpt hem smal (omdraaien). */
-    const drawCard = (img, x, y, angle = 0, scale = 1, sx = 1) => {
-      g.save();
-      g.translate(x, y);
-      g.rotate(angle);
-      g.scale(scale * sx, scale);
-      g.drawImage(img, -w / 2, -h / 2, w, h);
-      g.restore();
-    };
-
-    const kinds = {
-      // Vier stapels bovenaan, zoals de azen bij Patience; de kaarten stuiteren en laten een spoor na
-      stuiter() {
-        const piles = [0, 1, 2, 3].map((i) => (W - w) * (0.14 + 0.24 * i));
-        const active = [];
-        const gravity = H / 1400;
-        let launched = 0;
-        let last = 0;
-        return (now) => {
-          if (launched < deck.length && now - last > 260 && active.length < 6) {
-            const pile = launched % 4;
-            const dir = piles[pile] + w / 2 < W / 2 ? 1 : -1;
-            const speed = W / 260 + Math.random() * W / 160;
-            active.push({
-              img: sprite(deck[launched]), x: piles[pile], y: H * 0.08,
-              vx: (Math.random() < 0.8 ? dir : -dir) * speed, vy: -Math.random() * H / 120,
-            });
-            launched++;
-            last = now;
-          }
-          for (let i = active.length - 1; i >= 0; i--) {
-            const c = active[i];
-            c.vy += gravity;
-            c.x += c.vx;
-            c.y += c.vy;
-            if (c.y + h > H) { c.y = H - h; c.vy = -c.vy * 0.82; }
-            g.drawImage(c.img, c.x, c.y, w, h);
-            if (c.x < -w || c.x > W) active.splice(i, 1);
-          }
-          return launched >= deck.length && active.length === 0;
-        };
-      },
-
-      // Kaarten dwarrelen als sneeuwvlokken naar beneden, heen en weer wiegend
-      sneeuw() {
-        const flakes = Array.from({ length: 34 }, (_, i) => ({
-          img: sprite(randomCard()), x: Math.random() * W, delay: i * 110 + Math.random() * 300,
-          speed: H / (3000 + Math.random() * 1800), sway: 20 + Math.random() * 50,
-          phase: Math.random() * 6.3, spin: (Math.random() - 0.5) * 0.002, scale: 0.45 + Math.random() * 0.45,
-        }));
-        return (now, t) => {
-          g.clearRect(0, 0, W, H);
-          let falling = 0;
-          for (const f of flakes) {
-            const age = t - f.delay;
-            if (age < 0) { falling++; continue; }
-            const y = -h + age * f.speed;
-            if (y > H + h) continue;
-            falling++;
-            const x = f.x + Math.sin(age / 700 + f.phase) * f.sway;
-            drawCard(f.img, x, y, Math.sin(age / 900 + f.phase) * 0.6 + age * f.spin, f.scale, Math.cos(age / 600 + f.phase));
-          }
-          return falling === 0;
-        };
-      },
-
-      // Een stapel in het midden; de kaarten vliegen draaiend alle kanten op uit beeld
-      weg() {
-        const cards = deck.map((code, i) => {
-          const a = Math.random() * Math.PI * 2;
-          const v = Math.hypot(W, H) / (900 + Math.random() * 700);
-          return { img: sprite(code), delay: 600 + i * 55, vx: Math.cos(a) * v, vy: Math.sin(a) * v,
-            spin: (Math.random() - 0.5) * 0.02, jitter: (Math.random() - 0.5) * 0.3 };
-        });
-        return (now, t) => {
-          g.clearRect(0, 0, W, H);
-          let left = 0;
-          for (let i = cards.length - 1; i >= 0; i--) {
-            const c = cards[i];
-            const age = Math.max(0, t - c.delay);
-            const x = W / 2 + c.vx * age;
-            const y = H / 2 + c.vy * age;
-            const scale = 1 + age / 900;
-            if (x < -w * 3 || x > W + w * 3 || y < -h * 3 || y > H + h * 3) continue;
-            left++;
-            drawCard(c.img, x, y - (age ? 0 : i * 0.4), c.jitter + c.spin * age, scale);
-          }
-          return left === 0;
-        };
-      },
-
-      // Kaarten vouwen zich op tot papieren vliegtuigjes die rondjes vliegen
-      vliegtuig() {
-        const colors = ["#FFFFFF", "#FFE7A3", "#CFE8FF", "#FFD1D1", "#D7F5D0"];
-        const planes = Array.from({ length: 7 }, (_, i) => {
-          const code = randomCard();
-          return { img: sprite(code), red: [2, 4].includes(Math.floor(code / 100)),
-            hx: W * (0.12 + 0.76 * (i / 6)), hy: H * (0.3 + 0.3 * Math.random()),
-            cx: W * (0.2 + 0.6 * (i / 6)), cy: H * (0.3 + 0.35 * Math.random()),
-            r: Math.min(W, H) * (0.12 + 0.2 * Math.random()), dir: Math.random() < 0.5 ? 1 : -1,
-            phase: Math.random() * 6.3, color: colors[i % colors.length], delay: i * 120 };
-        });
-        const pw = w * 0.9;
-        const drawPlane = (p, x, y, angle, fold) => {
-          g.save();
-          g.translate(x, y);
-          g.rotate(angle);
-          g.scale(1, 1 - 0.35 * fold);
-          // Romp: twee vleugels en de vouw in het midden
-          g.beginPath();
-          g.moveTo(pw * 0.55, 0);
-          g.lineTo(-pw * 0.45, -pw * 0.38);
-          g.lineTo(-pw * 0.3, 0);
-          g.lineTo(-pw * 0.45, pw * 0.38);
-          g.closePath();
-          g.fillStyle = p.color;
-          g.fill();
-          g.strokeStyle = "rgba(0,0,0,.3)";
-          g.lineWidth = 1;
-          g.stroke();
-          g.beginPath();
-          g.moveTo(pw * 0.55, 0);
-          g.lineTo(-pw * 0.3, 0);
-          g.lineTo(-pw * 0.42, pw * 0.08);
-          g.closePath();
-          g.fillStyle = "rgba(0,0,0,.15)";
-          g.fill();
-          g.fillStyle = p.red ? "#D93636" : "#1E2430";
-          g.beginPath();
-          g.arc(-pw * 0.12, -pw * 0.14, pw * 0.05, 0, Math.PI * 2);
-          g.fill();
-          g.restore();
-        };
-        const FOLD = 1100;
-        const FLY = 6200;
-        return (now, t) => {
-          g.clearRect(0, 0, W, H);
-          let flying = 0;
-          for (const p of planes) {
-            const age = t - p.delay;
-            if (age < 0) { flying++; continue; }
-            if (age < FOLD) {
-              // Eerst de kaart, die dichtvouwt: smaller en platter, en dan het vliegtuigje
-              flying++;
-              const k = age / FOLD;
-              if (k < 0.55) drawCard(p.img, p.hx, p.hy, 0, 1 - k * 0.4, 1 - k / 0.55 * 0.85);
-              else drawPlane(p, p.hx, p.hy, -Math.PI / 2, 1 - (k - 0.55) / 0.45);
-              continue;
-            }
-            const f = age - FOLD;
-            const a = p.phase + p.dir * f / 900;
-            // Rondjes rond een eigen middelpunt; na afloop vliegt hij weg naar boven
-            const out = Math.max(0, f - FLY);
-            const x = p.cx + Math.cos(a) * p.r + (p.hx - p.cx) * Math.max(0, 1 - f / 600);
-            const y = p.cy + Math.sin(a) * p.r * 0.6 - out * H / 1200 + (p.hy - p.cy) * Math.max(0, 1 - f / 600);
-            if (y < -pw * 2) continue;
-            flying++;
-            const angle = out > 0 ? -Math.PI / 2 : a + p.dir * Math.PI / 2;
-            drawPlane(p, x, y, angle, 0);
-          }
-          return flying === 0;
-        };
-      },
-
-      // Alle kaarten draaien om tot een tien en gaan in een golf op en neer
-      tien() {
-        const cols = Math.max(4, Math.min(9, Math.floor(W / (w * 1.25))));
-        const rows = Math.max(2, Math.min(4, Math.floor((H * 0.75) / (h * 1.2))));
-        const gapX = W / cols;
-        const gapY = (H * 0.8) / rows;
-        const cards = [];
-        for (let r = 0; r < rows; r++) {
-          for (let c = 0; c < cols; c++) {
-            const suit = 1 + ((r + c) % 4);
-            cards.push({ from: sprite(randomCard()), ten: sprite(suit * 100 + 10),
-              x: gapX * (c + 0.5), y: H * 0.12 + gapY * (r + 0.5), wave: c * 0.55 + r * 0.3,
-              flip: 400 + (c + r) * 90 });
-          }
-        }
-        const END = 7600;
-        return (now, t) => {
-          g.clearRect(0, 0, W, H);
-          for (const c of cards) {
-            const appear = Math.min(1, t / 350);
-            const k = Math.min(1, Math.max(0, (t - c.flip) / 500));
-            const img = k < 0.5 ? c.from : c.ten;
-            const sx = Math.abs(Math.cos(k * Math.PI));
-            // Op en neer: na het omdraaien springen de tienen in een golf
-            const bounce = k >= 1 ? Math.abs(Math.sin((t - c.flip - 500) / 330 - c.wave)) * gapY * 0.35 : 0;
-            const leave = Math.max(0, t - END + 900) / 900;
-            const y = c.y - bounce + leave * leave * H;
-            drawCard(img, c.x, y, 0, 0.8 * appear, Math.max(0.02, sx));
-          }
-          return t > END;
-        };
-      },
-    };
-
-    const step = kinds[kind]();
-    const frame = (now) => {
-      if (done) return;
-      if (step(now, now - started) || now - started > 11000) finish();
-      else requestAnimationFrame(frame);
-    };
-    // De tafel blijft zichtbaar, de kaarten tekenen eroverheen
-    requestAnimationFrame((now) => { started = now; frame(now); });
+    return { name: p.name, me: nr === 1 && p.human, face, head: face ? faceSvg(face) : humanAvatarHtml(customAvatar(nr), p.name) };
   });
+  return celebrate(winners, mode, kind);
 }
 
 // ------------------------------------------------------------------------------------------
@@ -1581,46 +960,17 @@ function tinekeComment(event, always = false) {
   if (text) tinekeSay(text);
 }
 
-// Meldingen -------------------------------------------------------------------------------
+// Meldingen (notify.js) ---------------------------------------------------------------------
 
-/** In de app zegt de app zelf of hij op de achtergrond staat; in de browser zegt de pagina het. */
-let appVisible = true;
 window.tienVisible = (visible) => {
-  appVisible = visible;
+  setAppVisible(visible);
   if (visible) { clearTurnNotice(); drive(); if (screen === "online") renderOnline(); }
 };
 window.tienNotifyChanged = () => { if (screen === "online") renderOnline(); };
-const inBackground = () => document.hidden || !appVisible;
 document.addEventListener("visibilitychange", () => { if (!document.hidden) clearTurnNotice(); });
 
-/** Mogen we meldingen tonen? "granted", "denied", "default" (nog niet gevraagd) of "unsupported". */
-function notifyPermission() {
-  if (nativeApp?.notificationState) return nativeApp.notificationState();
-  if (!("Notification" in window)) return "unsupported";
-  return Notification.permission;
-}
-
-/** Toestemming vragen voor meldingen (bij het openen van of aanschuiven bij een tafel, of via de knop). */
-function askNotifications() {
-  if (settings.notify === false) return;
-  if (nativeApp?.askNotifications) { nativeApp.askNotifications(); return; }
-  if (notifyPermission() === "default") {
-    Notification.requestPermission().then(() => { if (screen === "online") renderOnline(); }).catch(() => {});
-  }
-}
-
-
-const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-const standalone = navigator.standalone === true || window.matchMedia("(display-mode: standalone)").matches;
-
-/** Waarom meldingen hier niet kunnen, of null als ze wel kunnen. */
-function notifyUnsupportedText() {
-  if (notifyPermission() !== "unsupported") return null;
-  if (isIOS && !standalone) {
-    return "Op iPhone en iPad kan een website alleen meldingen geven als je hem op je beginscherm zet: tik in Safari op Deel en dan op Zet op beginscherm, en open het spel daarna vanaf je beginscherm.";
-  }
-  return "Deze browser kan geen meldingen geven. Gebruik de Android-app of een andere browser, zoals Chrome.";
-}
+/** Toestemming vragen voor meldingen; daarna het scherm Samen spelen bijwerken. */
+const askNotify = () => askNotifications(() => { if (screen === "online") renderOnline(); });
 
 /** In de wachtkamer: een knop om meldingen aan te zetten, zolang dat nog niet is gebeurd. */
 function renderNotifyRow() {
@@ -1644,39 +994,9 @@ function renderNotifyRow() {
 }
 $("#btn-notify").addEventListener("click", () => {
   if (notifyPermission() === "denied") nativeApp?.openNotificationSettings?.();
-  else askNotifications();
+  else askNotify();
   setTimeout(() => { if (screen === "online") renderOnline(); }, 1500);
 });
-
-/** Een melding als het spel op de achtergrond staat, bijvoorbeeld omdat je aan de beurt bent. */
-async function turnNotice(text) {
-  if (settings.notify === false || !inBackground()) return;
-  await notifyAlways(text);
-}
-
-/** Een melding, ook als het spel in beeld is (zolang meldingen aan staan). */
-async function notifyAlways(text) {
-  if (settings.notify === false) return;
-  if (nativeApp?.notify) { nativeApp.notify("10 op en neer", text); return; }
-  if (!("Notification" in window) || Notification.permission !== "granted") return;
-  const opts = { body: text, tag: "beurt", renotify: true, icon: "icons/icon-192.png", badge: "icons/icon-192.png" };
-  try {
-    const reg = await navigator.serviceWorker?.getRegistration();
-    if (reg) { await reg.showNotification("10 op en neer", opts); return; }
-  } catch { /* dan de gewone manier */ }
-  try {
-    const n = new Notification("10 op en neer", opts);
-    n.onclick = () => { window.focus(); n.close(); };
-  } catch { /* meldingen kunnen hier niet */ }
-}
-
-async function clearTurnNotice() {
-  nativeApp?.clearNotification?.();
-  try {
-    const reg = await navigator.serviceWorker?.getRegistration();
-    for (const n of (await reg?.getNotifications({ tag: "beurt" })) ?? []) n.close();
-  } catch { /* niets te sluiten */ }
-}
 
 /** Uitleg zodra er iets nieuws gebeurt: jij moet bieden, een kaart kiezen, of een slag is vol. */
 function onTurn() {
@@ -1717,31 +1037,6 @@ $("#tineke-skip").addEventListener("click", () => {
 // ------------------------------------------------------------------------------------------
 // Tekenen
 // ------------------------------------------------------------------------------------------
-
-const SUIT = ["", "♣︎", "♦︎", "♠︎", "♥︎"];
-const LABEL = { 11: "B", 12: "V", 13: "H", 14: "A" };
-
-function cardHtml(code, extra = "", style = "") {
-  if (!code) return `<div class="card empty ${extra}" style="${style}"></div>`;
-  const suit = Math.floor(code / 100);
-  const rank = code % 100;
-  const red = suit === 2 || suit === 4 ? "red" : "";
-  const label = LABEL[rank] ?? String(rank);
-  const sym = SUIT[suit];
-  const mid = rank >= 11 && rank <= 13 ? `<span class="mid face">${label}</span>` : `<span class="mid">${sym}</span>`;
-  return `<div class="card ${red} ${extra}" style="${style}" data-code="${code}">` +
-    `<span class="ci tl"><b>${label}</b><i>${sym}</i></span>${mid}<span class="ci br"><b>${label}</b><i>${sym}</i></span></div>`;
-}
-
-/** De troef rechtsboven: klein, maar met de kleur (klaver, schoppen…) groot genoeg om te herkennen. */
-function trumpMiniHtml(code) {
-  const suit = Math.floor(code / 100);
-  const rank = code % 100;
-  const red = suit === 2 || suit === 4 ? "red" : "";
-  return `<div class="card trumpmini ${red}" style="--w:36px" data-code="${code}"><b>${LABEL[rank] ?? rank}</b><i>${SUIT[suit]}</i></div>`;
-}
-
-const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 
 /** Het gekozen plaatje van een mens aan tafel: een emoji, een foto of anders de eerste letter. */
 function customAvatar(nr) {
@@ -2121,7 +1416,7 @@ function renderGame() {
   }
 
   // Hand
-  const hand = sortHand(st.hand);
+  const hand = sortHand(st.hand, settings.sortDescending);
   const playing = humanPlaying();
   $("#hand").innerHTML = hand
     .map((c) => cardHtml(c.code, `${playing && !c.legal ? "dim" : ""} ${playing && c.legal ? "up" : ""} ${c.code === hintCard ? "hl" : ""}`))
@@ -2199,7 +1494,7 @@ function renderDialog() {
     html = scoreSheetHtml();
   } else if (screen === "game" && st && st.phase === "ROUND_COMPLETE" && !busy) {
     html = roundResultHtml();
-  } else if (screen === "game" && st && st.phase === "GAME_OVER" && !celebrating) {
+  } else if (screen === "game" && st && st.phase === "GAME_OVER" && !isCelebrating()) {
     html = gameOverHtml();
   }
   const key = html === null ? "" : `${cls}|${html}`;
@@ -2312,32 +1607,6 @@ function sheetTableHtml() {
   return `<table><tr><th>Ronde</th>${head}</tr>${rows}<tr class="total"><td>Totaal</td>${totals}</tr></table>`;
 }
 
-/**
- * Kleuren in de hand zo ordenen dat rood en zwart elkaar afwisselen: ruiten niet naast harten en
- * schoppen niet naast klaveren, als dat kan met de kleuren die je hebt.
- */
-function suitOrder(suits) {
-  const red = (s) => s === 2 || s === 4;
-  const perms = (list) => list.length <= 1 ? [list] :
-    list.flatMap((x, i) => perms([...list.slice(0, i), ...list.slice(i + 1)]).map((rest) => [x, ...rest]));
-  let best = null;
-  let bestClash = Infinity;
-  for (const order of perms(suits)) {
-    let clash = 0;
-    for (let i = 1; i < order.length; i++) if (red(order[i]) === red(order[i - 1])) clash++;
-    if (clash < bestClash) { best = order; bestClash = clash; }
-  }
-  return best;
-}
-
-function sortHand(cards) {
-  const suits = [...new Set(cards.map((c) => Math.floor(c.code / 100)))].sort();
-  const pos = new Map(suitOrder(suits).map((s, i) => [s, i]));
-  const dir = settings.sortDescending ? -1 : 1;
-  return cards.slice().sort((a, b) =>
-    pos.get(Math.floor(a.code / 100)) - pos.get(Math.floor(b.code / 100)) || dir * ((a.code % 100) - (b.code % 100)));
-}
-
 function cardsInRound(r) {
   const max = (st.rounds + 1) / 2;
   return max - Math.abs(r - max);
@@ -2377,18 +1646,6 @@ function renderMenu() {
   $("#btn-new").className = inProgress ? "" : "primary";
 }
 
-function rulesVariantName(rules) {
-  const tien = rules.wrongScoresZero && rules.penaltyPerTrick === 0 && rules.roundingAllowed && !rules.mustTrump &&
-    rules.pointsPerTrick === 1;
-  const boeren = rules.penaltyPerTrick > 0 && !rules.roundingAllowed && !rules.mustTrump;
-  const m = rules.maxCards;
-  if (tien) return m === 10 ? "10 op en neer" : `10 op en neer tot ${m}`;
-  if (boeren) return m === 13 ? "Boerenbridge" : `Boerenbridge tot ${m}`;
-  return `Hybride (${rules.roundingAllowed ? "r" : "nr"}${rules.mustTrump ? ", iv" : ""})${m !== 10 && m !== 13 ? ` tot ${m}` : ""}`;
-}
-
-/** Hoogste aantal kaarten dat kan: 52 kaarten moeten genoeg zijn voor iedereen. */
-const maxCardsFor = (base, players) => Math.min(base.maxCards, Math.floor(52 / players));
 const newMaxCards = () => Math.min(newMax ?? newBase.maxCards, maxCardsFor(newBase, newPlayers));
 const newRules = () => ({
   ...newBase, maxCards: newMaxCards(), players: newPlayers, roundingAllowed: newRounding, mustTrump: newMustTrump,
@@ -2429,7 +1686,7 @@ function renderNewGame() {
     : `Geen Tip-knop en geen advies van Tineke. Het spel telt mee voor de highscores, de Hall of Fame en je sterren.${newOnline ? " Dit geldt voor iedereen aan tafel." : ""}`;
   $("#opt-rounding").checked = newRounding;
   $("#opt-musttrump").checked = newMustTrump;
-  $("#variant-name").textContent = `Je speelt: ${rulesVariantName(newRules())} met ${newPlayers} spelers${settings.tips ? ", tips mogen" : ""}`;
+  $("#variant-name").textContent = `Je speelt: ${variantName(newRules())} met ${newPlayers} spelers${settings.tips ? ", tips mogen" : ""}`;
 }
 
 const hsFiltered = () => !!hsPlayers || !!hsVs;
@@ -2528,8 +1785,6 @@ async function renderHallOfFame() {
 // ------------------------------------------------------------------------------------------
 // Eigen plaatje
 // ------------------------------------------------------------------------------------------
-
-const myAvatar = () => cleanAvatar(settings.avatar);
 
 const CAMERA_SVG = `<svg class="face-svg" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="46" fill="rgba(255,255,255,.1)"/>
   <path d="M30 40h9l5-7h12l5 7h9v28H30z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/>
@@ -2641,8 +1896,6 @@ $("#rules-text").innerHTML = RULES_TEXT.map(([h, b]) => `<h3>${h}</h3><p>${b}</p
 const clientId = () => identity?.id ?? "";
 
 /** In de Android-app draait de website vanuit de app zelf; gedeelde links wijzen dan naar de echte website. */
-const nativeApp = window.TienApp ?? null;
-const APP_VERSION = "2.32";
 const SITE_URL = "https://robbert-coder.github.io/10-op-en-neer/";
 // Met het nummer van de gastheer erin: wie via de link komt, weet zo zeker dat hij met de echte gastheer praat
 const tableLink = (code) => `${nativeApp ? SITE_URL : location.origin + location.pathname}?spel=${code}${identity ? `&h=${identity.id}` : ""}`;
@@ -2663,16 +1916,6 @@ function showNews() {
       <ul>${c.items.map((t) => `<li>${esc(t)}</li>`).join("")}</ul></div>`).join("")}</details>`;
   el.hidden = false;
   $("#news-close").addEventListener("click", () => { store.set("laatste-versie", APP_VERSION); el.hidden = true; });
-}
-
-/** "v2.16" tegenover "2.15": is de eerste nieuwer? Per getal vergeleken, dus 2.10 is nieuwer dan 2.9. */
-function isNewerVersion(tag, installed) {
-  const parts = (v) => String(v).replace(/^v/, "").split(".").map((n) => parseInt(n, 10) || 0);
-  const a = parts(tag), b = parts(installed);
-  for (let i = 0; i < Math.max(a.length, b.length); i++) {
-    if ((a[i] ?? 0) !== (b[i] ?? 0)) return (a[i] ?? 0) > (b[i] ?? 0);
-  }
-  return false;
 }
 
 /**
@@ -2877,7 +2120,7 @@ function openChat(open) {
   chatOpen = open;
   if (open && online) online.unread = 0;
   renderChat();
-  if (open && !matchMedia("(pointer: coarse)").matches) $("#chat-input").focus();
+  if (open && !window.matchMedia("(pointer: coarse)").matches) $("#chat-input").focus();
 }
 
 $("#chat-quick").innerHTML = QUICK.map((q) => `<button type="button" class="${q.length > 2 ? "txt" : ""}" data-q="${esc(q)}">${esc(q)}</button>`).join("");
@@ -2922,7 +2165,7 @@ function closeOnline() {
  */
 function openTable(rules) {
   closeOnline();
-  askNotifications();
+  askNotify();
   store.remove("spel");
   game = null;
   st = null;
@@ -2933,7 +2176,7 @@ function openTable(rules) {
   };
   const pub = newPublic ? {
     title: newTitle.trim().slice(0, 40),
-    variant: rulesVariantName(rules) + (settings.tips ? " · tips mogen" : ""), rounds: 2 * rules.maxCards - 1,
+    variant: variantName(rules) + (settings.tips ? " · tips mogen" : ""), rounds: 2 * rules.maxCards - 1,
   } : null;
   online.pub = pub;
   online.link = new Host(code, settings.playerName, netEvents(), null, myAvatar(), rules.players ?? 4, pub);
@@ -2945,7 +2188,7 @@ function openTable(rules) {
 /** Aanschuiven bij een tafel. [hostId]: het nummer van de gastheer, als we dat weten (link of lobby). */
 function joinTable(code, hostId = null) {
   closeOnline();
-  askNotifications();
+  askNotify();
   online = { role: "guest", code, seat: 0, players: [], queue: new Map(), game: null, status: "Verbinden met de tafel…", error: "", chat: [], unread: 0 };
   if (!identity) { online.error = "Samen spelen werkt niet in deze browser."; show("online"); return; }
   online.link = new Guest(code, settings.playerName, clientId(), netEvents(), myAvatar(), hostId);
@@ -2991,7 +2234,10 @@ function startOnlineGame(g, log) {
   currentSmart = g.smart;
   online.game = g;
   online.queue = new Map();
-  game = createGame(g.rules, g.smart, g.seed, g.names, log.map((a) => a.value), g.humanSeats, online.seat);
+  game = createGame({
+    rules: g.rules, smart: g.smart, seed: g.seed, names: g.names, actions: log.map((a) => a.value),
+    humanSeats: g.humanSeats, viewSeat: online.seat,
+  });
   markTakenOver();
   gameOverHandled = false;
   endComment = null;
@@ -3273,8 +2519,9 @@ function resumeOnline() {
       online.game = saved.started;
       currentRules = saved.started.rules;
       currentSmart = saved.started.smart;
-      game = createGame(saved.started.rules, saved.started.smart, saved.started.seed, saved.started.names,
-        saved.log.map((a) => a.value), saved.started.humanSeats, 1);
+      game = createGame({
+        ...saved.started, actions: saved.log.map((a) => a.value), viewSeat: 1,
+      });
       markTakenOver();
       refresh();
       return true;
@@ -3375,8 +2622,7 @@ function renderOnline() {
   $("#share-row").hidden = !isHost || !!online.pub;
   const rules = online.rules ?? online.game?.rules;
   const tipsText = online.game ? (online.game.tips ? " · tips mogen" : "") : online.role === "host" && online.tips ? " · tips mogen" : "";
-  $("#lobby-variant").textContent = rules ? rulesVariantName(rules) + tipsText : "";
-  const names = Array.from(defaultNames());
+  $("#lobby-variant").textContent = rules ? variantName(rules) + tipsText : "";
   const rows = Array.from({ length: tableSize() }, (_, i) => i + 1).map((seat) => {
     const p = online.players.find((x) => x.seat === seat);
     if (p) {
@@ -3630,7 +2876,7 @@ $$("#opt-voice button").forEach((b) => b.addEventListener("click", () => {
   saveSettings();
   renderSettings();
   online?.link?.setVoice?.(settings.voice);
-  if (audio && settings.sound) playSound(`bod_speler_${myVoice()}_${2 + Math.floor(Math.random() * 6)}_0`);
+  if (soundReady() && settings.sound) playSound(`bod_speler_${myVoice()}_${2 + Math.floor(Math.random() * 6)}_0`);
 }));
 $("#set-cards").addEventListener("change", (e) => { settings.cardSounds = e.target.checked; saveSettings(); });
 $("#set-speak-humans").addEventListener("change", (e) => { settings.speakHumans = e.target.checked; saveSettings(); });
@@ -3644,7 +2890,7 @@ $("#set-hof").addEventListener("change", (e) => {
 $("#set-notify").addEventListener("change", (e) => {
   settings.notify = e.target.checked;
   saveSettings();
-  askNotifications();
+  askNotify();
   setTimeout(renderNotifyStatus, 1500);
   renderNotifyStatus();
 });
@@ -3787,7 +3033,7 @@ if (joinCode.length === 5 && !(online?.code === joinCode)) {
   show("menu");
 }
 
-$("#install-hint").hidden = !(isIOS && !standalone);
+$("#install-hint").hidden = !iosBrowser();
 // Op de website (niet in de app zelf, en niet op een iPhone of iPad) een link naar de Android-app
 $("#android-link").hidden = !!nativeApp || isIOS;
 showNews();
@@ -3838,7 +3084,7 @@ window.tienBack = () => {
 };
 
 // Voor de tests
-window.__tienopenneer = { get state() { return st; }, settings, get busy() { return busy; }, celebrate, voiceFor,
+window.__tienopenneer = { get state() { return st; }, settings, get busy() { return busy; }, celebrate: celebrateWinners, voiceFor,
   debug: () => ({ count: game?.actionCount(), queue: [...(online?.queue?.keys() ?? [])], seat: online?.seat, busy, driver, tineke: !!tinekeWaiting, msg: message }) };
 
 // Tikken op een speler: zijn statistiek en sterren -----------------------------------------

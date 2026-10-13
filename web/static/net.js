@@ -1,6 +1,7 @@
 import { AVATAR_EMOJIS, AVATAR_FACES, BoundedMap, RateLimit, chatLimit, cleanAvatar, cleanChat, cleanInt, cleanList,
   cleanStats, cleanText, cleanVoice, devParam, isObject } from "./validate.js";
 import { Verifier } from "./ident.js";
+import { normalizeCode as normalizeAnyCode, randomCode } from "./codes.js";
 
 export { AVATAR_EMOJIS, AVATAR_FACES, cleanAvatar, cleanStats, cleanVoice };
 
@@ -20,18 +21,14 @@ export { AVATAR_EMOJIS, AVATAR_FACES, cleanAvatar, cleanStats, cleanVoice };
 // Van gastheer naar gast (topic .../g/<id>): welcome (je stoel), lobby (wie zit er), start (spel + log),
 // act, chat, chatlog, votes, ping (met aantal handelingen), full (niet welkom), bye (tafel dicht).
 
-const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 /** Volgorde waarin mensen een stoel krijgen, per aantal plaatsen: bij vier eerst tegenover elkaar. */
 const SEAT_ORDERS = { 2: [1, 2], 3: [1, 2, 3], 4: [1, 3, 2, 4], 5: [1, 3, 4, 2, 5] };
 
-export function makeCode() {
-  let c = "";
-  for (let i = 0; i < 5; i++) c += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
-  return c;
-}
-
-export const normalizeCode = (s) => String(s || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 5);
+/** Een nieuwe tafelcode van vijf tekens (codes.js). */
+export const makeCode = () => randomCode(5);
+/** Wat iemand intypt of in een link zet naar een tafelcode. */
+export const normalizeCode = (s) => normalizeAnyCode(s, 5);
 
 /**
  * Openbare doorgeefservers. De gastheer luistert op allemaal tegelijk; een gast gebruikt de eerste die werkt

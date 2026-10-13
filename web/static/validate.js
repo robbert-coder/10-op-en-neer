@@ -87,6 +87,9 @@ export function cleanGame(g) {
     online: !!g.online,
     others: cleanList(g.others, 4, (n) => cleanText(n, 16) || null),
     ...(g.tips ? { tips: true } : {}),
+    // Sinds 2.33: soort spel en of het volledig was, uit de spelcode (oudere spellen hebben dit niet)
+    ...(["10openneer", "boerenbridge", "hybride"].includes(g.key) ? { key: g.key } : {}),
+    ...(typeof g.full === "boolean" ? { full: g.full } : {}),
   };
 }
 

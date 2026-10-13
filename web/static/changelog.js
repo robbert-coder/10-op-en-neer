@@ -1,5 +1,9 @@
 // Wat er per versie nieuw is. Wie na een nieuwe versie terugkomt, ziet dit in het hoofdmenu.
 export const CHANGES = [
+  { v: "2.33", items: [
+    "Achter de schermen opgeruimd: de code is opgesplitst in kleinere stukken, zodat verbeteringen sneller en veiliger gaan.",
+    "Boerenbridge met 5 spelers (tot 10 kaarten, meer kan niet) telt nu als volledig spel voor de sterren en de highscores.",
+  ] },
   { v: "2.32", items: [
     "Veiliger samen spelen: elk bericht is ondertekend, dus niemand kan zich voor een ander uitgeven of namens jou spelen.",
     "Chat: hooguit 5 berichten per 10 seconden, zodat niemand de chat vol kan spammen.",

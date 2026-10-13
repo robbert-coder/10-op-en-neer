@@ -3,6 +3,7 @@
 // dezelfde cijfers.
 
 import { cleanGame, cleanList, devParam, isObject } from "./validate.js";
+import { isCode, normalizeCode, randomCode } from "./codes.js";
 
 /** Het Supabase-project (Project Settings > API). De sleutel is de openbare "anon"-sleutel. */
 const CONFIG = {
@@ -18,18 +19,13 @@ const KEY = TEST_SERVER ? "test" : CONFIG.key;
 
 export const cloudEnabled = () => !!URL_BASE && !!KEY;
 
-const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // zonder 0/O en 1/I
-
-/** Een nieuwe persoonlijke code van twaalf tekens. */
-export function makeCloudCode() {
-  const bytes = new Uint8Array(12);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes, (b) => ALPHABET[b % ALPHABET.length]).join("");
-}
-
-export const normalizeCloudCode = (s) => String(s || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+/** Een nieuwe persoonlijke code van twaalf tekens (codes.js). */
+export const makeCloudCode = () => randomCode(12);
+/** Zoals iemand de code intypt (met streepjes of kleine letters) naar de code zelf. */
+export const normalizeCloudCode = (s) => normalizeCode(s);
+/** In groepjes van vier, makkelijker over te typen: ABCD-EFGH-JKLM. */
 export const formatCloudCode = (c) => c.replace(/(.{4})(?=.)/g, "$1-");
-export const validCloudCode = (c) => c.length === 12 && [...c].every((ch) => ALPHABET.includes(ch));
+export const validCloudCode = (c) => isCode(c, 12);
 
 /** Hoe lang we op de database wachten; daarna geven we het op (het spel wacht er nooit op). */
 const TIMEOUT_MS = 10000;

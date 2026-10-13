@@ -42,6 +42,30 @@ data class Rules(
     val isBoerenbridge: Boolean
         get() = maxCards == 13 && boerenRules
 
+    /**
+     * Soort spel, los van het aantal kaarten: "10openneer", "boerenbridge" of "hybride". De highscores en de
+     * Hall of Fame hebben per soort een eigen lijst; zo hoeft de webpagina dat niet uit de naam af te leiden.
+     */
+    val variantKey: String
+        get() = when {
+            tienRules -> "10openneer"
+            boerenRules -> "boerenbridge"
+            else -> "hybride"
+        }
+
+    /**
+     * Gaat het spel tot het hoogste aantal kaarten? Bij vijf spelers is dat 10 (52 kaarten), ook bij Boerenbridge.
+     * Alleen volledige spellen tellen mee voor de sterren en de gewone highscorelijsten.
+     */
+    fun isFullGame(players: Int): Boolean {
+        val most = 52 / players
+        return when {
+            tienRules -> maxCards == minOf(10, most)
+            boerenRules -> maxCards == minOf(13, most)
+            else -> maxCards == 10 || maxCards == 13 || maxCards == most
+        }
+    }
+
     /** Een korter spel (of bij vijf spelers bij Boerenbridge: tot 10) krijgt "tot ..." achter de naam. */
     val variantName: String
         get() = when {

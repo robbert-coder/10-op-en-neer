@@ -2,6 +2,7 @@ package nl.tienopenneer.engine
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -285,6 +286,14 @@ class GameTest {
         val boeren10 = Rules.BOERENBRIDGE.copy(maxCards = 10)
         assertEquals("Boerenbridge tot 10", boeren10.variantName)
         assertEquals("10 op en neer tot 5", Rules.TIEN_OP_EN_NEER.copy(maxCards = 5).variantName)
+        // Bij vijf spelers is tot 10 het volledige spel, ook bij Boerenbridge
+        assertEquals("boerenbridge", boeren10.variantKey)
+        assertTrue(boeren10.isFullGame(5))
+        assertFalse(boeren10.isFullGame(4))
+        assertFalse(Rules.TIEN_OP_EN_NEER.copy(maxCards = 5).isFullGame(5))
+        assertTrue(Rules.BOERENBRIDGE.isFullGame(4))
+        assertTrue(Rules.TIEN_OP_EN_NEER.isFullGame(5))
+        assertEquals("hybride", Rules.TIEN_OP_EN_NEER.copy(mustTrump = true).variantKey)
         for ((k, rules) in listOf(Rules.TIEN_OP_EN_NEER, boeren10).withIndex()) {
             for (smart in listOf(false, true)) {
                 val seed = 900L + k
