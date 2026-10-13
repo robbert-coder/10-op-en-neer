@@ -89,8 +89,21 @@ button:disabled { opacity: .4; cursor: default; }
 .logo-cards .card-slot:nth-child(3) { transform: translate(52px, 10px) rotate(12deg); }
 h1 { font-size: 38px; margin: 18px 0 0; letter-spacing: -.5px; text-wrap: balance; }
 .sub { color: var(--muted); margin: 2px 0 14px; }
-.menu-faces { display: flex; gap: 10px; margin-bottom: 22px; }
+.menu-faces { display: flex; gap: 26px; margin-bottom: 22px; }
 .menu-faces .avatar { width: 54px; height: 54px; }
+.menu-face { position: relative; }
+.mf-card { position: absolute; bottom: -4px; transform-origin: 50% 90%; pointer-events: none; }
+.mf-card .card { box-shadow: 0 2px 6px rgba(0, 0, 0, .45); }
+/* Gluren: de kaart kantelt rustig heen en weer */
+.mf-1 { right: -8px; animation: mf-peek 3.2s ease-in-out infinite; }
+/* Omdraaien: af en toe draait de kaart om zijn as */
+.mf-2 { right: -10px; animation: mf-flip 4.5s ease-in-out infinite 0.8s; }
+/* Laten zien: de kaart gaat even omhoog */
+.mf-3 { left: -8px; animation: mf-show 3.8s ease-in-out infinite 1.6s; }
+@keyframes mf-peek { 0%, 100% { transform: rotate(8deg); } 50% { transform: rotate(-6deg) translateY(-2px); } }
+@keyframes mf-flip { 0%, 60%, 100% { transform: rotate(-10deg) rotateY(0); } 75% { transform: rotate(-10deg) rotateY(180deg); } }
+@keyframes mf-show { 0%, 55%, 100% { transform: rotate(-12deg); } 70%, 85% { transform: rotate(0) translateY(-10px) scale(1.15); } }
+@media (prefers-reduced-motion: reduce) { .mf-card { animation: none; } }
 .buttons { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 380px; }
 .buttons > button { font-size: 18px; padding: 15px; }
 .button-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }

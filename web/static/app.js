@@ -2456,12 +2456,14 @@ function renderAvatarPick() {
   const photo = cur.startsWith("data:image/");
   const opt = (value, html, sel, label) =>
     `<button type="button" class="av-opt ${sel ? "sel" : ""}" data-av="${value}" aria-label="${label}">${html}</button>`;
-  const html = [
+  // Per plek opnieuw tekenen: elk gezicht heeft eigen id's voor kleurverloop en haar, en dubbele id's
+  // laten het gezicht op een andere plek (bijvoorbeeld bij samen spelen) kaal en vreemd gekleurd zien
+  const html = () => [
     opt("", initialSvg(settings.playerName), !cur, "Eerste letter van je naam"),
     ...AVATAR_FACES.map((f, i) => opt(f, faceSvg(f), cur === f, `Gezicht ${i + 1}`)),
     opt("foto", photo ? humanAvatarHtml(cur, "") : CAMERA_SVG, photo, "Eigen foto kiezen"),
   ].join("");
-  $$(".avatar-pick").forEach((el) => { el.innerHTML = html; });
+  $$(".avatar-pick").forEach((el) => { el.innerHTML = html(); });
 }
 
 function setAvatar(v) {
@@ -3599,7 +3601,9 @@ $$(".logo-cards .card-slot").forEach((el) => {
   el.innerHTML = cardHtml(Number(el.dataset.card), "", "--w:70px");
 });
 // Op het startscherm kijken de spelers blij: zin in een potje
-$("#menu-faces").innerHTML = [2, 3, 4].map((nr) => avatarHtml(nr, "", "happy")).join("");
+// Drie spelers op het startscherm, elk met een kaart: de een gluurt, de ander draait hem om, de derde laat hem zien
+$("#menu-faces").innerHTML = [[2, 414], [3, 210], [4, 114]].map(([nr, code], i) =>
+  `<div class="menu-face">${avatarHtml(nr, "")}<div class="mf-card mf-${i + 1}">${trumpMiniHtml(code).replace("--w:36px", "--w:22px")}</div></div>`).join("");
 
 const joinCode = normalizeCode(new URLSearchParams(location.search).get("spel"));
 if (!resumeOnline()) restoreSavedGame();
