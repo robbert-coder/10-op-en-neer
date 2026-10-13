@@ -135,6 +135,7 @@ class MainActivity : ComponentActivity() {
             settings.mediaPlaybackRequiresUserGesture = false
             settings.userAgentString = settings.userAgentString + " TienOpEnNeerApp"
             webViewClient = object : WebViewClientCompat() {
+                // Alle bestanden van het spel komen uit de app zelf (https://appassets.androidplatform.net/web/)
                 override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? =
                     loader.shouldInterceptRequest(request.url)
 
@@ -201,6 +202,7 @@ class MainActivity : ComponentActivity() {
         UpdateCheck.schedule(this)
     }
 
+    /** Na het draaien van het scherm of terugkomen in de app: de pagina zoals hij was, zonder opnieuw te laden. */
     private fun restoreWeb(state: Bundle): Boolean = web.restoreState(state) != null
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -222,12 +224,22 @@ class MainActivity : ComponentActivity() {
     private fun tableCode(intent: Intent?): String? =
         intent?.data?.getQueryParameter("spel")?.filter { it.isLetterOrDigit() }?.take(5)?.ifEmpty { null }
 
+    /** Het nummer van de gastheer uit een gedeelde link (zie tableLink in app.js); alleen tekens die erin horen. */
+    private fun hostId(intent: Intent?): String? =
+        intent?.data?.getQueryParameter("h")?.takeIf { Regex("^[A-Za-z0-9_-]{22}$").matches(it) }
+
     private fun startUrl(intent: Intent?): String {
-        val code = tableCode(intent)
-        return if (code != null) "$START_URL?spel=$code" else START_URL
+        val code = tableCode(intent) ?: return START_URL
+        val host = hostId(intent)
+        return if (host != null) "$START_URL?spel=$code&h=$host" else "$START_URL?spel=$code"
     }
 
+    /**
+     * Een link buiten het spel (zoals de website of een e-mailadres) in een andere app openen. Alleen
+     * https en mailto: andere soorten links kunnen apps starten die niets met het spel te maken hebben.
+     */
     private fun openExternal(uri: Uri) {
+        if (uri.scheme !in setOf("https", "mailto")) return
         try {
             startActivity(Intent(Intent.ACTION_VIEW, uri))
         } catch (_: ActivityNotFoundException) {
@@ -307,6 +319,7 @@ class MainActivity : ComponentActivity() {
 
     /** Levert de bestanden van de website uit de assets van de app, met het juiste type. */
     private class SiteHandler(private val assets: AssetManager) : WebViewAssetLoader.PathHandler {
+        /** Een bestand van de website uit de app leveren, met het juiste type (zie MIME_TYPES). */
         override fun handle(path: String): WebResourceResponse {
             val file = path.substringBefore('?').ifEmpty { "index.html" }
             val type = MIME_TYPES[file.substringAfterLast('.', "").lowercase()] ?: "application/octet-stream"

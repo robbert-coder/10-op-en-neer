@@ -2,16 +2,19 @@
 // ziet en vult dezelfde statistieken. Zo heb je in de app, in de browser en op een ander apparaat
 // dezelfde cijfers.
 
+import { cleanGame, cleanList, devParam, isObject } from "./validate.js";
+
 /** Het Supabase-project (Project Settings > API). De sleutel is de openbare "anon"-sleutel. */
 const CONFIG = {
   url: "https://llyxrwgankrsjjgwzyrh.supabase.co",
   key: "sb_publishable_NkO6L_jj1GevBfhplqoufA_txNrorj0",
 };
 
-const params = new URLSearchParams(location.search);
-// Met ?cloud=http://host:poort kan een eigen (test)server gebruikt worden
-const URL_BASE = (params.get("cloud") || CONFIG.url).replace(/\/+$/, "");
-const KEY = params.get("cloud") ? "test" : CONFIG.key;
+// Met ?cloud=http://host:poort kan een eigen (test)server gebruikt worden; alleen op de eigen computer,
+// anders kan een gestuurde link je persoonlijke code naar een andere server laten lekken
+const TEST_SERVER = devParam("cloud");
+const URL_BASE = (TEST_SERVER || CONFIG.url).replace(/\/+$/, "");
+const KEY = TEST_SERVER ? "test" : CONFIG.key;
 
 export const cloudEnabled = () => !!URL_BASE && !!KEY;
 
@@ -35,6 +38,10 @@ const TIMEOUT_MS = 10000;
 let healthListener = null;
 export const onCloudHealth = (fn) => { healthListener = fn; };
 
+/**
+ * Eén aanroep van een databasefunctie. Met een tijdslimiet en een melding aan de app of de database
+ * werkt, zodat het spel nooit op de database hoeft te wachten.
+ */
 async function rpc(name, body) {
   const ctrl = typeof AbortController === "function" ? new AbortController() : null;
   const timer = ctrl ? setTimeout(() => ctrl.abort(), TIMEOUT_MS) : null;
@@ -64,11 +71,13 @@ export async function fetchStats(code) {
   const data = await rpc("get_stats", { p_code: code });
   if (!data || typeof data !== "object") return null;
   return {
-    games: Array.isArray(data.games) ? data.games.filter((g) => g && typeof g === "object" && typeof g.id === "string") : [],
+    // Iedereen met jouw code kan hier schrijven: elk spel controleren voordat het getoond wordt
+    games: cleanList(data.games, 1000, cleanGame),
     clearedAt: Number(data.clearedAt) || 0,
   };
 }
 
+/** Je statistieken bewaren onder je code (de app voegt eerst samen met wat er al stond). */
 export function saveStats(code, games, clearedAt) {
   return rpc("put_stats", { p_code: code, p_data: { v: 1, games, clearedAt } });
 }
@@ -80,8 +89,9 @@ export async function fetchHallOfFame(list, players = null, vs = null) {
   // Filters alleen meesturen als ze gekozen zijn
   const data = await rpc("hof_get", { p_list: list, ...(players ? { p_players: players } : {}), ...(vs ? { p_vs: vs } : {}) });
   return {
-    scores: Array.isArray(data?.scores) ? data.scores : [],
-    players: Array.isArray(data?.players) ? data.players : [],
+    // De app toont alles met esc() en controleert plaatjes en statistiek; hier alleen de vorm en omvang
+    scores: cleanList(data?.scores, 200, (x) => (isObject(x) ? x : null)),
+    players: cleanList(data?.players, 200, (x) => (isObject(x) ? x : null)),
   };
 }
 

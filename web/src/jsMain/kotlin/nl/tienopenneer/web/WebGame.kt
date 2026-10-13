@@ -66,6 +66,7 @@ class WebGame(
     /** De stoel van de mens die nu aan de beurt is (in het spel, niet op het scherm), of 0. */
     fun humanToMove(): Int = game.humanToMove
 
+    /** Eén stap zonder invoer van een mens (een computerspeler, een slag ophalen); false als dat nu niet kan. */
     fun advance(): Boolean = game.advance()
 
     /** Geeft een foutmelding, of null als de voorspelling is gedaan. */
@@ -92,6 +93,7 @@ class WebGame(
     /** Namen van de geluiden sinds de vorige aanroep, bijvoorbeeld "GOED_VOORSPELD". */
     fun takeSounds(): Array<String> = game.takeSounds().map { it.name }.toTypedArray()
 
+    /** De hele stand als JSON, gedraaid zodat de eigen stoel onderaan staat; de webpagina tekent hieruit alles. */
     fun state(): String {
         val g = game
         val r = g.rules

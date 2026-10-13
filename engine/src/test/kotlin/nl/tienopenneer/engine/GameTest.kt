@@ -356,4 +356,51 @@ class GameTest {
         }
         assertFailsWith<IllegalArgumentException> { Game(Rules.TIEN_OP_EN_NEER, 1L, playerCount = 1) }
     }
+
+    /**
+     * Kleur bekennen en (bij "introeven verplicht") troef: bij elke beurt van de mens in veel spellen
+     * nagaan dat precies de goede kaarten speelbaar zijn.
+     */
+    @Test
+    fun legalCardsFollowSuitAndMustTrump() {
+        for (mustTrump in listOf(false, true)) {
+            val rules = Rules.TIEN_OP_EN_NEER.copy(mustTrump = mustTrump)
+            for (seed in 1L..40L) {
+                val g = Game(rules, seed)
+                var guard = 0
+                while (g.phase != Phase.GAME_OVER) {
+                    check(++guard < 100_000)
+                    if (!g.isHumanTurn) { g.advance(); continue }
+                    if (g.phase == Phase.BIDDING) { g.humanBid(g.hintBid()); continue }
+                    val hand = g.player(1).handCards()
+                    val legal = g.legalCardsForHuman()
+                    if (g.leader != 1) {
+                        val lead = g.table[g.leader].suit
+                        val trump = g.trump
+                        val expected = when {
+                            hand.any { it.suit == lead } -> hand.filter { it.suit == lead }
+                            mustTrump && !trump.isNone && hand.any { it.suit == trump.suit } -> hand.filter { it.suit == trump.suit }
+                            else -> hand
+                        }
+                        assertEquals(expected.toSet(), legal, "seed $seed, ronde ${g.round}")
+                    } else {
+                        assertEquals(hand.toSet(), legal)
+                    }
+                    assertNull(g.humanPlay(legal.first()))
+                }
+            }
+        }
+    }
+
+    /** Troef wint van elke andere kleur; binnen een kleur wint de hoogste; een andere kleur dan gevraagd wint nooit. */
+    @Test
+    fun higherCardWithTrump() {
+        val g = Game(Rules.TIEN_OP_EN_NEER, 3)
+        g.trump = Card(2, 5)
+        assertEquals(2, g.higherCard(Card(1, 14), Card(2, 2))) // troef 2 wint van een aas
+        assertEquals(1, g.higherCard(Card(2, 3), Card(1, 14))) // aas zonder troef wint niet van troef
+        assertEquals(2, g.higherCard(Card(1, 9), Card(1, 10)))
+        assertEquals(1, g.higherCard(Card(1, 9), Card(3, 14))) // andere kleur, geen troef
+        assertEquals(2, g.higherCard(Card(2, 9), Card(2, 13)))
+    }
 }

@@ -368,6 +368,11 @@ class Game internal constructor(
 
     private fun isLastBidder(player: Int) = nextPlayer(player) == leader
 
+    /**
+     * Alle kaarten van alle rondes meteen delen, uit de beginwaarde (seed). Zo verloopt een spel met dezelfde
+     * beginwaarde en dezelfde handelingen altijd precies hetzelfde: nodig om een spel te herstellen en om
+     * samen te spelen (elk apparaat rekent het spel zelf uit).
+     */
     private fun dealWholeGame() {
         // DetermineerSpel: alle kaarten voor het hele spel worden vooraf gedeeld.
         val rnd = Random(seed)
@@ -386,6 +391,7 @@ class Game internal constructor(
         }
     }
 
+    /** Een nieuwe ronde: de vooraf gedeelde kaarten pakken, troef bepalen en het voorspellen laten beginnen. */
     private fun startRound() {
         round++
         doomSoundPlayed = false
@@ -437,6 +443,7 @@ class Game internal constructor(
         for (k in 1..cardsThisRound) p[pl].hand[k] = cards[k - 1]
     }
 
+    /** Na elke voorspelling: de volgende speler, of het spelen begint als iedereen voorspeld heeft. */
     internal fun bidPlaced() {
         // Voorspeld
         val pl = p[toBid]

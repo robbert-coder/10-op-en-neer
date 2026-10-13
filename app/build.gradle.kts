@@ -11,8 +11,8 @@ android {
         applicationId = "nl.tienopenneer.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 33
-        versionName = "2.31"
+        versionCode = 34
+        versionName = "2.32"
     }
 
     // Vaste ondertekensleutel uit de GitHub-geheimen (SIGNING_KEY), zodat een nieuwe versie over de oude heen
@@ -34,14 +34,23 @@ android {
         debug {
             if (keyFile != null) signingConfig = signingConfigs.getByName("vast")
         }
+        // De uitgebrachte APK is een release-build: niet te debuggen, dus de WebView en de opslag zijn
+        // niet van buitenaf te bekijken. Zonder vaste sleutel (lokaal) met de debugsleutel ondertekend.
         release {
             isMinifyEnabled = false
+            signingConfig = if (keyFile != null) signingConfigs.getByName("vast") else signingConfigs.getByName("debug")
         }
     }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    // De lint-controle bij een release-build vraagt Android-hulpmiddelen die in de bouwstraat niet nodig zijn
+    lint {
+        checkReleaseBuilds = false
+        abortOnError = false
     }
 
     kotlinOptions {

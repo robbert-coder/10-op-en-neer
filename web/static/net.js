@@ -1,7 +1,24 @@
+import { AVATAR_EMOJIS, AVATAR_FACES, BoundedMap, RateLimit, chatLimit, cleanAvatar, cleanChat, cleanInt, cleanList,
+  cleanStats, cleanText, cleanVoice, devParam, isObject } from "./validate.js";
+import { Verifier } from "./ident.js";
+
+export { AVATAR_EMOJIS, AVATAR_FACES, cleanAvatar, cleanStats, cleanVoice };
+
 // Samen spelen via internet. Alle berichten gaan via een openbare doorgeefserver (MQTT over een websocket),
 // zodat het op elk netwerk werkt, ook als twee apparaten elkaar niet rechtstreeks kunnen bereiken.
 // Wie de tafel opent is de gastheer: alle berichten gaan via hem. Iedereen rekent het spel zelf uit; dat kan omdat het spel met dezelfde
 // beginwaarde (seed) en dezelfde handelingen van de mensen altijd precies hetzelfde verloopt.
+//
+// Beveiliging: iedereen kan op een openbare server berichten zetten. Daarom is elk bericht ondertekend
+// (ident.js) en is je nummer afgeleid van je sleutel; de gastheer accepteert van een gast alleen
+// handelingen voor diens eigen stoel, en een gast alleen berichten van de gastheer die hij kent.
+// Alles wat binnenkomt gaat door de controles in validate.js, en er is een limiet op het aantal
+// berichten per afzender (geen spam of overvloed).
+//
+// Berichten van gast naar gastheer (topic .../h): hello (aanschuiven), ping, bye, sync (stand opnieuw),
+// me (plaatje/stem/statistiek), vote, chat, act (een bod of kaart).
+// Van gastheer naar gast (topic .../g/<id>): welcome (je stoel), lobby (wie zit er), start (spel + log),
+// act, chat, chatlog, votes, ping (met aantal handelingen), full (niet welkom), bye (tafel dicht).
 
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
@@ -12,35 +29,6 @@ export function makeCode() {
   let c = "";
   for (let i = 0; i < 5; i++) c += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
   return c;
-}
-
-/** Emoji's die oudere versies als plaatje gebruikten; worden nog getoond als iemand ze heeft. */
-export const AVATAR_EMOJIS = ["🦊", "🐻", "🐼", "🐸", "🐵", "🦁", "🐯", "🐨", "🐷", "🐙", "🦉", "🐧",
-  "😎", "🤠", "👑", "🌷", "⚽", "🎸", "☕", "🍀"];
-
-/** De getekende gezichten die je kunt kiezen (zie PERSONS in faces.js). */
-export const AVATAR_FACES = ["p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8", "p9", "p10", "p11", "p12"];
-
-/** Een plaatje van een ander alleen gebruiken als het een gezicht, een emoji (oudere versies) of een kleine foto is. */
-/** Je eigen stem bij het voorspellen: man, vrouw of neutraal. */
-export const cleanVoice = (v) => (["man", "vrouw", "neutraal"].includes(v) ? v : null);
-
-export function cleanAvatar(v) {
-  if (typeof v !== "string") return null;
-  if (AVATAR_FACES.includes(v) || AVATAR_EMOJIS.includes(v)) return v;
-  if (v.length <= 60000 && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(v)) return v;
-  return null;
-}
-
-/** Het statistiekoverzicht van een ander: alleen nette getallen, of null. */
-export function cleanStats(v) {
-  if (!v || typeof v !== "object") return null;
-  const n = (x, max) => (Number.isFinite(x) ? Math.max(0, Math.min(max, Math.round(x))) : 0);
-  const g = n(v.g, 100000);
-  // a: alle spellen (ook korte); g en de rest: alleen volledige spellen. Oudere versies stuurden geen a.
-  const all = Math.max(g, n(v.a ?? v.g, 100000));
-  if (!all) return null;
-  return { a: all, g, w: Math.min(g, n(v.w, 100000)), r: n(v.r, 10000000), ok: Math.min(n(v.r, 10000000), n(v.ok, 10000000)), f: n(v.f, 100) };
 }
 
 export const normalizeCode = (s) => String(s || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 5);
@@ -56,9 +44,14 @@ const BROKERS = [
   "wss://test.mosquitto.org:8081/mqtt",
 ];
 const brokers = () => {
-  const own = new URLSearchParams(location.search).get("relay");
+  const own = devParam("relay");
   return own ? own.split(",") : BROKERS;
 };
+
+/** Ons sleutelpaar (ident.js); de app zet het bij het opstarten. Zonder sleutel geen samen spelen. */
+let identity = null;
+export const useIdentity = (id) => { identity = id; };
+export const myId = () => identity?.id ?? null;
 const topic = (code) => `tienopenneer/v2/${code}`;
 /** De openbare lobby: open tafels, wie er in de lobby is, en de lobbychat. */
 const PUBLIC = "tienopenneer/v2/publiek";
@@ -87,9 +80,16 @@ class Relay {
     this.onState = onState;
     this.index = 0;
     this.closed = false;
+    // Ondertekenen en controleren gaan asynchroon; via deze ketens blijft de volgorde van berichten gelijk
+    this.out = Promise.resolve();
+    this.in = Promise.resolve();
+    this.verifier = new Verifier();
+    // Een afzender die de server overspoelt, negeren we voordat we de handtekening controleren
+    this.flood = new RateLimit(60, 5000);
     this.connect();
   }
 
+  /** Verbinden met de huidige server; mislukt dat, dan na een korte pauze opnieuw (zo nodig met de volgende server). */
   connect() {
     if (this.closed) return;
     const mqtt = window.mqtt;
@@ -110,9 +110,14 @@ class Relay {
     });
     client.on("message", (t, payload) => {
       if (!payload.length) { this.opts.onEmpty?.(t, this); return; }
-      let msg;
-      try { msg = JSON.parse(payload.toString()); } catch { return; }
-      if (msg && typeof msg === "object") this.onMessage(msg, this, t);
+      if (payload.length > 250000) return;
+      let wire;
+      try { wire = JSON.parse(payload.toString()); } catch { return; }
+      if (!isObject(wire) || !this.flood.allow(String(wire.k).slice(0, 200))) return;
+      // Alleen ondertekende berichten; [from] is het nummer van de afzender, afgeleid van zijn sleutel
+      this.in = this.in.then(() => this.verifier.open(t, wire, t)).then((ok) => {
+        if (ok && isObject(ok.msg) && !this.closed) this.onMessage(ok.msg, this, t, ok.from);
+      }).catch((e) => console.warn("Bericht niet verwerkt:", e));
     });
     const lost = () => {
       if (this.client !== client || this.closed) return;
@@ -139,17 +144,20 @@ class Relay {
 
   get open() { return !!this.client?.connected; }
 
-  publish(t, msg) {
-    if (!this.client?.connected) return false;
-    this.client.publish(t, JSON.stringify(msg), { qos: 0 });
+  /** Ondertekend versturen, in volgorde. Geeft false als er (nu) geen verbinding is. */
+  publish(t, msg, retain = false) {
+    const client = this.client;
+    if (!client?.connected || !identity) return false;
+    this.out = this.out.then(async () => {
+      const payload = msg == null ? "" : JSON.stringify(await identity.seal(t, msg));
+      if (client.connected) client.publish(t, payload, { qos: 0, retain });
+    }).catch((e) => console.warn("Bericht niet verstuurd:", e));
     return true;
   }
 
   /** Een bericht dat de server bewaart voor wie later komt kijken; null haalt het weg. */
   publishRetained(t, msg) {
-    if (!this.client?.connected) return false;
-    this.client.publish(t, msg == null ? "" : JSON.stringify(msg), { qos: 0, retain: true });
-    return true;
+    return this.publish(t, msg, true);
   }
 
   close() {
@@ -178,6 +186,7 @@ export class Host {
     this.log = []; // alle handelingen van mensen, in volgorde: {seat, value}
     this.chat = []; // laatste chatberichten: {seat, name, text, time}
     this.votes = new Map(); // stoel -> ids van wie wil dat een computer die stoel overneemt
+    this.chatLimit = chatLimit();
     this.closed = false;
     if (saved) {
       // Na het herladen van de pagina: dezelfde tafel weer openen, de anderen verbinden vanzelf opnieuw
@@ -201,7 +210,7 @@ export class Host {
     // Per gast een "verbinding": berichten gaan via de server waarop de gast zich meldde
     this.links = new Map();
     const base = topic(this.code);
-    this.relays = brokers().map((url) => new Relay([url], () => `${base}/h`, (msg, relay) => this.incoming(msg, relay), (state) => {
+    this.relays = brokers().map((url) => new Relay([url], () => `${base}/h`, (msg, relay, t, from) => this.incoming(msg, relay, from), (state) => {
       if (this.relays?.some((r) => r.open)) { clearTimeout(this.waitTimer); this.events.onStatus?.(""); }
       if (state === "open") this.announce();
     }, this.pub ? { will: tableTopic(this.code) } : {}));
@@ -233,14 +242,20 @@ export class Host {
     }
   }
 
-  incoming(msg, relay) {
-    const id = String(msg.from || "").slice(0, 40);
+  /**
+   * Elk bericht van een gast komt hier binnen. [from] is het gecontroleerde nummer van de afzender; per
+   * gast onthouden we via welke server hij praat, zodat het antwoord via dezelfde server teruggaat.
+   */
+  incoming(msg, relay, from) {
+    const id = from;
     if (!id || id === "host") return;
+    if (!this.links.has(id) && this.links.size >= 50) return; // geen eindeloze rij nep-gasten
     let conn = this.links.get(id);
     if (!conn || conn.relay !== relay) {
       const base = topic(this.code);
       conn = {
         relay, open: true, clientId: null,
+        id,
         send: (m) => relay.publish(`${base}/g/${id}`, m),
         close() { this.open = false; },
       };
@@ -329,11 +344,12 @@ export class Host {
     }
   }
 
+  /** Een bericht van een gast verwerken; zie de lijst met berichtsoorten bovenaan dit bestand. */
   receive(conn, msg) {
     if (!msg || typeof msg !== "object") return;
     if (msg.t === "hello") {
-      const id = String(msg.id || "").slice(0, 40);
-      const name = String(msg.name || "Speler").slice(0, 16);
+      const id = conn.id;
+      const name = cleanText(msg.name, 16) || "Speler";
       let p = this.players.find((x) => x.id === id);
       if (p?.left && !p.idle) { conn.send({ t: "full", text: "Je had het spel verlaten. Een computer speelt nu voor je verder." }); return; }
       if (!p) {
@@ -371,20 +387,24 @@ export class Host {
       if (conn.clientId) this.castVote(conn.clientId, Number(msg.seat), !!msg.yes);
     } else if (msg.t === "chat") {
       const p = this.players.find((x) => x.id === conn.clientId);
-      if (p) this.addChat(p.seat, p.name, msg.text, conn);
+      if (p && this.chatLimit.allow(p.id)) this.addChat(p.seat, p.name, msg.text, conn);
     } else if (msg.t === "act") {
       const p = this.players.find((x) => x.id === conn.clientId);
-      if (!p || !this.started || msg.seat !== p.seat || p.left || !(msg.value >= 0)) return;
-      if (msg.index !== this.log.length) {
-        // Loopt niet gelijk: stuur de hele stand opnieuw
+      if (!p || !this.started) return;
+      const value = Number.isInteger(msg.value) && msg.value >= 0 && msg.value <= MAX_ACTION ? msg.value : -1;
+      // Niet (meer) aan de beurt, al overgenomen, of loopt niet gelijk: stuur de hele stand opnieuw, zodat
+      // de gast zijn eigen (niet doorgegane) handeling terugdraait
+      if (msg.seat !== p.seat || p.left || value < 0 || msg.index !== this.log.length
+        || this.events.validate?.(msg.index, p.seat, value) === false) {
         conn.send({ t: "start", game: this.started, log: this.log });
         return;
       }
-      this.record(msg.seat, msg.value, conn);
-      this.events.onAction?.({ index: msg.index, seat: msg.seat, value: msg.value });
+      this.record(p.seat, value, conn);
+      this.events.onAction?.({ index: msg.index, seat: p.seat, value });
     }
   }
 
+  /** Een gast is weg: voor het spel wacht zijn stoel op hem; vertrok hij echt ([left]), dan speelt een computer verder. */
   dropped(conn, left = false) {
     const p = this.players.find((x) => x.id === conn.clientId);
     if (!p || this.conns.get(p.id) !== conn) return;
@@ -398,6 +418,7 @@ export class Host {
     this.lobbyChanged();
   }
 
+  /** Iedereen (en de eigen app) laten zien wie er aan tafel zit; ook de openbare lobby bijwerken. */
   lobbyChanged() {
     const list = this.players.map(({ name, seat, online, avatar, voice, stats, left }) =>
       ({ name, seat, online, avatar: avatar ?? null, voice: voice ?? null, stats: stats ?? null, left: !!left }));
@@ -407,10 +428,12 @@ export class Host {
     this.announce();
   }
 
+  /** Een bericht naar alle verbonden gasten. */
   broadcast(msg, except = null) {
     for (const c of this.conns.values()) if (c !== except && c.open) c.send(msg);
   }
 
+  /** Een handeling in het logboek zetten en aan iedereen doorgeven (behalve aan wie hem deed). */
   record(seat, value, from = null) {
     const index = this.log.length;
     this.log.push({ seat, value });
@@ -449,7 +472,7 @@ export class Host {
 
   /** Een chatbericht bewaren en naar iedereen (behalve de afzender) sturen. */
   addChat(seat, name, text, from = null) {
-    const clean = String(text || "").trim().slice(0, 200);
+    const clean = cleanText(text, 200);
     if (!clean) return;
     const m = { seat, name, text: clean, time: Date.now() };
     this.chat.push(m);
@@ -484,10 +507,14 @@ export class Host {
     this.lobbyChanged();
   }
 
-  /** Een handeling van de gastheer zelf. */
+  /**
+   * Een handeling van de gastheer zelf. Geeft false als hij niet meer past (er kwam net iets anders
+   * tussen, zoals een overname); de app bouwt het spel dan opnieuw op uit het logboek.
+   */
   sendAction(index, seat, value) {
-    if (index !== this.log.length) return;
+    if (index !== this.log.length) return false;
     this.record(seat, value);
+    return true;
   }
 
   close() {
@@ -507,8 +534,10 @@ export class Host {
  *         onStatus(text), onError(text), onClosed(text)
  */
 export class Guest {
-  constructor(code, myName, clientId, events, avatar = null) {
+  /** [hostId]: het nummer van de gastheer als we dat al weten (uit de link of de lobby). */
+  constructor(code, myName, clientId, events, avatar = null, hostId = null) {
     this.code = code;
+    this.hostId = hostId;
     this.name = myName;
     this.avatar = cleanAvatar(avatar);
     this.clientId = clientId;
@@ -520,19 +549,20 @@ export class Guest {
     this.tries = 0;
     this.mismatch = 0;
     const base = topic(code);
-    this.relay = new Relay(brokers(), () => [`${base}/g/${clientId}`], (msg) => this.receive(msg), (state) => {
+    this.relay = new Relay(brokers(), () => [`${base}/g/${clientId}`], (msg, relay, t, from) => this.fromHost(msg, from), (state) => {
       if (state === "unsupported") this.events.onError?.("Samen spelen werkt niet in deze browser.");
       if (state === "open") { this.waitStart = Date.now(); this.hello(); }
     });
     // Een open verbinding naar de tafel, met dezelfde vorm als voorheen
     this.conn = {
       get open() { return true; },
-      send: (m) => this.relay.publish(`${base}/h`, { ...m, from: this.clientId }),
+      send: (m) => this.relay.publish(`${base}/h`, m),
     };
     this.waitStart = Date.now();
     this.pinger = setInterval(() => this.tick(), PING_MS);
   }
 
+  /** Aankloppen bij de tafel (ook opnieuw na een verbroken verbinding). */
   hello() {
     this.conn.send({ t: "hello", id: this.clientId, name: this.name, avatar: this.avatar, voice: this.voice ?? null, stats: this.stats ?? null });
   }
@@ -564,6 +594,17 @@ export class Guest {
     }
   }
 
+  /**
+   * Alleen berichten van de gastheer tellen. Kennen we hem nog niet (code met de hand ingetikt), dan is
+   * het de eerste die ons welkom heet of weigert; daarna alleen hij.
+   */
+  fromHost(msg, from) {
+    if (this.hostId ? from !== this.hostId : !["welcome", "full"].includes(msg.t)) return;
+    this.hostId = from;
+    this.receive(msg);
+  }
+
+  /** Een (al gecontroleerd) bericht van de gastheer verwerken. */
   receive(msg) {
     this.lastHost = Date.now();
     if (msg.t === "ping") {
@@ -580,27 +621,41 @@ export class Guest {
       this.welcomed = true;
       this.everWelcomed = true;
       this.events.onStatus?.("");
-      this.events.onWelcome?.(msg.seat);
+      this.events.onWelcome?.(cleanInt(msg.seat, 1, 5, 1));
     }
     else if (msg.t === "lobby") {
-      const seats = Number(msg.seats);
-      this.events.onLobby?.((msg.players || []).map((p) => ({ ...p, avatar: cleanAvatar(p.avatar), voice: cleanVoice(p.voice), stats: cleanStats(p.stats) })),
-        seats >= 2 && seats <= 5 ? seats : 4, msg.pub && typeof msg.pub === "object" ? { title: cleanText(msg.pub.title, 40) } : null);
+      const seats = cleanInt(msg.seats, 2, 5, 4);
+      this.events.onLobby?.(cleanList(msg.players, 5, cleanSeatPlayer), seats,
+        isObject(msg.pub) ? { title: cleanText(msg.pub.title, 40) } : null);
     }
-    else if (msg.t === "start") this.events.onStart?.(msg.game, msg.log);
-    else if (msg.t === "act") this.events.onAction?.({ index: msg.index, seat: msg.seat, value: msg.value });
-    else if (msg.t === "chat") this.events.onChat?.(msg.message, false);
-    else if (msg.t === "chatlog") this.events.onChatLog?.(msg.messages || []);
+    else if (msg.t === "start") {
+      const log = cleanLog(msg.log);
+      if (isObject(msg.game) && log) this.events.onStart?.(msg.game, log);
+    }
+    else if (msg.t === "act") {
+      const a = cleanAction(msg);
+      if (a) this.events.onAction?.(a);
+    }
+    else if (msg.t === "chat") {
+      const m = cleanChat(msg.message);
+      if (m) this.events.onChat?.(m, false);
+    }
+    else if (msg.t === "chatlog") this.events.onChatLog?.(cleanList(msg.messages, 100, cleanChat));
     else if (msg.t === "votes") {
       const seats = (v) => (Array.isArray(v) ? v.map(Number).filter((n) => n >= 1 && n <= 5) : []);
       this.events.onVotes?.({ seat: Number(msg.seat), yes: seats(msg.yes), need: seats(msg.need), done: !!msg.done, taken: !!msg.taken });
     }
-    else if (msg.t === "full") { this.close(); this.events.onClosed?.(msg.text); }
+    else if (msg.t === "full") { this.close(); this.events.onClosed?.(cleanText(msg.text, 200)); }
     else if (msg.t === "bye") { this.close(); this.events.onClosed?.("De gastheer heeft de tafel gesloten."); }
   }
 
   sendAction(index, seat, value) {
     this.conn.send({ t: "act", index, seat, value });
+  }
+
+  /** We lopen niet gelijk: de gastheer stuurt dan de hele stand opnieuw. */
+  resync() {
+    this.conn.send({ t: "sync" });
   }
 
   /** Stemmen of een computer de plaats overneemt van iemand die niet reageert. */
@@ -626,7 +681,7 @@ export class Guest {
     if (this.welcomed) this.conn.send({ t: "me", stats: this.stats });
   }
 
-  /** Een chatbericht gaat naar de gastheer, die het doorstuurt. Geeft false zonder verbinding. */
+  /** Een chatbericht gaat naar de gastheer, die het doorstuurt. Geeft false zonder verbinding (de app beperkt het aantal). */
   sendChat(text) {
     if (!this.relay.open || !this.welcomed) return false;
     this.conn.send({ t: "chat", text });
@@ -642,8 +697,31 @@ export class Guest {
   }
 }
 
-/** Tekst van anderen uit de lobby: kort en zonder vreemde tekens. */
-const cleanText = (v, max) => String(v ?? "").replace(/[\u0000-\u001f]/g, " ").trim().slice(0, max);
+/** Een speler in het overzicht van de gastheer. */
+function cleanSeatPlayer(p) {
+  if (!isObject(p)) return null;
+  return {
+    name: cleanText(p.name, 16) || "Speler", seat: cleanInt(p.seat, 1, 5, 1), online: !!p.online, left: !!p.left,
+    avatar: cleanAvatar(p.avatar), voice: cleanVoice(p.voice), stats: cleanStats(p.stats),
+  };
+}
+
+/** Hoogste waarde van een handeling: een kaartcode is kleur * 100 + rang (hoogstens 414), een bod hoogstens 13. */
+const MAX_ACTION = 414;
+
+/** Een handeling: bod of kaart (waarde >= 0) of een overname (-stoel). */
+function cleanAction(a) {
+  if (!isObject(a) || !Number.isInteger(a.index) || a.index < 0 || a.index > 5000) return null;
+  if (!Number.isInteger(a.seat) || a.seat < 1 || a.seat > 5 || !Number.isInteger(a.value) || a.value < -5 || a.value > MAX_ACTION) return null;
+  return { index: a.index, seat: a.seat, value: a.value };
+}
+
+/** Het logboek van een spel; null als er iets niet klopt (dan liever niets dan een kapot spel). */
+function cleanLog(log) {
+  if (!Array.isArray(log) || log.length > 5000) return null;
+  const out = log.map((a, index) => cleanAction({ ...(isObject(a) ? a : {}), index }));
+  return out.every(Boolean) ? out.map(({ seat, value }) => ({ seat, value })) : null;
+}
 
 /**
  * De openbare lobby: iedereen die samen wil spelen maar nog niet aan een tafel zit. Je ziet de open
@@ -654,14 +732,17 @@ export class PublicLobby {
   constructor(me, events) {
     this.me = me; // {id, name, avatar}
     this.events = events;
-    this.tables = new Map(); // code -> info
-    this.people = new Map(); // id -> {name, avatar, time}
+    // Begrensd: iedereen kan hier berichten op zetten, dus niet onbeperkt laten groeien
+    this.tables = new BoundedMap(200); // code -> info
+    this.people = new BoundedMap(300); // id -> {name, avatar, time}
+    this.hosts = new BoundedMap(500); // code -> nummer van de gastheer die de tafel opende
     this.chat = [];
-    this.seenChat = new Set();
+    this.seenChat = new BoundedMap(1000);
+    this.chatLimit = chatLimit();
     this.closed = false;
     const sub = () => [`${PUBLIC}/tafels/+`, `${PUBLIC}/lobby/+`, CHAT_TOPIC];
     // Op alle doorgeefservers tegelijk, want gastheren openen hun tafel ook op allemaal
-    this.relays = brokers().map((url) => new Relay([url], sub, (msg, relay, t) => this.receive(msg, t, relay), (state) => {
+    this.relays = brokers().map((url) => new Relay([url], sub, (msg, relay, t, from) => this.receive(msg, t, relay, from), (state) => {
       if (state === "open") this.present();
       if (state === "unsupported") this.events.onStatus?.("Samen spelen werkt niet in deze browser.");
       else this.events.onStatus?.(this.relays?.some((r) => r.open) ? "" : "Verbinden met de lobby…");
@@ -681,7 +762,8 @@ export class PublicLobby {
     this.present();
   }
 
-  receive(msg, t, relay) {
+  /** Een bericht uit de lobby; [from] is het gecontroleerde nummer van de afzender. */
+  receive(msg, t, relay, from) {
     // De klok van de afzender kan wat afwijken; alleen echt oude berichten negeren
     const fresh = (time) => Number.isFinite(time) && Math.abs(Date.now() - time) < 3 * PUBLIC_STALE_MS;
     // Bij welke doorgeefservers staat dit nog? Pas weg als het bij geen enkele meer staat.
@@ -689,6 +771,9 @@ export class PublicLobby {
     if (t.startsWith(`${PUBLIC}/tafels/`)) {
       const code = normalizeCode(t.slice(t.lastIndexOf("/") + 1));
       if (code.length !== 5 || msg.code !== code || !fresh(msg.time)) return;
+      // Alleen de gastheer van een tafel mag die tafel aanpassen of weghalen
+      if ((this.hosts.get(code) ?? from) !== from) return;
+      this.hosts.set(code, from);
       if (msg.closed) { if (this.tables.delete(code)) this.emitTables(); return; }
       const seats = Math.max(2, Math.min(5, Math.round(Number(msg.seats)) || 4));
       const players = (Array.isArray(msg.players) ? msg.players : []).slice(0, 5).map((n) => cleanText(n, 16) || "Speler");
@@ -696,19 +781,20 @@ export class PublicLobby {
         code, host: cleanText(msg.host, 16) || "Speler", avatar: cleanAvatar(msg.avatar), seats, players,
         free: Math.max(0, Math.min(seats, Math.round(Number(msg.free)) || 0)),
         title: cleanText(msg.title, 40), variant: cleanText(msg.variant, 40), rounds: Math.max(0, Math.min(30, Math.round(Number(msg.rounds)) || 0)),
-        time: msg.time, seen: Date.now(), via: via(this.tables.get(code)), away: false,
+        time: msg.time, seen: Date.now(), via: via(this.tables.get(code)), away: false, hostId: from,
       });
       this.emitTables();
     } else if (t.startsWith(`${PUBLIC}/lobby/`)) {
       const id = t.slice(t.lastIndexOf("/") + 1).slice(0, 40);
-      if (!fresh(msg.time)) return;
+      if (id !== from || !fresh(msg.time)) return; // alleen jezelf aanmelden
       this.people.set(id, { id, name: cleanText(msg.name, 16) || "Speler", avatar: cleanAvatar(msg.avatar), time: msg.time, seen: Date.now(), via: via(this.people.get(id)), me: id === this.me.id });
       this.emitPeople();
     } else if (t === CHAT_TOPIC) {
-      const id = cleanText(msg.id, 40);
-      if (!id || this.seenChat.has(id) || !fresh(msg.time)) return; // via meerdere servers binnengekomen
-      this.seenChat.add(id);
-      const m = { id, from: cleanText(msg.from, 40), name: cleanText(msg.name, 16) || "Speler", avatar: cleanAvatar(msg.avatar), text: cleanText(msg.text, 200), time: msg.time };
+      const id = `${from}-${cleanText(msg.id, 40)}`;
+      if (this.seenChat.has(id) || !fresh(msg.time)) return; // via meerdere servers binnengekomen
+      this.seenChat.set(id, true);
+      if (!this.chatLimit.allow(from)) return; // spam
+      const m = { id, from, name: cleanText(msg.name, 16) || "Speler", avatar: cleanAvatar(msg.avatar), text: cleanText(msg.text, 200), time: msg.time };
       if (!m.text) return;
       this.chat.push(m);
       if (this.chat.length > 100) this.chat.shift();
@@ -762,12 +848,12 @@ export class PublicLobby {
     this.events.onPeople?.([...this.people.values()].sort((a, b) => b.me - a.me || a.name.localeCompare(b.name)));
   }
 
-  /** Een chatbericht voor iedereen in de lobby. */
+  /** Een chatbericht voor iedereen in de lobby (de app beperkt hoe vaak). */
   sendChat(text) {
     const clean = cleanText(text, 200);
     if (!clean) return false;
     const a = this.me.avatar && this.me.avatar.length <= 16 ? this.me.avatar : null;
-    const msg = { id: `${this.me.id}-${Date.now().toString(36)}`, from: this.me.id, name: this.me.name, avatar: a, text: clean, time: Date.now() };
+    const msg = { id: Date.now().toString(36), from: this.me.id, name: this.me.name, avatar: a, text: clean, time: Date.now() };
     let sent = false;
     for (const r of this.relays) sent = r.publish(CHAT_TOPIC, msg) || sent;
     return sent;

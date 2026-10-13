@@ -4,10 +4,16 @@ import { WebGame, describeCard, defaultNames } from "./tienopenneer.mjs";
 import { faceSvg, initialSvg, emojiSvg, puppetBodySvg } from "./faces.js";
 import * as tineke from "./tineke.js";
 import { BID_LINES, WET_LINES, BID_MS } from "./voices.js";
-import { CHARACTERS, CLASSIC_CAST, REACTIONS, drawCast } from "./characters.js";
+import { CHARACTERS, CHARACTER_IDS, CLASSIC_CAST, REACTIONS, drawCast } from "./characters.js";
 import { CHANGES } from "./changelog.js";
 import { cloudEnabled, makeCloudCode, normalizeCloudCode, formatCloudCode, validCloudCode, fetchStats, saveStats, fetchHallOfFame, sendHofScore, sendHofPlayer, onCloudHealth } from "./cloud.js";
-import { Host, Guest, PublicLobby, makeCode, normalizeCode, AVATAR_EMOJIS, AVATAR_FACES, cleanAvatar, cleanStats, cleanVoice } from "./net.js";
+import { Host, Guest, PublicLobby, makeCode, normalizeCode, useIdentity, AVATAR_EMOJIS, AVATAR_FACES, cleanAvatar, cleanStats, cleanVoice } from "./net.js";
+import { chatLimit, cleanGame, cleanList, cleanStartGame, cleanText, devParam } from "./validate.js";
+import { loadIdentity } from "./ident.js";
+
+// Je sleutel voor samen spelen (ident.js). Lukt dat niet (zeer oude browser), dan werkt alleen samen spelen niet.
+const identity = await loadIdentity().catch((e) => { console.warn("Geen sleutel:", e); return null; });
+useIdentity(identity);
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
@@ -53,6 +59,9 @@ const BOERENBRIDGE = {
   negativeScores: false, roundingAllowed: false, mustTrump: false,
 };
 
+/**
+ * Een spel maken in de spelmotor (Kotlin, via WebGame). Alle regels als losse waarden, in de volgorde van WebGame.
+ */
 function createGame(rules, smart, seed, names, actions, humanSeats = [1], viewSeat = 1) {
   return new WebGame(
     rules.maxCards, rules.pointsPerTrick, rules.wrongScoresZero, rules.penaltyPerTrick,
@@ -61,6 +70,9 @@ function createGame(rules, smart, seed, names, actions, humanSeats = [1], viewSe
   );
 }
 
+/**
+ * Welke soort spel dit is, voor de highscorelijsten (die per soort apart zijn).
+ */
 function variantKey(s) {
   if (s.isTienOpEnNeer) return "10openneer";
   if (s.variant === "Boerenbridge") return "boerenbridge";
@@ -77,7 +89,8 @@ const MAX_HIGHSCORES = 10;
 
 /** Elk uitgespeeld spel van jezelf, nieuwste eerst (op dit apparaat). */
 const MAX_STATS = 1000;
-const loadStats = () => store.get("statistiek", []);
+/** Je bewaarde spellen; elk gecontroleerd, want ze kunnen ook uit de database komen (zie validate.js). */
+const loadStats = () => cleanList(store.get("statistiek", []), MAX_STATS, cleanGame);
 
 /** Een afgelopen spel bewaren; een spel dat al bewaard is (bijvoorbeeld na herladen) telt niet nog eens. */
 function recordStats() {
@@ -368,6 +381,12 @@ onCloudHealth((ok) => {
   el.hidden = !cloudDown;
 });
 
+/** SHA-256 als hex, zoals de database die van je Hall of Fame-nummer teruggeeft. */
+async function sha256Hex(text) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 /** Je vaste, willekeurige nummer in de Hall of Fame (los van de geheime statistiekcode). */
 function hofId() {
   if (!/^[A-Za-z0-9]{16}$/.test(settings.hofId ?? "")) {
@@ -384,6 +403,7 @@ const hofName = () => (settings.playerName || "Speler").trim().slice(0, 24) || "
 
 /** Scores die nog naar de Hall of Fame moeten (bijvoorbeeld omdat er geen internet was). */
 let hofBusy = null;
+let hofRetrying = false; // één extra ronde, geen eindeloze herhaling zonder internet
 function flushHof() {
   if (!hofOn()) return Promise.resolve();
   if (hofBusy) return hofBusy;
@@ -401,10 +421,17 @@ function flushHof() {
     }
   };
   // Pas na het starten opruimen: zonder iets te versturen is run() meteen klaar
-  hofBusy = run().finally(() => { hofBusy = null; });
+  // Kwam er tijdens het versturen iets bij in de wachtrij, dan dat er meteen achteraan
+  hofBusy = run().finally(() => {
+    hofBusy = null;
+    if (store.get("hof-wachtrij", []).length && !hofRetrying) { hofRetrying = true; flushHof().finally(() => { hofRetrying = false; }); }
+  });
   return hofBusy;
 }
 
+/**
+ * Een score voor de Hall of Fame in de wachtrij zetten: zonder internet gaat hij later alsnog mee.
+ */
 function queueHof(entry) {
   if (!hofOn()) return;
   const q = store.get("hof-wachtrij", []).filter((x) => x.game !== entry.game);
@@ -589,7 +616,9 @@ let hintBid = -1;
 // Tips: mogen ze in dit spel (instelling bij het starten) en heb je er een gebruikt? Dan telt het spel niet mee
 let currentTips = false;
 const tipsAllowed = () => (online?.game ? !!online.game.tips : currentTips);
-const tipUsed = () => !!game && store.get("tip-gebruikt", null) === game.seed;
+// Per spel (beginwaarde) bijgehouden, zodat een tip in het ene spel niet wegvalt door een ander spel
+const tipSeeds = () => { const v = store.get("tip-gebruikt", []); return Array.isArray(v) ? v : [v]; };
+const tipUsed = () => !!game && tipSeeds().includes(game.seed);
 let showLastTrick = false;
 let showScores = false;
 let confirmDialog = null;
@@ -655,6 +684,10 @@ const isWet = (p) => {
   return tricks > p.bid || p.bid - tricks > p.cardCount + onTable;
 };
 
+/**
+ * Een spel tegen de computer dat nog liep weer openen (na herladen of afsluiten). Het spel wordt
+ * opnieuw uitgerekend uit de beginwaarde en jouw handelingen; lukt dat niet, dan begin je opnieuw.
+ */
 function restoreSavedGame() {
   const saved = store.get("spel", null);
   if (!saved?.rules) return;
@@ -674,6 +707,9 @@ function restoreSavedGame() {
   }
 }
 
+/**
+ * Het lopende spel tegen de computer bewaren: alleen beginwaarde, regels en handelingen, de rest volgt daaruit.
+ */
 function saveGame() {
   if (online?.game) { saveOnline(); return; }
   if (!game || !st || st.phase === "GAME_OVER") return;
@@ -705,7 +741,7 @@ function startNewGame(rules) {
     return;
   }
   stopDriver();
-  tinekeHide();
+  tinekeRelease();
   helpLevel = 0;
   lastTurnKey = "";
   currentCast = drawCast();
@@ -733,6 +769,9 @@ function startNewGame(rules) {
   drive();
 }
 
+/**
+ * Tijdelijke dingen (melding, tip) weghalen zodra je iets doet; ze horen bij het vorige moment.
+ */
 function clearTransient() {
   message = null;
   hintCard = 0;
@@ -740,6 +779,9 @@ function clearTransient() {
   showLastTrick = false;
 }
 
+/**
+ * De stand opnieuw uit de spelmotor halen en reageren op wat er veranderde (geluiden, voorspellingen, nat gaan).
+ */
 function refresh() {
   if (!game) {
     st = null;
@@ -894,6 +936,9 @@ function bidBubble(text, bid) {
   return text ? `<b>${bid}</b> <span>${esc(text)}</span>` : `<b>${bid}</b>`;
 }
 
+/**
+ * Hoe lang te wachten voor de volgende stap: lang genoeg om mee te kijken, met tijd voor de uitgesproken voorspelling.
+ */
 function stepDelay(phase) {
   // Op de achtergrond kijkt niemand: meteen door, zodat je snel hoort dat je aan de beurt bent
   if (inBackground()) return 0;
@@ -904,6 +949,11 @@ function stepDelay(phase) {
   return Math.max(base * factor, minimum);
 }
 
+/**
+ * De motor van het spel: zet de volgende stap (computerspeler, slag ophalen, zet van een ander) na een korte
+ * pauze, zodat je kunt volgen wat er gebeurt. Wacht op jou, op Tineke, op een animatie of op een zet van een
+ * andere mens; roept zichzelf aan tot er weer gewacht moet worden.
+ */
 function drive() {
   if (driver !== null || busy || tinekeWaiting || screen !== "game" || !st) return;
   // Samen spelen op de achtergrond: de volgende ronde begint vanzelf
@@ -913,8 +963,9 @@ function drive() {
     driver = setTimeout(() => { driver = null; continueAfterRound(); }, 4000);
     return;
   }
+  // Eerst een overname die al klaarstaat (anders kun je een zet doen die bij de anderen niet meer past)
+  if (applyTakeovers()) { refresh(); renderGame(); }
   if (st.phase === "GAME_OVER" || st.phase === "ROUND_COMPLETE" || humanBidding() || humanPlaying()) return;
-  if (applyTakeovers()) refresh();
   // Wachten op een andere mens: pas verder als zijn handeling binnen is
   if (remoteTurn() && !online.queue.has(game.actionCount())) return;
   driver = setTimeout(async () => {
@@ -927,7 +978,7 @@ function drive() {
       const a = online.queue.get(index);
       online.queue.delete(index);
       const error = a ? game.applyRemote(a.seat, a.value) : "geen handeling";
-      if (error) console.warn("Handeling van een andere speler past niet:", error);
+      if (error) { console.warn("Handeling van een andere speler past niet:", error); resyncOnline(); return; }
       afterStep();
     } else {
       game.advance();
@@ -937,6 +988,9 @@ function drive() {
   }, stepDelay(st.phase));
 }
 
+/**
+ * Na elke stap van het spel: scherm bijwerken en bewaren, zodat herladen of afsluiten niets kost.
+ */
 function afterStep() {
   refresh();
   if (humanBidding() || humanPlaying()) {
@@ -946,6 +1000,9 @@ function afterStep() {
   saveGame();
 }
 
+/**
+ * De geplande volgende stap annuleren (bij weggaan of een nieuw spel), zodat er niets meer doorloopt.
+ */
 function stopDriver() {
   if (driver !== null) clearTimeout(driver);
   driver = null;
@@ -966,6 +1023,10 @@ async function collectTrick() {
   }
 }
 
+/**
+ * Eén keer na afloop van een spel: statistiek, highscore, Hall of Fame en de feestelijke afsluiting.
+ * gameOverHandled voorkomt dat het twee keer gebeurt (bijvoorbeeld na herladen).
+ */
 function handleGameOver() {
   if (gameOverHandled) return;
   gameOverHandled = true;
@@ -1082,7 +1143,7 @@ function winnerStage(mode = null) {
 const CELEBRATIONS = [["tien", 4], ["stuiter", 2], ["sneeuw", 2], ["weg", 2], ["vliegtuig", 2]];
 
 function pickCelebration() {
-  const forced = new URLSearchParams(location.search).get("anim");
+  const forced = devParam("anim");
   if (CELEBRATIONS.some(([k]) => k === forced)) return forced;
   let r = Math.random() * CELEBRATIONS.reduce((n, [, w]) => n + w, 0);
   for (const [kind, weight] of CELEBRATIONS) if ((r -= weight) < 0) return kind;
@@ -1343,6 +1404,7 @@ function celebrate(mode = null, kind = pickCelebration()) {
 // ------------------------------------------------------------------------------------------
 
 function onBid(n) {
+  if (applyTakeovers()) { refresh(); renderGame(); if (!humanBidding()) { drive(); return; } }
   const index = game.actionCount();
   const error = game.bid(n);
   if (!error) netSend(index, n);
@@ -1370,6 +1432,7 @@ function onCardTap(code, el) {
     renderGame();
     return;
   }
+  if (applyTakeovers()) { refresh(); renderGame(); if (!humanPlaying()) { drive(); return; } }
   const from = el.getBoundingClientRect();
   const index = game.actionCount();
   const error = game.play(code);
@@ -1405,8 +1468,8 @@ function onTip() {
 /** Je gebruikt een tip: het spel telt niet meer mee, en je medespelers horen het. */
 function markTipUsed() {
   if (!game || tipUsed()) return;
-  store.set("tip-gebruikt", game.seed);
-  if (online?.game) sendChat("💡 Ik heb een tip gebruikt.");
+  store.set("tip-gebruikt", [...tipSeeds(), game.seed].slice(-20));
+  if (online?.game) sendChat("💡 Ik heb een tip gebruikt.", true);
   else reactToTip();
 }
 
@@ -1434,7 +1497,7 @@ function continueAfterRound() {
 
 function leaveGame() {
   stopDriver();
-  tinekeHide();
+  tinekeRelease();
   menuOpen = false;
   show("menu");
 }
@@ -1468,6 +1531,18 @@ function tinekeSay(text, { wait = false, isHelp = false } = {}) {
   if (!isHelp) tinekeTimer = setTimeout(tinekeHide, 2400 + 80 * text.length);
   if (!wait) return Promise.resolve();
   return new Promise((resolve) => { tinekeWaiting = resolve; });
+}
+
+/**
+ * Weg van het spel terwijl Tineke op "Doorgaan" wacht: het wachten opheffen. Anders blijft het spel
+ * (en elk volgend spel) stilstaan, omdat drive() wacht tot Tineke klaar is.
+ */
+function tinekeRelease() {
+  const resolve = tinekeWaiting;
+  tinekeWaiting = null;
+  tinekePending = null;
+  tinekeHide();
+  resolve?.();
 }
 
 function tinekeHide() {
@@ -1703,6 +1778,9 @@ const SEAT_POS = {
   5: ["", "south", "west", "north nw", "north ne", "east"],
 };
 
+/**
+ * De plaatsen aan tafel opbouwen (alleen als het aantal spelers of de indeling verandert; dat is duur).
+ */
 function buildSeats() {
   const n = st.players.length;
   $("#arena").classList.toggle("two", n === 2);
@@ -1745,6 +1823,9 @@ function moodFor(nr) {
   return "";
 }
 
+/**
+ * De plaatsen aan tafel bijwerken: bod, slagen, wie er aan de beurt is (bij elke stap; daarom los van buildSeats).
+ */
 function updateSeats() {
   if (!st) return;
   if ($("#seat-1").dataset.key !== seatsKey() || !$("#seat-1 .avatar")) buildSeats();
@@ -2425,10 +2506,13 @@ async function renderHallOfFame() {
     }
   }
   if (hsScope !== "hof" || cur() !== key) return; // intussen naar een andere lijst gegaan
-  const me = settings.hofId;
+  // De database geeft alleen een hash van het spelersnummer terug (het nummer zelf is je "wachtwoord")
+  const me = await sha256Hex(hofId());
+  if (hsScope !== "hof" || cur() !== key) return;
+  const mine = (x) => x.p === me || x.p === settings.hofId;
   $("#hs-list").innerHTML = data.scores.length === 0
     ? `<p class="empty-note">${hsFiltered() ? "Nog niemand met deze filters." : "Nog niemand in deze lijst. Speel een spel uit en kom er als eerste in!"}</p>`
-    : data.scores.map((h, i) => `<div class="hs-row hof${h.p === me ? " me" : ""}"><span class="pos">${i + 1}</span>${hofFace(h)}<span class="name">${esc(String(h.name ?? ""))}${h.detail ? `<small>${esc(String(h.detail))}</small>` : ""}</span><span class="date">${hofDate(h.date)}</span><span class="score">${Number(h.score) || 0}</span></div>`).join("");
+    : data.scores.map((h, i) => `<div class="hs-row hof${mine(h) ? " me" : ""}"><span class="pos">${i + 1}</span>${hofFace(h)}<span class="name">${esc(String(h.name ?? ""))}${h.detail ? `<small>${esc(String(h.detail))}</small>` : ""}</span><span class="date">${hofDate(h.date)}</span><span class="score">${Number(h.score) || 0}</span></div>`).join("");
   if (hsShort) { $("#hof-players").innerHTML = ""; return; }
   const players = data.players
     .map((p) => ({ ...p, s: cleanStats(p.stats) }))
@@ -2438,7 +2522,7 @@ async function renderHallOfFame() {
     .slice(0, 25);
   $("#hof-players").innerHTML = players.length === 0 ? "" : `<h3 class="stat-head">Beste spelers</h3>
     <p class="hs-note">Op sterren: hoe hoog je eindigt en hoe vaak je goed voorspelt, gemiddeld over al je volledige spellen. Met weinig spellen blijven de sterren dicht bij het midden.</p>
-    <div class="group">${players.map((p, i) => `<div class="hs-row hof${p.p === me ? " me" : ""}"><span class="pos">${i + 1}</span>${hofFace(p)}<span class="name">${esc(String(p.name ?? ""))}<small>${p.s.g} spellen · ${p.s.w} gewonnen · ${p.s.r ? Math.round((100 * p.s.ok) / p.s.r) : 0}% goed</small></span>${starsHtml(p.stars)}</div>`).join("")}</div>`;
+    <div class="group">${players.map((p, i) => `<div class="hs-row hof${mine(p) ? " me" : ""}"><span class="pos">${i + 1}</span>${hofFace(p)}<span class="name">${esc(String(p.name ?? ""))}<small>${p.s.g} spellen · ${p.s.w} gewonnen · ${p.s.r ? Math.round((100 * p.s.ok) / p.s.r) : 0}% goed</small></span>${starsHtml(p.stars)}</div>`).join("")}</div>`;
 }
 
 // ------------------------------------------------------------------------------------------
@@ -2553,21 +2637,16 @@ $("#rules-text").innerHTML = RULES_TEXT.map(([h, b]) => `<h3>${h}</h3><p>${b}</p
 // Samen spelen via internet
 // ------------------------------------------------------------------------------------------
 
-const clientId = () => {
-  if (!settings.clientId) {
-    settings.clientId = Math.random().toString(36).slice(2) + Date.now().toString(36);
-    saveSettings();
-  }
-  return settings.clientId;
-};
+/** Je nummer bij samen spelen: afgeleid van je sleutel, zodat niemand het kan namaken (ident.js). */
+const clientId = () => identity?.id ?? "";
 
 /** In de Android-app draait de website vanuit de app zelf; gedeelde links wijzen dan naar de echte website. */
 const nativeApp = window.TienApp ?? null;
-const APP_VERSION = "2.31";
+const APP_VERSION = "2.32";
 const SITE_URL = "https://robbert-coder.github.io/10-op-en-neer/";
-const tableLink = (code) => `${nativeApp ? SITE_URL : location.origin + location.pathname}?spel=${code}`;
+// Met het nummer van de gastheer erin: wie via de link komt, weet zo zeker dat hij met de echte gastheer praat
+const tableLink = (code) => `${nativeApp ? SITE_URL : location.origin + location.pathname}?spel=${code}${identity ? `&h=${identity.id}` : ""}`;
 
-/** "v2.16" tegenover "2.15": is de eerste nieuwer? */
 /**
  * Kom je terug na een nieuwe versie, dan zie je dat in het hoofdmenu, met uitklapbaar wat er nieuw is.
  * De vorige versie wordt onthouden; wie voor het eerst speelt, krijgt geen bericht.
@@ -2586,6 +2665,7 @@ function showNews() {
   $("#news-close").addEventListener("click", () => { store.set("laatste-versie", APP_VERSION); el.hidden = true; });
 }
 
+/** "v2.16" tegenover "2.15": is de eerste nieuwer? Per getal vergeleken, dus 2.10 is nieuwer dan 2.9. */
 function isNewerVersion(tag, installed) {
   const parts = (v) => String(v).replace(/^v/, "").split(".").map((n) => parseInt(n, 10) || 0);
   const a = parts(tag), b = parts(installed);
@@ -2600,7 +2680,7 @@ function isNewerVersion(tag, installed) {
  * versie is; dan komt er een knop in het menu om die te downloaden. De website werkt zichzelf al bij.
  */
 async function checkForUpdate() {
-  if (!nativeApp && !new URLSearchParams(location.search).has("updatecheck")) return;
+  if (!nativeApp && devParam("updatecheck") == null) return;
   try {
     const res = await fetch("https://api.github.com/repos/robbert-coder/10-op-en-neer/releases/latest", { headers: { Accept: "application/vnd.github+json" } });
     if (!res.ok) return;
@@ -2617,6 +2697,9 @@ async function checkForUpdate() {
   }
 }
 
+/**
+ * De koppeling tussen de verbinding (net.js) en het spel: wat er gebeurt als er iets binnenkomt.
+ */
 function netEvents() {
   return {
     onWelcome: (seat) => {
@@ -2633,6 +2716,12 @@ function netEvents() {
       saveOnline();
     },
     onStart: (g, log) => onNetStart(g, log),
+    // Alleen bij de gastheer: past de zet van een gast? Bij twijfel (ons spel loopt nog achter) doorlaten
+    validate: (index, seat) => {
+      if (!game || game.actionCount() !== index) return undefined;
+      const turn = game.humanToMove();
+      return turn === 0 || turn === seat ? undefined : false;
+    },
     onChat: (m, own) => onChatMessage(m, own),
     onChatLog: (list) => { online.chat = list.slice(-100); renderChat(); },
     onAction: (a) => onNetAction(a),
@@ -2685,9 +2774,19 @@ function onChatMessage(m, own) {
   saveOnline();
 }
 
-function sendChat(text) {
-  const clean = String(text || "").trim().slice(0, 200);
-  if (!clean || !online?.link) return;
+/** Hoe vaak je zelf een chatbericht mag sturen (aan tafel en in de lobby); de ontvangers controleren het ook. */
+const myChatLimit = chatLimit();
+function chatTooFast() {
+  if (myChatLimit.allow("ik")) return false;
+  const secs = Math.ceil(myChatLimit.wait("ik") / 1000);
+  showChatNotice(`Even rustig aan: over ${secs} ${secs === 1 ? "seconde" : "seconden"} kun je weer een bericht sturen.`);
+  return true;
+}
+
+/** Een chatbericht aan tafel. [force]: meldingen van de app zelf (zoals een gebruikte tip) tellen niet mee. Geeft false als het niet verstuurd is. */
+function sendChat(text, force = false) {
+  const clean = cleanText(text, 200);
+  if (!clean || !online?.link || (!force && chatTooFast())) return false;
   if (online.role === "host") {
     online.link.sendChat(clean); // komt via onChat terug als eigen bericht
   } else if (online.link.sendChat(clean)) {
@@ -2695,7 +2794,15 @@ function sendChat(text) {
   } else {
     online.status = "Geen verbinding: het bericht is niet verstuurd.";
     renderOnline();
+    return false;
   }
+  return true;
+}
+
+/** Een melding over de chat zelf (te snel), alleen voor jou: in de tafelchat of in de lobby. */
+function showChatNotice(text) {
+  if (online) systemChat(text);
+  else { pubStatus = text; renderPublicLobby(); setTimeout(() => { if (pubStatus === text) { pubStatus = ""; renderPublicLobby(); } }, 4000); }
 }
 
 /** Bij samen spelen staat de chat vast onderin het spelscherm; met het pijltje klap je hem in. */
@@ -2781,8 +2888,7 @@ $("#chat-quick").addEventListener("click", (e) => {
 $("#chat-form").addEventListener("submit", (e) => {
   e.preventDefault();
   const input = $("#chat-input");
-  sendChat(input.value);
-  input.value = "";
+  if (sendChat(input.value)) input.value = "";
 });
 $("#btn-chat").addEventListener("click", () => openChat(!chatOpen));
 $("#dock-quick").innerHTML = $("#chat-quick").innerHTML;
@@ -2793,8 +2899,7 @@ $("#dock-quick").addEventListener("click", (e) => {
 $("#dock-form").addEventListener("submit", (e) => {
   e.preventDefault();
   const input = $("#dock-input");
-  sendChat(input.value);
-  input.value = "";
+  if (sendChat(input.value)) input.value = "";
 });
 $(".dock-bar").addEventListener("click", () => setDock(settings.chatDock === false));
 $("#btn-lobby-chat").addEventListener("click", () => openChat(!chatOpen));
@@ -2812,6 +2917,9 @@ function closeOnline() {
   store.remove("online-gast");
 }
 
+/**
+ * Een eigen tafel openen voor samen spelen (jij bent de gastheer).
+ */
 function openTable(rules) {
   closeOnline();
   askNotifications();
@@ -2834,14 +2942,16 @@ function openTable(rules) {
   show("online");
 }
 
-function joinTable(code) {
+/** Aanschuiven bij een tafel. [hostId]: het nummer van de gastheer, als we dat weten (link of lobby). */
+function joinTable(code, hostId = null) {
   closeOnline();
   askNotifications();
   online = { role: "guest", code, seat: 0, players: [], queue: new Map(), game: null, status: "Verbinden met de tafel…", error: "", chat: [], unread: 0 };
-  online.link = new Guest(code, settings.playerName, clientId(), netEvents(), myAvatar());
+  if (!identity) { online.error = "Samen spelen werkt niet in deze browser."; show("online"); return; }
+  online.link = new Guest(code, settings.playerName, clientId(), netEvents(), myAvatar(), hostId);
   online.link.voice = myVoice();
   shareStats();
-  store.set("online-gast", { code, time: Date.now() });
+  store.set("online-gast", { code, hostId: hostId ?? null, time: Date.now() });
   show("online");
 }
 
@@ -2870,9 +2980,13 @@ function startHostGame(fill) {
   startOnlineGame(g, []);
 }
 
+/**
+ * Een spel aan een online tafel (opnieuw) opbouwen uit de startgegevens en het logboek. Alle tijdelijke
+ * toestand van een vorig spel gaat weg, zodat niets van het oude spel doorwerkt.
+ */
 function startOnlineGame(g, log) {
   stopDriver();
-  tinekeHide();
+  tinekeRelease();
   currentRules = g.rules;
   currentSmart = g.smart;
   online.game = g;
@@ -2894,9 +3008,17 @@ function startOnlineGame(g, log) {
   drive();
 }
 
-function onNetStart(g, log) {
+/**
+ * De gastheer stuurt het spel en het logboek: bij het begin, na opnieuw verbinden, of omdat we niet gelijk
+ * liepen. Klopt alles wat we al hebben met het logboek, dan alleen het ontbrekende aanvullen; anders
+ * (bijvoorbeeld een eigen zet die niet doorging) het spel opnieuw opbouwen.
+ */
+function onNetStart(raw, log) {
+  const g = cleanStartGame(raw, CHARACTER_IDS);
+  if (!g) return;
   const same = online.game && game && online.game.seed === g.seed;
-  if (same && game.actionCount() <= log.length) {
+  const mine = same ? Array.from(game.actions()) : [];
+  if (same && mine.length <= log.length && mine.every((v, i) => v === log[i].value)) {
     // Weer verbonden: alleen de gemiste handelingen nog uitvoeren
     log.forEach((a, index) => { if (index >= game.actionCount()) online.queue.set(index, { index, ...a }); });
     message = null;
@@ -2907,9 +3029,10 @@ function onNetStart(g, log) {
   startOnlineGame(g, log);
 }
 
+/** Een handeling van een ander (via de gastheer). Ze kunnen in de verkeerde volgorde binnenkomen; daarom een wachtrij op volgnummer. */
 function onNetAction(a) {
   if (!game || !online?.game) return;
-  if (a.index < game.actionCount()) return;
+  if (a.index < game.actionCount() || a.index > game.actionCount() + 500) return;
   online.queue.set(a.index, a);
   if (applyTakeovers()) { refresh(); if (screen === "game") renderGame(); }
   saveOnline();
@@ -2958,7 +3081,7 @@ function markTakenOver() {
 // grote aftelling. De anderen zien dat ook. Na 2 minuten stemmen zij of een computer het overneemt;
 // alleen als iedereen akkoord is, gebeurt dat. Na afloop van het spel is er geen tijdslimiet.
 
-const IDLE_FAST = new URLSearchParams(location.search).get("idle") === "fast"; // om te testen
+const IDLE_FAST = devParam("idle") === "fast"; // om te testen (alleen op de eigen computer)
 const IDLE_WARN_MS = IDLE_FAST ? 6000 : 60000;
 const IDLE_COUNT_MS = IDLE_FAST ? 9000 : 90000;
 const IDLE_LIMIT_MS = IDLE_FAST ? 12000 : 120000;
@@ -2988,6 +3111,10 @@ function onVotes(v) {
   idleTick();
 }
 
+/**
+ * Twee keer per seconde: wie is er aan de beurt en hoe lang al? Toont de waarschuwing, het aftellen en
+ * de stemming (stap 1, 2 en 3) aan de speler zelf en aan de anderen.
+ */
 function idleTick() {
   const over = !!(online?.game && st?.phase === "GAME_OVER");
   if (over !== wasOver) { wasOver = over; renderChat(); }
@@ -3097,12 +3224,26 @@ function newRoundSameGroup() {
 }
 
 /** Een eigen handeling naar de anderen sturen. */
+/** Je eigen zet naar de anderen. Past hij bij de gastheer niet meer (er kwam net iets tussen), dan opnieuw gelijk lopen. */
 function netSend(index, value) {
   if (!online?.game) return;
-  online.link?.sendAction(index, online.seat, value);
+  if (online.link?.sendAction(index, online.seat, value) === false) resyncOnline();
   saveOnline();
 }
 
+/**
+ * We lopen niet gelijk met de gastheer. Een gast vraagt de hele stand opnieuw op; de gastheer bouwt
+ * zijn eigen spel opnieuw op uit zijn logboek (dat is de waarheid voor iedereen).
+ */
+function resyncOnline() {
+  if (!online?.game || !online.link) return;
+  if (online.role === "host") setTimeout(() => startOnlineGame(online.game, online.link.log.slice()), 0);
+  else online.link.resync?.();
+}
+
+/**
+ * De gastheer bewaart zijn tafel, zodat hij na herladen verder kan en de gasten vanzelf terugkomen.
+ */
 function saveOnline() {
   if (online?.role === "host" && online.link && online.game) store.set("online", { ...online.link.snapshot(), time: Date.now(), over: st?.phase === "GAME_OVER" });
 }
@@ -3111,6 +3252,9 @@ function saveOnline() {
 /** Hoe lang je na het sluiten van de app automatisch terugkomt aan een online tafel. */
 const ONLINE_RESUME_MS = 3 * 60 * 60 * 1000;
 
+/**
+ * Na herladen terug naar je online tafel (als gastheer of als gast), als die niet te oud is.
+ */
 function resumeOnline() {
   // Een tafel van lang geleden is er niet meer: dan niet automatisch terug naar dat spel
   const recent = (x) => x && Date.now() - (x.time ?? 0) < ONLINE_RESUME_MS;
@@ -3145,7 +3289,7 @@ function resumeOnline() {
   const guest = store.get("online-gast", null);
   if (guest && !recent(guest)) store.remove("online-gast");
   else if (guest?.code) {
-    joinTable(guest.code);
+    joinTable(guest.code, typeof guest.hostId === "string" ? guest.hostId : null);
     return true;
   }
   return false;
@@ -3291,11 +3435,15 @@ $$("#opt-public button").forEach((b) => b.addEventListener("click", () => { newP
 $("#opt-title").addEventListener("input", (e) => { newTitle = e.target.value; });
 $("#pub-tables").addEventListener("click", (e) => {
   const b = e.target.closest("[data-pub-join]");
-  if (b && !b.disabled) joinTable(normalizeCode(b.dataset.pubJoin));
+  if (b && !b.disabled) {
+    const code = normalizeCode(b.dataset.pubJoin);
+    joinTable(code, pubTables.find((t) => t.code === code)?.hostId ?? null);
+  }
 });
 $("#pub-chat-form").addEventListener("submit", (e) => {
   e.preventDefault();
   const input = $("#pub-chat-input");
+  if (!cleanText(input.value, 200) || chatTooFast()) return;
   if (pubLobby?.sendChat(input.value)) input.value = "";
 });
 $("#btn-join").addEventListener("click", () => {
@@ -3611,7 +3759,9 @@ $$(".logo-cards .card-slot").forEach((el) => {
 $("#menu-faces").innerHTML = [[2, 414], [3, 210], [4, 114]].map(([nr, code], i) =>
   `<div class="menu-face">${avatarHtml(nr, "")}<div class="mf-card mf-${i + 1}">${trumpMiniHtml(code).replace("--w:36px", "--w:22px")}</div></div>`).join("");
 
-const joinCode = normalizeCode(new URLSearchParams(location.search).get("spel"));
+const linkParams = new URLSearchParams(location.search);
+const joinCode = normalizeCode(linkParams.get("spel"));
+const joinHost = /^[A-Za-z0-9_-]{22}$/.test(linkParams.get("h") ?? "") ? linkParams.get("h") : null;
 if (!resumeOnline()) restoreSavedGame();
 if (settings.cloudCode) syncStats();
 flushHof();
@@ -3619,7 +3769,17 @@ if (joinCode.length === 5 && !(online?.code === joinCode)) {
   // Geopend via een gedeelde link: meteen aanschuiven
   show("online");
   $("#on-code").value = joinCode;
-  if (settings.playerName && settings.playerName !== "Speler") joinTable(joinCode);
+  if (online?.link && online.code) {
+    // Je zit nog aan een andere tafel: niet zomaar weggaan (dat zou dat spel voor de anderen beëindigen)
+    confirmDialog = {
+      title: "Naar een andere tafel?",
+      text: `Je speelt nog een spel aan tafel ${online.code}. Als je naar tafel ${joinCode} gaat, verlaat je dat spel.`,
+      yes: "Naar de andere tafel", no: "Blijven",
+      action: () => joinTable(joinCode, joinHost),
+      noAction: () => show("game"),
+    };
+    renderDialog();
+  } else if (settings.playerName && settings.playerName !== "Speler") joinTable(joinCode, joinHost);
   else $("#on-name").focus();
 } else if (online && !online.game) {
   show("online");
@@ -3678,7 +3838,8 @@ window.tienBack = () => {
 };
 
 // Voor de tests
-window.__tienopenneer = { get state() { return st; }, settings, get busy() { return busy; }, celebrate, voiceFor };
+window.__tienopenneer = { get state() { return st; }, settings, get busy() { return busy; }, celebrate, voiceFor,
+  debug: () => ({ count: game?.actionCount(), queue: [...(online?.queue?.keys() ?? [])], seat: online?.seat, busy, driver, tineke: !!tinekeWaiting, msg: message }) };
 
 // Tikken op een speler: zijn statistiek en sterren -----------------------------------------
 

@@ -34,6 +34,9 @@ jobs:
           echo "website $web, app $app"
           [ -n "$web" ] && [ "$web" = "$app" ]
 
+      - name: Tests van de JavaScript (invoercontrole, ondertekening, gastheer)
+        run: cd web && npm test
+
       - name: Website bouwen
         run: |
           ./gradlew :web:site

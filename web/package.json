@@ -1,0 +1,9 @@
+{
+  "name": "tienopenneer-web-tests",
+  "private": true,
+  "type": "module",
+  "description": "Tests voor de JavaScript van de webversie, zonder extra pakketten (node --test).",
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  }
+}

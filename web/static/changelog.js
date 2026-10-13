@@ -1,5 +1,14 @@
 // Wat er per versie nieuw is. Wie na een nieuwe versie terugkomt, ziet dit in het hoofdmenu.
 export const CHANGES = [
+  { v: "2.32", items: [
+    "Veiliger samen spelen: elk bericht is ondertekend, dus niemand kan zich voor een ander uitgeven of namens jou spelen.",
+    "Chat: hooguit 5 berichten per 10 seconden, zodat niemand de chat vol kan spammen.",
+    "Alles wat van anderen of uit de database komt, wordt eerst gecontroleerd.",
+    "Opgelost: het spel kon blijven stilstaan als je wegging terwijl Tineke iets uitlegde.",
+    "Opgelost: bij samen spelen kon het spel vastlopen als iemand precies tegelijk vertrok of werd overgenomen.",
+    "Een gedeelde link opent niet meer zomaar een andere tafel terwijl je nog aan het spelen bent.",
+    "Samen spelen werkt alleen met andere spelers die ook versie 2.32 of nieuwer hebben.",
+  ] },
   { v: "2.31", items: ["De melding dat je (of een ander) te lang wacht, kun je wegklikken met het kruisje. Bij de volgende stap komt hij terug."] },
   { v: "2.30", items: [
     "Telefoon dwars in de webapp: het hele scherm wordt weer gebruikt, en de geïnstalleerde webapp mag ook liggend.",
