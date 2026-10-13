@@ -936,6 +936,11 @@ button.primary { background: linear-gradient(180deg, #F7C761, var(--gold)); box-
   box-shadow: 0 12px 32px rgba(0,0,0,.45); border: 2px solid #E0A200; animation: fade-in .2s;
 }
 .idle-panel[hidden] { display: none; }
+.idle-panel { padding-right: 46px; }
+.idle-close {
+  position: absolute; top: 6px; right: 6px; width: 34px; height: 34px; padding: 0; border-radius: 50%;
+  background: rgba(0, 0, 0, .08); border: none; color: #1E2430; font-size: 16px; line-height: 34px;
+}
 .idle-panel.mine { background: #FFE3DC; border-color: #D6452B; }
 .idle-panel p { margin: 0; font-size: 14px; line-height: 1.4; }
 .idle-panel p + p { margin-top: 6px; }

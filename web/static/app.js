@@ -2563,7 +2563,7 @@ const clientId = () => {
 
 /** In de Android-app draait de website vanuit de app zelf; gedeelde links wijzen dan naar de echte website. */
 const nativeApp = window.TienApp ?? null;
-const APP_VERSION = "2.30";
+const APP_VERSION = "2.31";
 const SITE_URL = "https://robbert-coder.github.io/10-op-en-neer/";
 const tableLink = (code) => `${nativeApp ? SITE_URL : location.origin + location.pathname}?spel=${code}`;
 
@@ -2963,6 +2963,7 @@ const IDLE_WARN_MS = IDLE_FAST ? 6000 : 60000;
 const IDLE_COUNT_MS = IDLE_FAST ? 9000 : 90000;
 const IDLE_LIMIT_MS = IDLE_FAST ? 12000 : 120000;
 let idleKey = "";
+let idleClosed = ""; // weggeklikte melding: idleKey|stap
 let idleSince = 0;
 let idleStage = 0; // 1 = gewaarschuwd, 2 = aftellen, 3 = tijd om (voor de meldingen in de chat)
 let idleHtml = null;
@@ -3029,7 +3030,7 @@ function idleTick() {
           : `${name} reageert al 2 minuten niet. Jullie kunnen nu stemmen of een computer verder speelt voor ${name}.`);
       }
       if (stage < 3) {
-        const next = hostSeat ? "Even geduld." : `Blijft het stil, dan kunnen jullie over ${secs} seconden samen beslissen of een computer verder speelt voor ${esc(name)}. Dat gebeurt alleen als iedereen akkoord is.`;
+        const next = hostSeat ? "Even geduld." : `Blijft het stil, dan kunnen jullie over ${secs} seconden samen beslissen of een computer verder speelt voor ${esc(name)}. Dat gebeurt alleen als iedereen akkoord is.`.replace("over 1 seconden", "over 1 seconde");
         const text = `<p><b>${esc(name)} reageert al ${stage === 1 ? "een minuut" : "anderhalve minuut"} niet.</b> ${esc(name)} heeft een waarschuwing gekregen. ${next}</p>`;
         html = stage === 2 ? `<div class="idle-row"><div class="idle-big other">${secs}</div>${text}</div>` : text;
       } else if (hostSeat) {
@@ -3050,6 +3051,9 @@ function idleTick() {
       }
     }
     idleStage = Math.max(idleStage, stage);
+    // Weggeklikt: pas bij de volgende stap (aftellen, stemmen) komt de melding terug
+    if (idleClosed === `${idleKey}|${stage}`) html = "";
+    else if (html) html = `<button class="idle-close" data-close="${stage}" aria-label="Sluit deze melding">✕</button>${html}`;
   }
   const panel = $("#idle-panel");
   if (html !== idleHtml) {
@@ -3062,6 +3066,8 @@ function idleTick() {
 }
 
 $("#idle-panel").addEventListener("click", (e) => {
+  const close = e.target.closest("[data-close]");
+  if (close) { idleClosed = `${idleKey}|${close.dataset.close}`; idleTick(); return; }
   const b = e.target.closest("[data-vote]");
   const seat = Number($("#idle-panel").dataset.seat);
   if (!b || !seat || !online?.link?.vote) return;

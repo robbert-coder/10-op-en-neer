@@ -1,5 +1,6 @@
 // Wat er per versie nieuw is. Wie na een nieuwe versie terugkomt, ziet dit in het hoofdmenu.
 export const CHANGES = [
+  { v: "2.31", items: ["De melding dat je (of een ander) te lang wacht, kun je wegklikken met het kruisje. Bij de volgende stap komt hij terug."] },
   { v: "2.30", items: [
     "Telefoon dwars in de webapp: het hele scherm wordt weer gebruikt, en de geïnstalleerde webapp mag ook liggend.",
     "Bij samen spelen zie je weer dezelfde gezichten om uit te kiezen als bij een spel tegen de computer.",
