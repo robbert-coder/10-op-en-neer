@@ -205,6 +205,7 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
         </button>
         <div class="round-info"><b id="g-round"></b><small id="g-cards"></small></div>
+        <div class="pill cards-pill" title="Kaarten per speler deze ronde"><small>Kaarten</small><b id="g-ncards"></b></div>
         <div class="pill over-pill" id="g-over-pill"><small>Slagen</small><b id="g-over"></b></div>
         <div class="trump" id="g-trump" title="Troef"></div>
         <button class="icon-btn chat-btn" id="btn-chat" aria-label="Chat" hidden>
@@ -382,6 +383,13 @@
             <span><b>Stemmen van mensen</b><small>Ook de voorspelling van jezelf en je medespelers hardop, alleen het getal.</small></span>
             <input type="checkbox" id="set-speak-humans" class="switch">
           </label>
+          <div class="field" id="row-voice">Jouw stem<small class="field-note">Zo klinkt jouw voorspelling, ook bij je medespelers.</small>
+            <div class="seg three" id="opt-voice">
+              <button type="button" data-voice="man">Man</button>
+              <button type="button" data-voice="vrouw">Vrouw</button>
+              <button type="button" data-voice="neutraal">Neutraal</button>
+            </div>
+          </div>
         </div>
         <p class="note center version" id="app-version"></p>
       </div>

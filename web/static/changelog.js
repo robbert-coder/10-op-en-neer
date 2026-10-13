@@ -1,5 +1,13 @@
 // Wat er per versie nieuw is. Wie na een nieuwe versie terugkomt, ziet dit in het hoofdmenu.
 export const CHANGES = [
+  { v: "2.29", items: [
+    "Het aantal kaarten van deze ronde staat groot bovenin.",
+    "Kies bij Instellingen je eigen stem: man, vrouw of neutraal. Je medespelers horen die ook.",
+    "Een opgelegde kaart klinkt nu als papier dat over tafel schuift.",
+    "Tijdens het voorspellen zie je alleen de biedingen, nog niet de slagen.",
+    "In de Android-app loopt de achtergrond door tot onder de systeemknoppen, zonder groene randen.",
+    "Na een slag staat er niet meer dat je moet tikken: het spel gaat vanzelf verder.",
+  ] },
   { v: "2.28", items: [
     "Vier nieuwe tegenstanders: Bram, Gerda, Sjef en Mo. Wie er tegen je speelt, wordt elk spel geloot.",
     "Iedereen zegt veel meer verschillende dingen, elk op zijn eigen manier.",

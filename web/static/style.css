@@ -21,6 +21,11 @@
   --ratio: 1.42;
   --font: ui-rounded, "SF Pro Rounded", "Nunito", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   color-scheme: dark;
+  /* Vrije randen: in de app gezet door de Android-schil, anders wat de browser opgeeft */
+  --sat: env(safe-area-inset-top);
+  --sar: env(safe-area-inset-right);
+  --sab: env(safe-area-inset-bottom);
+  --sal: env(safe-area-inset-left);
 }
 
 * { box-sizing: border-box; }
@@ -39,7 +44,7 @@ html, body {
 
 #app {
   height: 100%;
-  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  padding: var(--sat) var(--sar) var(--sab) var(--sal);
   /* Lamplicht van boven op een donkere houten lambrisering */
   background:
     radial-gradient(90% 55% at 50% -8%, rgba(255, 196, 120, .28), transparent 70%),
@@ -264,6 +269,13 @@ h1 { font-size: 38px; margin: 18px 0 0; letter-spacing: -.5px; text-wrap: balanc
 .pill { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 3px 8px; text-align: center; line-height: 1.15; }
 .pill small { display: block; font-size: 10px; color: var(--muted); }
 .pill b { font-size: 14px; color: var(--gold); white-space: nowrap; }
+/* Het aantal kaarten van deze ronde: het belangrijkste getal, dus groot */
+.pill.cards-pill { background: var(--gold); border-color: transparent; padding: 2px 10px; }
+.pill.cards-pill small { color: rgba(28, 18, 12, .75); }
+.pill.cards-pill b { color: #1C120C; font-size: 22px; line-height: 1; }
+.game .pill.cards-pill b { font-size: 26px; }
+/* Tijdens het voorspellen heeft nog niemand slagen: alleen het bod */
+.seat.bidding .chip .got { display: none; }
 .trump { display: flex; align-items: center; justify-content: center; position: relative; }
 .trump .none { width: 30px; height: 42px; border: 1.5px dashed rgba(255,255,255,.4); border-radius: 5px; display: flex; align-items: center; justify-content: center; font-size: 10px; color: var(--muted); text-align: center; line-height: 1.1; }
 .dropdown { position: absolute; left: 10px; top: 52px; z-index: 30; background: #10261B; border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 14px 40px rgba(0,0,0,.5); display: flex; flex-direction: column; min-width: 230px; overflow: hidden; animation: fade-in .15s; }
@@ -356,7 +368,7 @@ h1 { font-size: 38px; margin: 18px 0 0; letter-spacing: -.5px; text-wrap: balanc
 @keyframes rise { from { transform: translate(-50%, 0); opacity: 1; } to { transform: translate(-50%, -34px); opacity: 0; } }
 
 /* ---------- Dialogen ---------- */
-.overlay { position: fixed; inset: 0; background: rgba(0, 10, 5, .55); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); display: flex; align-items: flex-end; justify-content: center; z-index: 20; padding: 12px; padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+.overlay { position: fixed; inset: 0; background: rgba(0, 10, 5, .55); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); display: flex; align-items: flex-end; justify-content: center; z-index: 20; padding: 12px; padding-bottom: max(12px, var(--sab)); }
 .overlay[hidden] { display: none; }
 .dialog { background: #2A1B12; border: 1px solid var(--line); border-radius: 24px; padding: 20px; width: 100%; max-width: 440px; max-height: 88vh; display: flex; flex-direction: column; box-shadow: 0 20px 50px rgba(0,0,0,.55); animation: sheet-up .3s cubic-bezier(.2, .9, .3, 1); }
 @keyframes sheet-up { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
@@ -524,7 +536,7 @@ h1 { font-size: 38px; margin: 18px 0 0; letter-spacing: -.5px; text-wrap: balanc
 .badge.inline { position: static; display: inline-block; margin-left: 6px; vertical-align: middle; }
 .badge[hidden] { display: none; }
 .chat-panel {
-  position: fixed; z-index: 25; left: 8px; right: 8px; bottom: max(8px, env(safe-area-inset-bottom));
+  position: fixed; z-index: 25; left: 8px; right: 8px; bottom: max(8px, var(--sab));
   max-height: min(55vh, 560px); display: flex; flex-direction: column;
   background: #2A1B12; border: 1px solid var(--line); border-radius: 22px; box-shadow: 0 18px 50px rgba(0,0,0,.6);
   animation: sheet-up .25s cubic-bezier(.2, .9, .3, 1);
@@ -626,7 +638,7 @@ h1 { font-size: 38px; margin: 18px 0 0; letter-spacing: -.5px; text-wrap: balanc
 @media (prefers-reduced-motion: reduce) { .winner-stage * { animation: none !important; } }
 
 /* ---------- Chat vast onderin bij samen spelen ---------- */
-.chat-dock { flex: none; display: flex; flex-direction: column; background: rgba(0, 0, 0, .28); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
+.chat-dock { flex: none; display: flex; flex-direction: column; background: rgba(0, 0, 0, .28); border-top: 1px solid var(--line); padding-bottom: var(--sab); }
 .chat-dock[hidden] { display: none; }
 .dock-bar { display: flex; align-items: center; gap: 8px; padding: 4px 6px 4px 14px; min-height: 34px; cursor: pointer; }
 .dock-last { flex: 1; min-width: 0; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -821,6 +833,8 @@ h1 { font-size: 38px; margin: 18px 0 0; letter-spacing: -.5px; text-wrap: balanc
 .advanced[open] > summary::after { transform: translateY(-50%) rotate(90deg); }
 .advanced[open] > summary { margin-bottom: 12px; }
 .seg.two { grid-template-columns: repeat(2, 1fr); }
+.seg.three { grid-template-columns: repeat(3, 1fr); }
+.field-note { display: block; font-size: 12px; opacity: .7; font-weight: 400; margin-top: 2px; }
 .seg button small { display: block; font-weight: 400; font-size: 12px; opacity: .75; margin-top: 2px; }
 
 /* Gebaren van de computerspelers: elk karakter op zijn eigen manier */

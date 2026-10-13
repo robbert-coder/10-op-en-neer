@@ -15,6 +15,8 @@ BID = {
  "sjef":  ["{N}.", "{N}, jong.", "Ach, doe maar {N}.", "{N}, hè.", "Hèhè, {N}.", "{N}, op z'n gemak.", "Zet maar {N} op de lat."],  # caféman
  "mo":    ["{N}.", "{N}, en nu jullie!", "{N}. Ik voel het!", "{N}, zeker weten. Of niet.", "Doe maar {N}, voor de gezelligheid.", "{N}! Applaus graag.", "{N}, toch?"],  # grappenmaker
 }
+# Je eigen stem (en die van medespelers) zegt alleen het getal; te kiezen in de instellingen
+for v in ("speler_man", "speler_vrouw", "speler_neutraal"): BID[v] = ["{N}."]
 # Nat: balend, teleurgesteld, boos of een zucht; per speler een eigen stijl en genoeg afwisseling
 WET = {
  "henk": ["Pfoe.", "Hè, verdorie.", "Dat had ik niet verwacht.", "Zo. Daar ga ik.", "Tja. Jammer dan.", "Hmpf. Nat.",
@@ -38,7 +40,9 @@ WET = {
 VOICE = {"henk": ("nl_NL-ronnie-medium", 1.05, 0.93), "truus": ("nl_BE-nathalie-medium", 1.0, 1.0),
          "kees": ("nl_BE-rdh-medium", 1.1, 1.0), "ria": ("nl_BE-nathalie-medium", 0.95, 1.12),
          "bram": ("nl_NL-pim-medium", 0.92, 1.1), "gerda": ("nl_BE-nathalie-medium", 1.08, 0.9),
-         "sjef": ("nl_NL-ronnie-medium", 1.12, 0.84), "mo": ("nl_BE-rdh-medium", 0.95, 1.12)}
+         "sjef": ("nl_NL-ronnie-medium", 1.12, 0.84), "mo": ("nl_BE-rdh-medium", 0.95, 1.12),
+         "speler_man": ("nl_NL-pim-medium", 1.0, 0.9), "speler_vrouw": ("nl_BE-nathalie-medium", 1.0, 1.12),
+         "speler_neutraal": ("nl_BE-nathalie-medium", 1.0, 0.92)}
 ONLY = sys.argv[3].split(",") if len(sys.argv) > 3 else list(VOICE)
 res = {"bid": {}, "wet": {}, "bidMs": {}, "wetMs": {}}
 for v, (m, ls, pitch) in VOICE.items():
@@ -47,7 +51,7 @@ for v, (m, ls, pitch) in VOICE.items():
     tts = sherpa_onnx.OfflineTts(sherpa_onnx.OfflineTtsConfig(model=sherpa_onnx.OfflineTtsModelConfig(vits=sherpa_onnx.OfflineTtsVitsModelConfig(model=f"{dd}/{m}.onnx", tokens=f"{dd}/tokens.txt", data_dir=f"{dd}/espeak-ng-data", length_scale=ls), num_threads=4)))
     rows = [[cap(t.replace("{N}", W[n])) for t in BID[v]] for n in range(14)]
     jobs = [(f"bod_{v}_{n}_{k}", t) for n, row in enumerate(rows) for k, t in enumerate(row)]
-    jobs += [(f"nat_{v}_{k}", t) for k, t in enumerate(WET[v])]
+    jobs += [(f"nat_{v}_{k}", t) for k, t in enumerate(WET.get(v, []))]
     ms = {}
     for name, t in jobs:
         a = tts.generate(t, sid=0, speed=1.0); sf.write(f"{OUT}/wav/{name}.wav", a.samples, a.sample_rate)
@@ -56,9 +60,10 @@ for v, (m, ls, pitch) in VOICE.items():
         subprocess.run(["ffmpeg","-loglevel","error","-y","-i",f"{OUT}/wav/{name}.wav","-af",f,"-ac","1","-ar","22050","-c:a","libmp3lame","-q:a","6",f"{OUT}/mp3/{name}.mp3"], check=True)
         d = float(subprocess.run(["ffprobe","-v","error","-show_entries","format=duration","-of","csv=p=0",f"{OUT}/mp3/{name}.mp3"], capture_output=True, text=True).stdout)
         ms[name] = round(d * 1000)
-    res["bid"][v] = rows; res["wet"][v] = WET[v]
+    res["bid"][v] = rows
+    if v in WET: res["wet"][v] = WET[v]
     res["bidMs"][v] = [[ms[f"bod_{v}_{n}_{k}"] for k in range(len(BID[v]))] for n in range(14)]
-    res["wetMs"][v] = [ms[f"nat_{v}_{k}"] for k in range(len(WET[v]))]
+    if v in WET: res["wetMs"][v] = [ms[f"nat_{v}_{k}"] for k in range(len(WET[v]))]
     print(v, "ok", flush=True)
     json.dump(res, open(f"{OUT}/res.json", "w", encoding="utf8"), ensure_ascii=False)
 json.dump(res, open(f"{OUT}/res.json", "w", encoding="utf8"), ensure_ascii=False)

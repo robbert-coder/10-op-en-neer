@@ -12,7 +12,7 @@ const FILES = [
   "kotlin_org_jetbrains_kotlin_kotlin_dom_api_compat.mjs",
   "manifest.webmanifest", "icons/icon.svg", "icons/icon-180.png", "icons/icon-192.png", "icons/icon-512.png",
   ...EVENTS.map((e) => `sounds/${e}.mp3`),
-  ...Array.from({ length: 14 }, (_, n) => `sounds/bod_speler_${n}_0.mp3`),
+  ...Array.from({ length: 14 }, (_, n) => `sounds/bod_speler_neutraal_${n}_0.mp3`),
 ];
 // De stemmen van de computerspelers (veel kleine bestanden) worden bewaard zodra ze een keer gebruikt zijn
 

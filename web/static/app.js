@@ -7,7 +7,7 @@ import { BID_LINES, WET_LINES, BID_MS } from "./voices.js";
 import { CHARACTERS, CLASSIC_CAST, REACTIONS, drawCast } from "./characters.js";
 import { CHANGES } from "./changelog.js";
 import { cloudEnabled, makeCloudCode, normalizeCloudCode, formatCloudCode, validCloudCode, fetchStats, saveStats, fetchHallOfFame, sendHofScore, sendHofPlayer, onCloudHealth } from "./cloud.js";
-import { Host, Guest, PublicLobby, makeCode, normalizeCode, AVATAR_EMOJIS, AVATAR_FACES, cleanAvatar, cleanStats } from "./net.js";
+import { Host, Guest, PublicLobby, makeCode, normalizeCode, AVATAR_EMOJIS, AVATAR_FACES, cleanAvatar, cleanStats, cleanVoice } from "./net.js";
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
@@ -419,7 +419,6 @@ const hofCache = new Map();
 // Geluid
 // ------------------------------------------------------------------------------------------
 
-const VOICES = ["speler"];
 let audio = null;
 const buffers = new Map();
 let currentSource = null;
@@ -430,7 +429,7 @@ function unlockAudio() {
     if (!AC) return;
     audio = new AC();
     // Alvast laden, zodat het eerste geluid niet hapert
-    for (const v of VOICES) BID_LINES[v].forEach((row, n) => loadSound(`bod_${v}_${n}_0`));
+    BID_LINES[`speler_${myVoice()}`].forEach((row, n) => loadSound(`bod_speler_${myVoice()}_${n}_0`));
     preloadCast();
   }
   if (audio.state === "suspended") audio.resume();
@@ -469,8 +468,25 @@ function cardSound(kind) {
     src.stop(at + sec + 0.02);
   };
   if (kind === "slide") {
-    swish(now, 0.16, 2600 + Math.random() * 600, 0.35);
-    swish(now + 0.13, 0.05, 1800, 0.18, 2); // het tikje als hij neerkomt
+    // Papier dat over het laken schuift: zachte, brede ruis die rustig aanzwelt en wegglijdt, zonder tik
+    const sec = 0.3 + Math.random() * 0.06;
+    const src = audio.createBufferSource();
+    src.buffer = noise(sec);
+    const hp = audio.createBiquadFilter();
+    hp.type = "highpass";
+    hp.frequency.value = 700;
+    const lp = audio.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.setValueAtTime(2200, now);
+    lp.frequency.linearRampToValueAtTime(4200 + Math.random() * 800, now + sec * 0.45);
+    lp.frequency.exponentialRampToValueAtTime(1500, now + sec);
+    const g = audio.createGain();
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.exponentialRampToValueAtTime(0.16, now + sec * 0.35);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + sec);
+    src.connect(hp).connect(lp).connect(g).connect(audio.destination);
+    src.start(now);
+    src.stop(now + sec + 0.02);
   } else if (kind === "collect") {
     swish(now, 0.28, 2000, 0.3, 0.6);
     swish(now + 0.08, 0.2, 2800, 0.15, 0.8);
@@ -544,7 +560,15 @@ function faceFor(nr) {
   if (!p) return castOf(nr);
   return p.human ? null : castOf(p.seat);
 }
-const voiceFor = (nr) => faceFor(nr) ?? "speler";
+const voiceFor = (nr) => faceFor(nr) ?? `speler_${humanVoice(nr)}`;
+
+/** De gekozen stem van een mens aan tafel: man, vrouw of neutraal. */
+const myVoice = () => cleanVoice(settings.voice) ?? "neutraal";
+function humanVoice(nr) {
+  const p = st?.players[nr - 1];
+  if (online && p && p.seat !== online.seat) return cleanVoice(online.players.find((x) => x.seat === p.seat)?.voice) ?? "neutraal";
+  return myVoice();
+}
 
 /** Samen spelen: { role: "host"|"guest", code, seat, link, players, queue, game, rules, smart, status, error } */
 let online = null;
@@ -1731,6 +1755,7 @@ function updateSeats() {
     el.classList.toggle("done", hasHadTurn(nr));
     // Tijdens het voorspellen springt een gedaan bod er goud uit, zodat je goed ziet wat de anderen zeiden
     el.classList.toggle("bid-shown", st.phase === "BIDDING" && p.bid >= 0);
+    el.classList.toggle("bidding", st.phase === "BIDDING");
     const avatar = el.querySelector(".avatar");
     const stars = starRating(statsOfSeat(nr));
     const g = [...avatar.classList].filter((c) => c.startsWith("g-")).join(" ");
@@ -1954,7 +1979,8 @@ function renderGame() {
   $("#tineke").hidden = !tinekeOn;
   if (!tinekeOn) $("#tineke-panel").hidden = true;
   $("#g-round").textContent = `Ronde ${st.round} van ${st.rounds}`;
-  $("#g-cards").textContent = `${st.cards} ${st.cards === 1 ? "kaart" : "kaarten"} · ${st.variant}`;
+  $("#g-cards").textContent = st.variant;
+  $("#g-ncards").textContent = st.cards;
   $("#g-over").textContent = st.tricksOver;
   $("#g-trump").innerHTML = st.trump ? trumpMiniHtml(st.trump) : `<div class="none">geen<br>troef</div>`;
 
@@ -1989,7 +2015,7 @@ function renderGame() {
       const off = online.players.find((x) => x.seat === p.seat)?.online === false;
       text = off ? `${p.name} heeft geen verbinding. Wachten tot ${p.name} terug is…` : `Wachten op ${p.name}…`;
     }
-    else if (st.phase === "TRICK_COMPLETE") text = `${st.status} Tik op tafel om door te gaan.`;
+    else if (st.phase === "TRICK_COMPLETE") text = st.status; // de slag gaat vanzelf naar de winnaar; tikken mag, maar hoeft niet
     else text = st.status;
   }
   const status = $("#g-status");
@@ -2034,7 +2060,7 @@ function renderGame() {
 /** Kaartgroottes aanpassen aan het scherm. */
 function layout() {
   if (screen !== "game" || !st) return;
-  $("#g-round").textContent = window.innerWidth < 380 ? `Ronde ${st.round}/${st.rounds}` : `Ronde ${st.round} van ${st.rounds}`;
+  $("#g-round").textContent = window.innerWidth < 440 ? `Ronde ${st.round}/${st.rounds}` : `Ronde ${st.round} van ${st.rounds}`;
   // Telefoon dwars: de hand staat in de rechterkolom en mag niet te hoog worden
   const sideways = phoneSideways();
   const width = sideways ? $("#seat-1").clientWidth : $("#game").clientWidth;
@@ -2484,6 +2510,7 @@ function renderSettings() {
   $("#row-speak").hidden = !settings.sound;
   $("#row-cards").hidden = !settings.sound;
   $("#set-cards").checked = settings.cardSounds !== false;
+  $$("#opt-voice button").forEach((b) => b.classList.toggle("selected", b.dataset.voice === myVoice()));
   $("#row-speak-humans").hidden = !settings.sound || !settings.speakBids;
   $("#app-version").textContent = `Versie ${APP_VERSION}${nativeApp ? " (app)" : ""}`;
   $("#set-help").checked = settings.tinekeHelp;
@@ -2525,7 +2552,7 @@ const clientId = () => {
 
 /** In de Android-app draait de website vanuit de app zelf; gedeelde links wijzen dan naar de echte website. */
 const nativeApp = window.TienApp ?? null;
-const APP_VERSION = "2.28";
+const APP_VERSION = "2.29";
 const SITE_URL = "https://robbert-coder.github.io/10-op-en-neer/";
 const tableLink = (code) => `${nativeApp ? SITE_URL : location.origin + location.pathname}?spel=${code}`;
 
@@ -2791,6 +2818,7 @@ function openTable(rules) {
   } : null;
   online.pub = pub;
   online.link = new Host(code, settings.playerName, netEvents(), null, myAvatar(), rules.players ?? 4, pub);
+  online.link.setVoice(myVoice());
   shareStats();
   show("online");
 }
@@ -2800,6 +2828,7 @@ function joinTable(code) {
   askNotifications();
   online = { role: "guest", code, seat: 0, players: [], queue: new Map(), game: null, status: "Verbinden met de tafel…", error: "", chat: [], unread: 0 };
   online.link = new Guest(code, settings.playerName, clientId(), netEvents(), myAvatar());
+  online.link.voice = myVoice();
   shareStats();
   store.set("online-gast", { code, time: Date.now() });
   show("online");
@@ -2813,7 +2842,7 @@ function startHostGame(fill) {
   if (online?.role !== "host") return;
   if (!fill && !online.game && online.players.length >= 2 && online.players.length < tableSize()) {
     online.link.compact();
-    online.players = online.link.players.map(({ name, seat, online: on, avatar }) => ({ name, seat, online: on, avatar }));
+    online.players = online.link.players.map(({ name, seat, online: on, avatar, voice }) => ({ name, seat, online: on, avatar, voice }));
     online.rules = { ...online.rules, players: online.players.length };
     online.chat = online.link.chat.slice(-100);
     renderChat();
@@ -3078,6 +3107,7 @@ function resumeOnline() {
         chat: saved.chat ?? [], unread: 0,
       };
       online.link = new Host(saved.code, settings.playerName, netEvents(), saved, myAvatar(), saved.started.rules.players ?? 4);
+      online.link.setVoice(myVoice());
       shareStats();
       online.game = saved.started;
       currentRules = saved.started.rules;
@@ -3430,6 +3460,13 @@ $("#set-name").addEventListener("input", (e) => {
 $("#set-speed").addEventListener("input", (e) => { settings.speed = Number(e.target.value); saveSettings(); });
 $("#set-desc").addEventListener("change", (e) => { settings.sortDescending = e.target.checked; saveSettings(); });
 $("#set-sound").addEventListener("change", (e) => { settings.sound = e.target.checked; saveSettings(); renderSettings(); });
+$$("#opt-voice button").forEach((b) => b.addEventListener("click", () => {
+  settings.voice = b.dataset.voice;
+  saveSettings();
+  renderSettings();
+  online?.link?.setVoice?.(settings.voice);
+  if (audio && settings.sound) playSound(`bod_speler_${myVoice()}_${2 + Math.floor(Math.random() * 6)}_0`);
+}));
 $("#set-cards").addEventListener("change", (e) => { settings.cardSounds = e.target.checked; saveSettings(); });
 $("#set-speak-humans").addEventListener("change", (e) => { settings.speakHumans = e.target.checked; saveSettings(); });
 $("#set-speak").addEventListener("change", (e) => { settings.speakBids = e.target.checked; saveSettings(); renderSettings(); });
@@ -3622,7 +3659,7 @@ window.tienBack = () => {
 };
 
 // Voor de tests
-window.__tienopenneer = { get state() { return st; }, settings, get busy() { return busy; }, celebrate };
+window.__tienopenneer = { get state() { return st; }, settings, get busy() { return busy; }, celebrate, voiceFor };
 
 // Tikken op een speler: zijn statistiek en sterren -----------------------------------------
 

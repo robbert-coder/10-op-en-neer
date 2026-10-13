@@ -104,6 +104,15 @@ class MainActivity : ComponentActivity() {
         manager.notify(TURN_NOTIFICATION, notification)
     }
 
+    private var insetCss = ""
+
+    private fun pushInsets() {
+        if (!::web.isInitialized || insetCss.isEmpty()) return
+        web.evaluateJavascript(
+            "(function(v){var s=document.documentElement.style;for(var k in v)s.setProperty(k,v[k])})($insetCss)", null
+        )
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
@@ -120,7 +129,7 @@ class MainActivity : ComponentActivity() {
             .build()
 
         web = WebView(this).apply {
-            setBackgroundColor(FELT)
+            setBackgroundColor(CAFE)
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
             settings.mediaPlaybackRequiresUserGesture = false
@@ -128,6 +137,8 @@ class MainActivity : ComponentActivity() {
             webViewClient = object : WebViewClientCompat() {
                 override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? =
                     loader.shouldInterceptRequest(request.url)
+
+                override fun onPageFinished(view: WebView, url: String) = pushInsets()
 
                 override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                     if (request.url.host == WebViewAssetLoader.DEFAULT_DOMAIN) return false
@@ -155,16 +166,21 @@ class MainActivity : ComponentActivity() {
             addJavascriptInterface(Bridge(), "TienApp")
         }
 
-        // De spelpagina blijft binnen de statusbalk, de navigatiebalk en het toetsenbord
+        // De achtergrond loopt door onder de statusbalk en de systeemknoppen; de pagina krijgt de vrije randen
+        // als CSS-variabelen. Alleen voor het toetsenbord schuift de pagina zelf omhoog.
         val root = FrameLayout(this).apply {
-            setBackgroundColor(FELT)
+            setBackgroundColor(CAFE)
             addView(web, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
         }
         ViewCompat.setOnApplyWindowInsetsListener(root) { v, insets ->
-            val bars = insets.getInsets(
-                WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout() or WindowInsetsCompat.Type.ime()
-            )
-            v.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
+            val ime = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+            val d = resources.displayMetrics.density
+            val bottom = if (ime > bars.bottom) 0 else bars.bottom
+            v.setPadding(0, 0, 0, if (ime > bars.bottom) ime else 0)
+            insetCss = "{\"--sat\":\"${bars.top / d}px\",\"--sar\":\"${bars.right / d}px\"," +
+                "\"--sab\":\"${bottom / d}px\",\"--sal\":\"${bars.left / d}px\"}"
+            pushInsets()
             WindowInsetsCompat.CONSUMED
         }
         setContentView(root)
@@ -308,7 +324,7 @@ class MainActivity : ComponentActivity() {
         const val CHANNEL = "beurt"
         const val TURN_NOTIFICATION = 1
         const val ASKED_NOTIFY = "askedNotify"
-        val FELT = Color.rgb(0x06, 0x30, 0x1C)
+        val CAFE = Color.rgb(0x2C, 0x1B, 0x11)
         val MIME_TYPES = mapOf(
             "html" to "text/html",
             "js" to "text/javascript",

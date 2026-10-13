@@ -22,6 +22,9 @@ export const AVATAR_EMOJIS = ["🦊", "🐻", "🐼", "🐸", "🐵", "🦁", "�
 export const AVATAR_FACES = ["p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8", "p9", "p10", "p11", "p12"];
 
 /** Een plaatje van een ander alleen gebruiken als het een gezicht, een emoji (oudere versies) of een kleine foto is. */
+/** Je eigen stem bij het voorspellen: man, vrouw of neutraal. */
+export const cleanVoice = (v) => (["man", "vrouw", "neutraal"].includes(v) ? v : null);
+
 export function cleanAvatar(v) {
   if (typeof v !== "string") return null;
   if (AVATAR_FACES.includes(v) || AVATAR_EMOJIS.includes(v)) return v;
@@ -344,6 +347,7 @@ export class Host {
       p.online = true;
       if (!this.started) p.name = name;
       p.avatar = cleanAvatar(msg.avatar);
+      p.voice = cleanVoice(msg.voice);
       p.stats = cleanStats(msg.stats);
       conn.clientId = id;
       const old = this.conns.get(id);
@@ -360,6 +364,7 @@ export class Host {
       const p = this.players.find((x) => x.id === conn.clientId);
       if (!p) return;
       if ("avatar" in msg) p.avatar = cleanAvatar(msg.avatar);
+      if ("voice" in msg) p.voice = cleanVoice(msg.voice);
       if ("stats" in msg) p.stats = cleanStats(msg.stats);
       this.lobbyChanged();
     } else if (msg.t === "vote") {
@@ -394,8 +399,8 @@ export class Host {
   }
 
   lobbyChanged() {
-    const list = this.players.map(({ name, seat, online, avatar, stats, left }) =>
-      ({ name, seat, online, avatar: avatar ?? null, stats: stats ?? null, left: !!left }));
+    const list = this.players.map(({ name, seat, online, avatar, voice, stats, left }) =>
+      ({ name, seat, online, avatar: avatar ?? null, voice: voice ?? null, stats: stats ?? null, left: !!left }));
     const pub = this.pub ? { title: this.pub.title ?? "" } : null;
     this.broadcast({ t: "lobby", players: list, seats: this.seats, pub });
     this.events.onLobby?.(list, this.seats, pub);
@@ -465,6 +470,13 @@ export class Host {
     this.lobbyChanged();
   }
 
+  /** De gastheer kiest een andere stem. */
+  setVoice(v) {
+    const me = this.players.find((x) => x.id === "host");
+    if (me) me.voice = cleanVoice(v);
+    this.lobbyChanged();
+  }
+
   /** De statistiek van de gastheer zelf, voor de anderen aan tafel. */
   setStats(v) {
     const me = this.players.find((x) => x.id === "host");
@@ -522,7 +534,7 @@ export class Guest {
   }
 
   hello() {
-    this.conn.send({ t: "hello", id: this.clientId, name: this.name, avatar: this.avatar, stats: this.stats ?? null });
+    this.conn.send({ t: "hello", id: this.clientId, name: this.name, avatar: this.avatar, voice: this.voice ?? null, stats: this.stats ?? null });
   }
 
   /** Elke paar tellen: een teken van leven, of opnieuw aankloppen als de tafel (nog) niet antwoordt. */
@@ -572,7 +584,7 @@ export class Guest {
     }
     else if (msg.t === "lobby") {
       const seats = Number(msg.seats);
-      this.events.onLobby?.((msg.players || []).map((p) => ({ ...p, avatar: cleanAvatar(p.avatar), stats: cleanStats(p.stats) })),
+      this.events.onLobby?.((msg.players || []).map((p) => ({ ...p, avatar: cleanAvatar(p.avatar), voice: cleanVoice(p.voice), stats: cleanStats(p.stats) })),
         seats >= 2 && seats <= 5 ? seats : 4, msg.pub && typeof msg.pub === "object" ? { title: cleanText(msg.pub.title, 40) } : null);
     }
     else if (msg.t === "start") this.events.onStart?.(msg.game, msg.log);
@@ -600,6 +612,12 @@ export class Guest {
   setAvatar(v) {
     this.avatar = cleanAvatar(v);
     this.conn.send({ t: "me", avatar: this.avatar });
+  }
+
+  /** Een andere stem; de gastheer geeft het door aan de anderen. */
+  setVoice(v) {
+    this.voice = cleanVoice(v);
+    this.conn.send({ t: "me", voice: this.voice });
   }
 
   /** Je eigen statistiek; gaat mee bij het aanschuiven en daarna bij elke verandering. */
