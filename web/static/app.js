@@ -2090,6 +2090,15 @@ function layout() {
   const tw = Math.max(30, Math.min(wide || isTablet() ? 124 : 74, felt.clientWidth / 3.5, felt.clientHeight / (1.42 * 2.45)));
   felt.style.setProperty("--tw", `${tw}px`);
 }
+/** De hoogte van het scherm vastzetten in --app-h; na het draaien van een telefoon klopt 100% soms niet. */
+function fitHeight() {
+  document.documentElement.style.setProperty("--app-h", `${window.innerHeight}px`);
+}
+fitHeight();
+for (const ev of ["resize", "orientationchange"]) {
+  window.addEventListener(ev, () => { fitHeight(); setTimeout(() => { fitHeight(); layout(); }, 350); });
+}
+window.visualViewport?.addEventListener("resize", fitHeight);
 window.addEventListener("resize", layout);
 
 function renderDialog() {
@@ -2552,7 +2561,7 @@ const clientId = () => {
 
 /** In de Android-app draait de website vanuit de app zelf; gedeelde links wijzen dan naar de echte website. */
 const nativeApp = window.TienApp ?? null;
-const APP_VERSION = "2.29";
+const APP_VERSION = "2.30";
 const SITE_URL = "https://robbert-coder.github.io/10-op-en-neer/";
 const tableLink = (code) => `${nativeApp ? SITE_URL : location.origin + location.pathname}?spel=${code}`;
 

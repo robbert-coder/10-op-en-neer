@@ -1,5 +1,6 @@
 // Wat er per versie nieuw is. Wie na een nieuwe versie terugkomt, ziet dit in het hoofdmenu.
 export const CHANGES = [
+  { v: "2.30", items: ["Telefoon dwars in de webapp: het hele scherm wordt weer gebruikt, en de geïnstalleerde webapp mag ook liggend."] },
   { v: "2.29", items: [
     "Het aantal kaarten van deze ronde staat groot bovenin.",
     "Kies bij Instellingen je eigen stem: man, vrouw of neutraal. Je medespelers horen die ook.",

@@ -43,7 +43,9 @@ html, body {
 }
 
 #app {
+  /* --app-h komt uit app.js (de echte schermhoogte); sommige telefoons rekenen 100% na het draaien niet bij */
   height: 100%;
+  height: var(--app-h, 100dvh);
   padding: var(--sat) var(--sar) var(--sab) var(--sal);
   /* Lamplicht van boven op een donkere houten lambrisering */
   background:
