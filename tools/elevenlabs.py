@@ -9,6 +9,7 @@
 #                                                    eigen stemmen van het account
 #   python3 tools/elevenlabs.py inspreken[:henk,kees] <map>  Alle voorspellingen en nat-zinnen (uit
 #                                                    web/static/voices.js) inspreken met de stemmen in KEUZE
+#   python3 tools/elevenlabs.py extra[:tineke] <map>  Begroeting, snelle zinnen en Tineke (web/static/speech.js)
 #   python3 tools/elevenlabs.py proef:<eigenaar>/<stem>/<Naam> <map>  Bibliotheekstem aan het account toevoegen en
 #                                                    een paar spelzinnen laten inspreken (kost een paar honderd credits)
 import base64, json, os, re, sys, urllib.error, urllib.parse, urllib.request
@@ -238,7 +239,11 @@ KEUZE = {
     "mo": {"stem": "MEdY7ytKGFW1Hy0uQq2T"},  # Jaimie (Amsterdams)
     "speler_man": {"stem": "60CwgZt94Yf7yYIXMDDe"},  # Peter
     "speler_vrouw": {"stem": "OlBRrVAItyi00MuGMbna"},  # Emma
+    "speler_neutraal": {"stem": "yO6w2xlECAQRFP6pX7Hw"},  # Ruth
 }
+# Voor de extra's (web/static/speech.js): Tineke (Roos) en een enthousiaste omroeper (de lage stem van Henk)
+EXTRA = {"tineke": ("7qdUFMklKPaaAVMsBTBt", "eleven_multilingual_v2", ""),
+         "omroeper": ("nxXBLGMUMfo1A7EdM35R", "eleven_v3", "[excited] ")}
 # Ontworpen stemmen komen uit eleven_ttv_v3 en horen bij eleven_v3; bibliotheekstemmen bij multilingual v2
 MODEL = {"ontwerp": "eleven_v3", "stem": "eleven_multilingual_v2"}
 
@@ -273,8 +278,49 @@ def speak(voice_id, model, text, path):
             time.sleep(2 ** attempt)
 
 
-def inspreken(out, only):
+def polish(out, name):
+    """Stilte voor en achter weg, even hard als de rest, klein bestand (zoals de oude stemmen). Geeft de duur in ms."""
     import subprocess
+    f = ("silenceremove=start_periods=1:start_threshold=-45dB,areverse,silenceremove=start_periods=1:start_threshold=-45dB,"
+         "areverse,loudnorm=I=-16:TP=-1.5")
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", f"{out}/ruw/{name}.mp3", "-af", f, "-ac", "1", "-ar", "22050",
+                    "-c:a", "libmp3lame", "-q:a", "6", f"{out}/mp3/{name}.mp3"], check=True)
+    d = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", f"{out}/mp3/{name}.mp3"],
+                       capture_output=True, text=True).stdout
+    return round(float(d) * 1000)
+
+
+def extra(out, only):
+    """De begroeting, de snelle zinnen en Tineke (lijst uit web/static/speech.js, via node)."""
+    import subprocess
+    from concurrent.futures import ThreadPoolExecutor
+    root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+    js = "import('./web/static/speech.js').then((m) => console.log(JSON.stringify(m.speechJobs())))"
+    jobs = json.loads(subprocess.run(["node", "--input-type=module", "-e", js], cwd=root, capture_output=True, text=True, check=True).stdout)
+    jobs = [j for j in jobs if not only or j["who"] in only]
+    os.makedirs(f"{out}/ruw", exist_ok=True)
+    os.makedirs(f"{out}/mp3", exist_ok=True)
+
+    def voice(who):
+        if who in EXTRA:
+            return EXTRA[who]
+        return KEUZE[who]["stem"], MODEL["stem"], ""
+
+    def one(j):
+        vid, model, prefix = voice(j["who"])
+        speak(vid, model, prefix + j["text"], f"{out}/ruw/{j['file']}.mp3")
+        return j["file"], polish(out, j["file"])
+
+    print(len(jobs), "zinnen,", sum(len(j["text"]) for j in jobs), "tekens", flush=True)
+    with ThreadPoolExecutor(4) as pool:
+        ms = dict(pool.map(one, jobs))
+    json.dump({"ms": ms, "jobs": jobs}, open(f"{out}/extra.json", "w"), ensure_ascii=False)
+    import shutil
+    shutil.rmtree(f"{out}/ruw")
+    print("klaar:", len(ms), "geluiden")
+
+
+def inspreken(out, only):
     from concurrent.futures import ThreadPoolExecutor
     src = open(os.path.join(os.path.dirname(__file__), "..", "web", "static", "voices.js"), encoding="utf8").read()
     bid, wet = js_object(src, "BID_LINES"), js_object(src, "WET_LINES")
@@ -293,14 +339,7 @@ def inspreken(out, only):
     def one(job):
         w, name, text = job
         speak(*ids[w], text, f"{out}/ruw/{name}.mp3")
-        # Stilte voor en achter weg, even hard als de rest, klein bestand (zoals de oude stemmen)
-        f = ("silenceremove=start_periods=1:start_threshold=-45dB,areverse,silenceremove=start_periods=1:start_threshold=-45dB,"
-             "areverse,loudnorm=I=-16:TP=-1.5")
-        subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", f"{out}/ruw/{name}.mp3", "-af", f, "-ac", "1", "-ar", "22050",
-                        "-c:a", "libmp3lame", "-q:a", "6", f"{out}/mp3/{name}.mp3"], check=True)
-        d = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", f"{out}/mp3/{name}.mp3"],
-                           capture_output=True, text=True).stdout
-        return name, round(float(d) * 1000)
+        return name, polish(out, name)
 
     with ThreadPoolExecutor(4) as pool:
         ms = dict(pool.map(one, jobs))
@@ -314,7 +353,9 @@ def inspreken(out, only):
 
 
 def main(stap, out):
-    if stap.startswith("inspreken"):
+    if stap.startswith("extra"):
+        extra(out, stap[6:].split(",") if ":" in stap else None)
+    elif stap.startswith("inspreken"):
         inspreken(out, stap[10:].split(",") if ":" in stap else None)
     elif stap.startswith("proef:"):
         proef(out, stap[6:])
