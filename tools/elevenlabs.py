@@ -9,7 +9,7 @@
 #                                                    eigen stemmen van het account
 #   python3 tools/elevenlabs.py proef:<eigenaar>/<stem>/<Naam> <map>  Bibliotheekstem aan het account toevoegen en
 #                                                    een paar spelzinnen laten inspreken (kost een paar honderd credits)
-import base64, json, os, re, sys, urllib.parse, urllib.request
+import base64, json, os, re, sys, urllib.error, urllib.parse, urllib.request
 
 API = "https://api.elevenlabs.io/v1"
 KEY = os.environ.get("ELEVENLABS_API_KEY", "")
@@ -218,11 +218,19 @@ def proef(out, spec):
     print(f"{name}: {len(rows)} zinnen ingesproken (stem {vid})")
 
 
-if __name__ == "__main__":
-    stap = sys.argv[1]
+def main(stap, out):
     if stap.startswith("proef:"):
-        proef(sys.argv[2], stap[6:])
+        proef(out, stap[6:])
     elif stap.startswith("naam:"):
-        naam(sys.argv[2], stap[5:])
+        naam(out, stap[5:])
     else:
-        {"zoek": zoek, "ontwerp": ontwerp}[stap](sys.argv[2])
+        {"zoek": zoek, "ontwerp": ontwerp}[stap](out)
+
+
+if __name__ == "__main__":
+    try:
+        main(sys.argv[1], sys.argv[2])
+    except urllib.error.HTTPError as e:
+        # Als annotatie, zodat de reden ook zonder het volledige log te zien is
+        print(f"::error::ElevenLabs {e.code} {e.url.split('?')[0]}: {e.read().decode(errors='replace')[:600]}")
+        sys.exit(1)
