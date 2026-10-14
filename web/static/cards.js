@@ -2,8 +2,10 @@
 
 /** Tekens van de kleuren: 1 klaveren, 2 ruiten, 3 schoppen, 4 harten (kaartcode = kleur * 100 + waarde). */
 export const SUIT = ["", "♣︎", "♦︎", "♠︎", "♥︎"];
-/** Plaatjes en aas; de rest is het getal zelf. */
-export const LABEL = { 11: "B", 12: "V", 13: "H", 14: "A" };
+import { isEnglish } from "./i18n.js";
+
+/** Plaatjes en aas (boer, vrouw, heer, aas; in het Engels J, Q, K, A); de rest is het getal zelf. */
+export const LABEL = isEnglish ? { 11: "J", 12: "Q", 13: "K", 14: "A" } : { 11: "B", 12: "V", 13: "H", 14: "A" };
 
 /** Eén kaart als HTML; code 0 is een lege plek. */
 export function cardHtml(code, extra = "", style = "") {

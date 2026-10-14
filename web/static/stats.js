@@ -2,6 +2,7 @@
 // Alleen gegevens, geen scherm; zo is het los te testen (web/test/stats.test.mjs).
 import { store } from "./storage.js";
 import { cleanGame, cleanList } from "./validate.js";
+import { decimal, t } from "./i18n.js";
 
 /** Hoeveel scores er per highscorelijst bewaard blijven. */
 export const MAX_HIGHSCORES = 10;
@@ -31,7 +32,7 @@ export const isFullGame = (g) => (typeof g.full === "boolean" ? g.full : !/ tot 
 /** Telt een spel mee voor de sterren? Niet als je er tips bij gebruikte. */
 export const countsForRating = (g) => isFullGame(g) && !g.tips;
 
-/** De soorten spel; highscores, de Hall of Fame en de sterren zijn per soort. */
+/** De soorten spel; highscores, de Hall of Fame en de sterren zijn per soort. Op het scherm door t() (i18n.js). */
 export const KINDS = { "10openneer": "10 op en neer", boerenbridge: "Boerenbridge", hybride: "Hybride" };
 
 /** Soort van een bewaard spel. Nieuwe spellen weten het zelf (key); bij oudere leiden we het af uit de naam. */
@@ -90,7 +91,7 @@ export function starRating(s) {
 export function starsHtml(stars, cls = "") {
   if (stars == null) return "";
   const one = (i) => `<i class="${stars >= i ? "full" : stars >= i - 0.5 ? "half" : ""}">★</i>`;
-  const text = `${String(stars).replace(".", ",")} van 5 sterren`;
+  const text = t("{n} van 5 sterren", { n: Number.isInteger(stars) ? stars : decimal(stars) });
   return `<span class="stars ${cls}" title="${text}" aria-label="${text}">${[1, 2, 3, 4, 5].map(one).join("")}</span>`;
 }
 

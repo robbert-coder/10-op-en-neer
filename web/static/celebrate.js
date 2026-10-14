@@ -4,6 +4,7 @@ import { LABEL, SUIT } from "./cards.js";
 import { $, esc, reducedMotion } from "./dom.js";
 import { puppetBodySvg } from "./faces.js";
 import { devParam } from "./validate.js";
+import { t } from "./i18n.js";
 
 let celebrating = false;
 /** Loopt er nu een eindanimatie (dan wacht de uitslag)? */
@@ -63,8 +64,8 @@ function winnerStage(winners, mode = null) {
   stage.style.left = `${felt.left + felt.width / 2}px`;
   stage.style.top = `${felt.top + felt.height * 0.8}px`;
   const title = winners.length === 1
-    ? (winners[0].me ? "Jij wint!" : `${esc(winners[0].name)} wint!`)
-    : `${winners.map((w) => (w.me ? "Jij" : esc(w.name))).join(", ").replace(/, ([^,]*)$/, " en $1")} winnen!`;
+    ? (winners[0].me ? t("Jij wint!") : t("{name} wint!", { name: esc(winners[0].name) }))
+    : t("{names} winnen!", { names: winners.map((w) => (w.me ? t("Jij") : esc(w.name))).join(", ").replace(/, ([^,]*)$/, ` ${t("en")} $1`) });
   const slices = Array.from({ length: 14 }, (_, i) => `<i style="--i:${i}"></i>`).join("");
   stage.innerHTML = `<div class="winner-banner">${title}</div><div class="nl-waving" aria-hidden="true"><span class="pole"></span><span class="cloth">${slices}</span></div><div class="puppets">${winners.map(({ face, head }, i) => {
     return `<div class="puppet" style="--d:${i * 0.15}s"><div class="pup-inner">

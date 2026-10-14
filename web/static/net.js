@@ -2,6 +2,7 @@ import { AVATAR_EMOJIS, AVATAR_FACES, BoundedMap, RateLimit, chatLimit, cleanAva
   cleanStats, cleanText, cleanVoice, devParam, isObject } from "./validate.js";
 import { Verifier } from "./ident.js";
 import { normalizeCode as normalizeAnyCode, randomCode } from "./codes.js";
+import { t } from "./i18n.js";
 
 export { AVATAR_EMOJIS, AVATAR_FACES, cleanAvatar, cleanStats, cleanVoice };
 
@@ -213,7 +214,7 @@ export class Host {
     }, this.pub ? { will: tableTopic(this.code) } : {}));
     this.waitTimer = setTimeout(() => {
       if (!this.closed && !this.relays.some((r) => r.open)) {
-        this.events.onStatus?.("De server die de spelers aan elkaar koppelt reageert nog niet. Controleer je internet.");
+        this.events.onStatus?.(t("De server die de spelers aan elkaar koppelt reageert nog niet. Controleer je internet."));
       }
     }, WAIT_MS);
     this.pinger = setInterval(() => this.heartbeat(), PING_MS);
@@ -348,6 +349,7 @@ export class Host {
       const id = conn.id;
       const name = cleanText(msg.name, 16) || "Speler";
       let p = this.players.find((x) => x.id === id);
+      // De reden gaat in het Nederlands; de gast vertaalt hem zelf (i18n.js), zodat elke taal aan tafel kan
       if (p?.left && !p.idle) { conn.send({ t: "full", text: "Je had het spel verlaten. Een computer speelt nu voor je verder." }); return; }
       if (!p) {
         if (this.started) { conn.send({ t: "full", text: "Dit spel is al begonnen." }); return; }
@@ -547,7 +549,7 @@ export class Guest {
     this.mismatch = 0;
     const base = topic(code);
     this.relay = new Relay(brokers(), () => [`${base}/g/${clientId}`], (msg, relay, t, from) => this.fromHost(msg, from), (state) => {
-      if (state === "unsupported") this.events.onError?.("Samen spelen werkt niet in deze browser.");
+      if (state === "unsupported") this.events.onError?.(t("Samen spelen werkt niet in deze browser."));
       if (state === "open") { this.waitStart = Date.now(); this.hello(); }
     });
     // Een open verbinding naar de tafel, met dezelfde vorm als voorheen
@@ -570,12 +572,12 @@ export class Guest {
     if (this.welcomed && Date.now() - this.lastHost > GONE_MS) {
       this.welcomed = false;
       this.waitStart = Date.now();
-      this.events.onStatus?.("De verbinding met de tafel is weg. Opnieuw verbinden…");
+      this.events.onStatus?.(t("De verbinding met de tafel is weg. Opnieuw verbinden…"));
     }
     if (this.welcomed) { this.conn.send({ t: "ping" }); return; }
     if (!this.relay.open) {
       if (Date.now() - this.waitStart > WAIT_MS) {
-        this.events.onStatus?.("De server die de spelers aan elkaar koppelt reageert niet. Controleer je internet.");
+        this.events.onStatus?.(t("De server die de spelers aan elkaar koppelt reageert niet. Controleer je internet."));
       }
       return;
     }
@@ -585,8 +587,8 @@ export class Guest {
       this.tries++;
       this.waitStart = Date.now();
       this.events.onStatus?.(this.everWelcomed
-        ? "De tafel reageert niet. Opnieuw proberen…"
-        : `Nog geen antwoord van tafel ${this.code}. Staat de tafel open bij de gastheer? Opnieuw proberen…`);
+        ? t("De tafel reageert niet. Opnieuw proberen…")
+        : t("Nog geen antwoord van tafel {code}. Staat de tafel open bij de gastheer? Opnieuw proberen…", { code: this.code }));
       this.relay.next();
     }
   }
@@ -642,8 +644,9 @@ export class Guest {
       const seats = (v) => (Array.isArray(v) ? v.map(Number).filter((n) => n >= 1 && n <= 5) : []);
       this.events.onVotes?.({ seat: Number(msg.seat), yes: seats(msg.yes), need: seats(msg.need), done: !!msg.done, taken: !!msg.taken });
     }
-    else if (msg.t === "full") { this.close(); this.events.onClosed?.(cleanText(msg.text, 200)); }
-    else if (msg.t === "bye") { this.close(); this.events.onClosed?.("De gastheer heeft de tafel gesloten."); }
+    // De gastheer stuurt de reden in het Nederlands (zie Host); hier vertaald, als het een bekende tekst is
+    else if (msg.t === "full") { this.close(); this.events.onClosed?.(t(cleanText(msg.text, 200))); }
+    else if (msg.t === "bye") { this.close(); this.events.onClosed?.(t("De gastheer heeft de tafel gesloten.")); }
   }
 
   sendAction(index, seat, value) {
@@ -741,8 +744,8 @@ export class PublicLobby {
     // Op alle doorgeefservers tegelijk, want gastheren openen hun tafel ook op allemaal
     this.relays = brokers().map((url) => new Relay([url], sub, (msg, relay, t, from) => this.receive(msg, t, relay, from), (state) => {
       if (state === "open") this.present();
-      if (state === "unsupported") this.events.onStatus?.("Samen spelen werkt niet in deze browser.");
-      else this.events.onStatus?.(this.relays?.some((r) => r.open) ? "" : "Verbinden met de lobby…");
+      if (state === "unsupported") this.events.onStatus?.(t("Samen spelen werkt niet in deze browser."));
+      else this.events.onStatus?.(this.relays?.some((r) => r.open) ? "" : t("Verbinden met de lobby…"));
     }, { will: presenceTopic(me.id), onEmpty: (t, relay) => this.removed(t, relay) }));
     this.timer = setInterval(() => { this.present(); this.prune(); }, PUBLIC_REFRESH_MS);
   }

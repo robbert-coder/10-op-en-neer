@@ -2,6 +2,7 @@
 // samen spelen. In de Android-app via de app zelf, op de website via de browser.
 import { nativeApp } from "./dom.js";
 import { settings } from "./storage.js";
+import { t } from "./i18n.js";
 
 /** In de app zegt de app zelf of hij op de achtergrond staat (setAppVisible); in de browser zegt de pagina het. */
 let appVisible = true;
@@ -34,9 +35,9 @@ export const iosBrowser = () => isIOS && !standalone;
 export function notifyUnsupportedText() {
   if (notifyPermission() !== "unsupported") return null;
   if (iosBrowser()) {
-    return "Op iPhone en iPad kan een website alleen meldingen geven als je hem op je beginscherm zet: tik in Safari op Deel en dan op Zet op beginscherm, en open het spel daarna vanaf je beginscherm.";
+    return t("Op iPhone en iPad kan een website alleen meldingen geven als je hem op je beginscherm zet: tik in Safari op Deel en dan op Zet op beginscherm, en open het spel daarna vanaf je beginscherm.");
   }
-  return "Deze browser kan geen meldingen geven. Gebruik de Android-app of een andere browser, zoals Chrome.";
+  return t("Deze browser kan geen meldingen geven. Gebruik de Android-app of een andere browser, zoals Chrome.");
 }
 
 /** Een melding als het spel op de achtergrond staat, bijvoorbeeld omdat je aan de beurt bent. */

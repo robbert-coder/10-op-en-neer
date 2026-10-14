@@ -1,6 +1,10 @@
 // Wat het spel op dit apparaat bewaart (localStorage) en je instellingen. Lukt opslaan niet (privémodus),
 // dan werkt alles gewoon, alleen zonder te onthouden.
 import { cleanAvatar, cleanVoice } from "./validate.js";
+import { isEnglish } from "./i18n.js";
+
+/** Naam zolang je zelf geen naam hebt gekozen, in beide talen. */
+export const DEFAULT_NAMES = ["Speler", "Player"];
 
 export const store = {
   get(key, fallback) {
@@ -22,12 +26,14 @@ export const store = {
 /** Je instellingen; één gedeeld object, dat elk scherm kan aanpassen en daarna met saveSettings bewaart. */
 export const settings = Object.assign(
   {
-    playerName: "Speler", speed: 3, sortDescending: false, sound: true, speakBids: true, smart: false,
-    tinekeHelp: true, tinekeComments: true, tinekeAsked: false, tinekeVoice: true, opener: true,
+    playerName: isEnglish ? "Player" : "Speler", speed: 3, sortDescending: false, sound: true, speakBids: true, smart: false,
+    tinekeHelp: true, tinekeNew: true, tinekeSeen: [], tinekeComments: true, tinekeAsked: false, tinekeVoice: true, opener: true,
   },
   store.get("instellingen", {}),
 );
 export const saveSettings = () => store.set("instellingen", settings);
+// Nog de standaardnaam: die in de taal van het spel
+if (DEFAULT_NAMES.includes(settings.playerName)) settings.playerName = DEFAULT_NAMES[isEnglish ? 1 : 0];
 // Sterke computerspelers stonden vroeger standaard aan; wie ze nooit zelf koos, begint nu met gewone
 if (!settings.smartChosen) settings.smart = false;
 

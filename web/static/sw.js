@@ -9,7 +9,7 @@ const EVENTS = [
 ];
 const FILES = [
   "./", "index.html", "style.css", "app.js", "faces.js", "tineke.js", "voices.js", "characters.js", "changelog.js", "net.js", "cloud.js", "validate.js", "ident.js",
-  "dom.js", "storage.js", "rules.js", "stats.js", "hof.js", "sound.js", "celebrate.js", "notify.js", "cards.js", "version.js", "codes.js", "speech.js", "qr.svg", "vendor/mqtt.min.js", "tienopenneer.mjs", "kotlin-kotlin-stdlib.mjs",
+  "dom.js", "storage.js", "rules.js", "stats.js", "hof.js", "sound.js", "celebrate.js", "notify.js", "cards.js", "version.js", "codes.js", "speech.js", "i18n.js", "i18n-en.js", "qr.svg", "vendor/mqtt.min.js", "tienopenneer.mjs", "kotlin-kotlin-stdlib.mjs",
   "kotlin_org_jetbrains_kotlin_kotlin_dom_api_compat.mjs",
   "manifest.webmanifest", "icons/icon.svg", "icons/icon-180.png", "icons/icon-192.png", "icons/icon-512.png",
   ...EVENTS.map((e) => `sounds/${e}.mp3`),

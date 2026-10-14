@@ -24,6 +24,11 @@
         <div class="card-slot" data-card="410"></div>
         <div class="card-slot" data-card="314"></div>
       </div>
+      <!-- Taal: Nederlands of Engels (i18n.js); de namen van de talen blijven in hun eigen taal -->
+      <div class="lang-pick corner" translate="no">
+        <button type="button" class="lang-btn" data-lang="nl" aria-label="Nederlands" title="Nederlands"><svg class="flag" viewBox="0 0 9 6" aria-hidden="true"><rect width="9" height="6" fill="#21468B"/><rect width="9" height="4" fill="#FFFFFF"/><rect width="9" height="2" fill="#AE1C28"/></svg></button>
+        <button type="button" class="lang-btn" data-lang="en" aria-label="English" title="English"><svg class="flag" viewBox="0 0 60 30" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><rect width="60" height="30" fill="#012169"/><path d="M0,0 60,30M60,0 0,30" stroke="#FFFFFF" stroke-width="6"/><path d="M0,0 60,30M60,0 0,30" stroke="#C8102E" stroke-width="2"/><path d="M30,0v30M0,15h60" stroke="#FFFFFF" stroke-width="10"/><path d="M30,0v30M0,15h60" stroke="#C8102E" stroke-width="6"/></svg></button>
+      </div>
       <h1>10 op en neer</h1>
       <p class="sub">en Boerenbridge</p>
       <div class="menu-faces" id="menu-faces"></div>
@@ -42,7 +47,7 @@
       <a id="update-banner" class="update-banner" hidden></a>
       <p id="cloud-down" class="cloud-down" hidden></p>
       <a id="android-link" class="android-link" href="https://github.com/robbert-coder/10-op-en-neer/releases/latest/download/tienopenneer.apk" hidden>📱 Download de Android-app<small>Gratis, zonder Play Store. Werkt ook samen met de website.</small></a>
-      <p id="install-hint" class="install-hint" hidden>Tip: kies in Safari <b>Deel</b> en dan <b>Zet op beginscherm</b>. Dan start het spel als een gewone app en werkt het ook zonder internet.</p>
+      <p id="install-hint" class="install-hint" data-i18n-html hidden>Tip: kies in Safari <b>Deel</b> en dan <b>Zet op beginscherm</b>. Dan start het spel als een gewone app en werkt het ook zonder internet.</p>
       <p class="credits">Gebaseerd op "10 op en neer" van A.A. Brink<br>Vrije software onder de GNU GPL v3<br><span id="menu-version"></span></p>
     </section>
 
@@ -375,6 +380,14 @@
       <header><button class="back" data-go="menu" aria-label="Terug">‹</button><h2>Instellingen</h2></header>
       <div class="content">
         <div class="group">
+          <div class="field">Taal
+            <div class="seg two lang-pick" translate="no">
+              <button type="button" data-lang="nl"><svg class="flag" viewBox="0 0 9 6" aria-hidden="true"><rect width="9" height="6" fill="#21468B"/><rect width="9" height="4" fill="#FFFFFF"/><rect width="9" height="2" fill="#AE1C28"/></svg> Nederlands</button>
+              <button type="button" data-lang="en"><svg class="flag" viewBox="0 0 60 30" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><rect width="60" height="30" fill="#012169"/><path d="M0,0 60,30M60,0 0,30" stroke="#FFFFFF" stroke-width="6"/><path d="M0,0 60,30M60,0 0,30" stroke="#C8102E" stroke-width="2"/><path d="M30,0v30M0,15h60" stroke="#FFFFFF" stroke-width="10"/><path d="M30,0v30M0,15h60" stroke="#C8102E" stroke-width="6"/></svg> English</button>
+            </div>
+          </div>
+        </div>
+        <div class="group">
           <label class="field">Jouw naam<input type="text" id="set-name" maxlength="16" autocomplete="off"></label>
           <div class="field">Jouw plaatje<div class="avatar-pick"></div></div>
           <label class="field">Spelsnelheid
@@ -387,6 +400,11 @@
             <span><b>Uitleg van Tineke</b><small>Tineke legt tijdens het spelen stap voor stap uit wat je moet doen.</small></span>
             <input type="checkbox" id="set-help" class="switch">
           </label>
+          <label class="switch-row">
+            <span><b>Alleen nieuwe tips</b><small>Tineke slaat uitleg over die je al eens van haar kreeg.</small></span>
+            <input type="checkbox" id="set-tineke-new" class="switch">
+          </label>
+          <button type="button" class="text" id="set-tineke-reset">Alle tips opnieuw laten zien</button>
           <label class="switch-row">
             <span><b>Melding als je aan de beurt bent</b><small>Bij samen spelen via internet, als het spel op de achtergrond staat.</small></span>
             <input type="checkbox" id="set-notify" class="switch">

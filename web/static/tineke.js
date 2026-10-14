@@ -4,6 +4,9 @@
 // Ze spreekt ook: elke vaste zin heeft een opname (spokenLines). Bij teksten met een kaart, naam of
 // getal zegt ze een vaste, iets algemenere versie (say); op het scherm staat de precieze tekst.
 
+// Op het scherm staat de tekst in de taal van het spel (t, i18n.js); de opnames zijn alleen Nederlands.
+import { suitWord, t } from "./i18n.js";
+
 const pick = (list) => list[Math.floor(Math.random() * list.length)];
 
 const SUIT_NAME = ["", "klaver", "ruiten", "schoppen", "harten"];
@@ -16,7 +19,7 @@ const suitOf = (code) => Math.floor(code / 100);
 export function clickTexts() {
   const h = new Date().getHours();
   const greeting = GREETINGS[h >= 5 && h <= 11 ? 0 : h <= 17 && h >= 12 ? 1 : h >= 18 ? 2 : 3];
-  return clickList(greeting);
+  return clickList(greeting).map((s) => t(s));
 }
 function clickList(greeting) {
   return [
@@ -55,43 +58,44 @@ export function comment(event, st, opinion = 0) {
   const me = st.players[0];
   const badGame = st.isTienOpEnNeer && st.round >= 3 && me.total / st.round <= 3;
   const goodGame = st.isTienOpEnNeer && st.round >= 7 && me.total / st.round >= 8.5;
-  let t = [];
+  let lines = [];
   switch (event) {
     case "weinig voorspeld":
-      t = [...COMMENTS.weinig];
+      lines = [...COMMENTS.weinig];
       break;
     case "veel voorspeld":
-      t = [...COMMENTS.veel];
+      lines = [...COMMENTS.veel];
       break;
     case "te veel":
-      t = [...COMMENTS.teVeel];
-      if (opinion === 1) t.push(...COMMENTS.gelijk);
-      if (opinion === 2) t.push(...COMMENTS.vreemd);
-      if (badGame) t.push(...COMMENTS.slecht);
+      lines = [...COMMENTS.teVeel];
+      if (opinion === 1) lines.push(...COMMENTS.gelijk);
+      if (opinion === 2) lines.push(...COMMENTS.vreemd);
+      if (badGame) lines.push(...COMMENTS.slecht);
       break;
     case "te weinig":
-      t = [...COMMENTS.teWeinig];
-      if (badGame) t.push(...COMMENTS.slecht);
-      if (opinion === 1) t.push(...COMMENTS.vreemd);
-      if (opinion === 2) t.push(...COMMENTS.gelijk);
+      lines = [...COMMENTS.teWeinig];
+      if (badGame) lines.push(...COMMENTS.slecht);
+      if (opinion === 1) lines.push(...COMMENTS.vreemd);
+      if (opinion === 2) lines.push(...COMMENTS.gelijk);
       break;
     case "goed":
-      t = [...COMMENTS.goed];
-      if (goodGame) t.push(...COMMENTS.heelGoed);
-      if (opinion >= 1) t.push(...COMMENTS.geluk);
+      lines = [...COMMENTS.goed];
+      if (goodGame) lines.push(...COMMENTS.heelGoed);
+      if (opinion >= 1) lines.push(...COMMENTS.geluk);
       break;
     case "kleur bekennen": {
       const lead = st.table[st.leader - 1];
-      t = [followText(SUIT_NAME[suitOf(lead)]), ...COMMENTS.bekennen];
-      break;
+      // De Nederlandse zin is de sleutel van de opname; op het scherm in de taal van het spel
+      lines = [t("Je moet kleur bekennen. Kies een {suit}.", { suit: suitWord(suitOf(lead)) }), ...COMMENTS.bekennen.map((s) => t(s))];
+      return pick(lines);
     }
     case "afgelopen":
-      t = endTexts(st);
+      lines = endTexts(st);
       break;
     case "highscore":
       return null;
   }
-  return t.length ? pick(t) : null;
+  return lines.length ? t(pick(lines)) : null;
 }
 
 const END_OTHER = ["Dat was het dan alweer.", "Het spel is uit.", "Het spel is afgelopen.", "Zo, dat was leuk."];
@@ -122,6 +126,8 @@ function endTexts(st) {
 }
 
 const cardName = (code, describe) => `${describe(code)}`;
+/** Kleur van een kaart als woord in de taal van het spel ("klaver", "clubs"). */
+const suitText = (code) => suitWord(suitOf(code));
 
 /**
  * Uitleg bij een stap in het spel (ZegHulp). Geeft { text, wait } of null als Tineke niets
@@ -129,95 +135,188 @@ const cardName = (code, describe) => `${describe(code)}`;
  * [level] loopt op met elke gespeelde slag, zodat Tineke minder gaat uitleggen.
  */
 export function help(event, st, level, describe, extra = {}) {
+  const h = helpFor(event, st, level, describe, extra);
+  // Alleen nieuwe tips: een soort uitleg die je al eens kreeg, slaat Tineke over
+  if (!h) return null;
+  h.keys = h.keys ?? (h.key ? [h.key] : []);
+  if (h.keys.length && h.keys.every((k) => extra.seen?.(k))) return null;
+  return h;
+}
+
+/** Wat je met je voorspelling moet: precies halen, anders ben je nat (verschilt per spelsoort). */
+const exactText = (st) => (st.isTienOpEnNeer ? SAY.exact : SAY.exactBB);
+
+/** Nat gegaan door deze slag? Dan de reden, anders null. Telt de slag die nog op tafel ligt mee. */
+function wetReason(st, winner) {
+  const me = st.players[0];
+  if (me.bid < 0) return null;
+  const before = me.tricks;
+  const after = before + (winner === 1 ? 1 : 0);
+  const wetBefore = before > me.bid || me.bid - before > me.cardCount + 1;
+  const wetAfter = after > me.bid || me.bid - after > me.cardCount;
+  if (wetBefore || !wetAfter) return null;
+  const n = me.cardCount;
+  const left = t(n === 0 ? "er zijn geen kaarten meer over" : n === 1 ? "er is nog maar één kaart over" : "er zijn nog maar {n} kaarten over", { n });
+  const vars = { bid: me.bid, tricks: after, left };
+  const tienOpEnNeer = st.isTienOpEnNeer;
+  if (after > me.bid) {
+    return {
+      key: "nat te veel",
+      text: t(tienOpEnNeer
+        ? "Je bent nat: je voorspelde {bid}, maar je hebt nu al {tricks} slagen. Meer slagen dan je voorspelt is ook fout, dus deze ronde krijg je geen punten."
+        : "Je bent nat: je voorspelde {bid}, maar je hebt nu al {tricks} slagen. Meer slagen dan je voorspelt is ook fout. Elke slag verschil kost 3 punten, dus probeer er niet nog meer te halen.", vars),
+      say: tienOpEnNeer ? SAY.wetMany : SAY.wetManyBB,
+    };
+  }
+  return {
+    key: "nat te weinig",
+    text: t(tienOpEnNeer
+      ? "Je bent nat: je voorspelde {bid} en hebt er {tricks}, maar {left}. Je kunt je voorspelling dus niet meer halen en krijgt deze ronde geen punten."
+      : "Je bent nat: je voorspelde {bid} en hebt er {tricks}, maar {left}. Je kunt je voorspelling dus niet meer halen. Elke slag verschil kost 3 punten, dus haal er nog zoveel mogelijk.", vars),
+    say: tienOpEnNeer ? SAY.wetFew : SAY.wetFewBB,
+  };
+}
+
+function helpFor(event, st, level, describe, extra) {
   const me = st.players[0];
   switch (event) {
+    case "troef": {
+      // Eén keer per spel: wat troef is (of dat er deze ronde geen troef is)
+      const trumpSuit = st.trump ? suitOf(st.trump) : 0;
+      if (!trumpSuit) {
+        return { key: "geen troef", text: t(SAY.noTrump), say: [SAY.noTrump], wait: true };
+      }
+      return {
+        key: "troef",
+        text: t("Bovenin zie je de troefkaart: {suit} is deze ronde troef. Een troefkaart is sterker dan alle kaarten van de andere kleuren, ook dan een aas. Heb je de kleur die is uitgekomen niet, dan mag je troeven: een troefkaart opleggen. Zo win je een slag, ook met een lage troef (tenzij een ander hoger troeft). Troefkaarten in je hand helpen dus om slagen te halen; tel ze mee als je voorspelt.", { suit: suitWord(trumpSuit) }),
+        say: [SAY.trump(SUIT_NAME[trumpSuit])],
+        wait: true,
+      };
+    }
     case "welkom":
       return {
-        text: "Hallo, welkom bij 10 op en neer. Ik ben Tineke en ik ga je tijdens het spelen uitleggen wat je moet doen. Ken je het spel al? Tik dan op Uitleg stoppen. Met Begrepen klik je alleen mijn tekst weg.",
+        text: t(WELCOME),
+        say: [WELCOME],
         wait: true,
       };
     case "voorspellen":
       return level <= 1
-        ? { text: `Je hebt ${st.cards === 1 ? "één kaart" : `${st.cards} kaarten`} gekregen. Je moet nu het aantal slagen voorspellen: hoeveel keer denk je deze ronde de hoogste kaart op tafel te hebben? Tik op een cijfer.`, wait: false, say: [SAY.bidFirst] }
-        : { text: `Je moet nu het aantal slagen voorspellen. Tik op een cijfer.${extra.advice != null ? ` Mijn advies: kies ${extra.advice}.` : ""}`, wait: false,
+        ? { text: t(st.cards === 1
+          ? "Je hebt één kaart gekregen. Je moet nu het aantal slagen voorspellen: hoeveel keer denk je deze ronde de hoogste kaart op tafel te hebben? Tik op een cijfer."
+          : "Je hebt {n} kaarten gekregen. Je moet nu het aantal slagen voorspellen: hoeveel keer denk je deze ronde de hoogste kaart op tafel te hebben? Tik op een cijfer.", { n: st.cards }) + ` ${t(exactText(st))}`,
+        key: "voorspellen", wait: false, say: [SAY.bidFirst, exactText(st)] }
+        : { text: t("Je moet nu het aantal slagen voorspellen. Tik op een cijfer.") + (extra.advice != null ? ` ${t("Mijn advies: kies {n}.", { n: extra.advice })}` : ""), wait: false,
+          key: extra.advice != null ? null : "voorspellen kort",
           say: [SAY.bid, ...(extra.advice != null ? [adviceText(extra.advice)] : [])] };
     case "voorspeld":
       if (level > 2) return null;
       return {
-        text: `Je hebt ${me.bid === 1 ? "1 slag" : `${me.bid} slagen`} voorspeld. Dat zie je bij je naam onder BOD; daarnaast staat hoeveel slagen je al hebt. Zo zie je ook wat de andere spelers voorspellen. Bovenin staat of er samen slagen over zijn of te weinig.`,
+        text: t(me.bid === 1
+          ? "Je hebt 1 slag voorspeld. Dat zie je bij je naam onder BOD; daarnaast staat hoeveel slagen je al hebt. Zo zie je ook wat de andere spelers voorspellen. Bovenin staat of er samen slagen over zijn of te weinig."
+          : "Je hebt {n} slagen voorspeld. Dat zie je bij je naam onder BOD; daarnaast staat hoeveel slagen je al hebt. Zo zie je ook wat de andere spelers voorspellen. Bovenin staat of er samen slagen over zijn of te weinig.", { n: me.bid }),
         wait: true,
+        key: "voorspeld",
         say: [SAY.bidDone],
       };
     case "kies een kaart": {
       const leading = st.leader === 1;
       const first = me.cardCount === st.cards;
-      const only = st.hand.length === 1 ? ` (de ${cardName(st.hand[0].code, describe)})` : "";
+      const only = st.hand.length === 1 ? cardName(st.hand[0].code, describe) : "";
+      const tap = only ? t("Tik op je kaart (de {card}).", { card: only }) : t("Tik op een kaart.");
       if (leading) {
         return {
-          text: first
-            ? `Je moet nu uitkomen: als eerste een kaart opleggen. Dat zie je aan het label "uit" bij je naam. Tik op ${only ? `je kaart${only}` : "een kaart"}.`
-            : `Jij moet nu een kaart opleggen, omdat je net een slag hebt gehaald. Tik op ${only ? `je kaart${only}` : "een kaart"}.`,
+          text: `${first
+            ? t("Je moet nu uitkomen: als eerste een kaart opleggen. Dat zie je aan het label \"uit\" bij je naam.")
+            : t("Jij moet nu een kaart opleggen, omdat je net een slag hebt gehaald.")} ${tap}`,
           wait: false,
+          key: first ? "uitkomen" : "uitkomen na slag",
           say: [first ? SAY.leadFirst : SAY.leadAgain, only ? SAY.tapOnly : SAY.tapAny],
         };
       }
       if (st.hand.length === 1) {
-        return { text: `De spelers voor je hebben hun kaart opgelegd. Nu moet jij ook een kaart opleggen: tik op je kaart${only}.`, wait: false, say: [SAY.lastCard] };
+        return { text: t("De spelers voor je hebben hun kaart opgelegd. Nu moet jij ook een kaart opleggen: tik op je kaart (de {card}).", { card: only }), wait: false, key: "laatste kaart", say: [SAY.lastCard] };
       }
       const lead = st.table[st.leader - 1];
       const suit = SUIT_NAME[suitOf(lead)];
+      const shown = suitText(lead);
       const canFollow = st.hand.some((c) => suitOf(c.code) === suitOf(lead));
       return {
-        text: `De eerste kaart op tafel is de ${cardName(lead, describe)}. Nu moet jij kleur bekennen (ook een ${suit} opleggen). ` +
-          (canFollow ? `Tik op een ${suit}kaart; de kaarten die je mag spelen staan omhoog.` : `Je hebt geen ${suit}, dus je mag elke kaart spelen.`),
+        text: `${t("De eerste kaart op tafel is de {card}. Nu moet jij kleur bekennen (ook een {suit} opleggen).", { card: cardName(lead, describe), suit: shown })} ${
+          canFollow ? t("Tik op een {suit}kaart; de kaarten die je mag spelen staan omhoog.", { suit: shown }) : t("Je hebt geen {suit}, dus je mag elke kaart spelen.", { suit: shown })}`,
         wait: false,
+        key: canFollow ? "kleur bekennen" : "niet bekennen",
         say: [SAY.follow(suit), canFollow ? SAY.canFollow(suit) : SAY.cannotFollow(suit)],
       };
     }
     case "slag naar hoogste": {
-      if (level > 10) return null;
       const leader = st.leader;
       const winner = st.trickWinner;
+      // Ging je door deze slag nat, dan legt Tineke uit waarom (ook als ze de slag zelf niet meer uitlegt)
+      const wet = wetReason(st, winner);
+      const showWet = wet && !extra.seen?.(wet.key);
+      if (level > 10 && !showWet) return null;
       const lead = st.table[leader - 1];
       const top = st.table[winner - 1];
       const trumpSuit = st.trump ? suitOf(st.trump) : 0;
-      const who = (nr, capital) => (nr === 1 ? (capital ? "Je" : "je") : st.players[nr - 1].name);
+      const name = (nr) => st.players[nr - 1].name;
+      const card = cardName(lead, describe);
       let say;
-      let t = leader === 1 ? `Je legde als eerste de ${describe(lead)} op. ` : `${who(leader)} legde als eerste de ${describe(lead)} op. `;
-      const gets = winner === 1 ? "Je krijgt nu deze vier kaarten" : `${who(winner)} krijgt nu deze vier kaarten`;
+      let key;
+      let text = leader === 1 ? t("Je legde als eerste de {card} op.", { card }) : t("{name} legde als eerste de {card} op.", { name: name(leader), card });
+      const vars = { name: name(winner), suit: suitText(top), trump: suitWord(trumpSuit) };
       if (winner === leader) {
-        t += `${gets}, omdat niemand een hogere ${SUIT_NAME[suitOf(top)]}kaart had.`;
+        text += ` ${winner === 1
+          ? t("Je krijgt nu deze vier kaarten, omdat niemand een hogere {suit}kaart had.", vars)
+          : t("{name} krijgt nu deze vier kaarten, omdat niemand een hogere {suit}kaart had.", vars)}`;
         say = winner === 1 ? SAY.wonLead : SAY.otherLead;
+        key = "slag uitkomer";
       } else if (suitOf(top) === trumpSuit && suitOf(lead) !== trumpSuit) {
-        t += `${gets}, omdat ${winner === 1 ? "je" : "deze speler"} een ${SUIT_NAME[trumpSuit]}kaart ${winner === 1 ? "hebt" : "heeft"} opgelegd, en ${SUIT_NAME[trumpSuit]} is troef (zie de troefkaart bovenin).`;
+        text += ` ${winner === 1
+          ? t("Je krijgt nu deze vier kaarten, omdat je een {trump}kaart hebt opgelegd, en {trump} is troef (zie de troefkaart bovenin).", vars)
+          : t("{name} krijgt nu deze vier kaarten, omdat deze speler een {trump}kaart heeft opgelegd, en {trump} is troef (zie de troefkaart bovenin).", vars)}`;
         say = winner === 1 ? SAY.wonTrump(SUIT_NAME[trumpSuit]) : SAY.otherTrump(SUIT_NAME[trumpSuit]);
+        key = "slag troef";
       } else {
-        t += `${gets}, omdat ${winner === 1 ? "je" : "deze speler"} de hoogste ${SUIT_NAME[suitOf(top)]} had.`;
+        text += ` ${winner === 1
+          ? t("Je krijgt nu deze vier kaarten, omdat je de hoogste {suit} had.", vars)
+          : t("{name} krijgt nu deze vier kaarten, omdat deze speler de hoogste {suit} had.", vars)}`;
         say = winner === 1 ? SAY.wonHigh : SAY.otherHigh;
+        key = "slag hoogste";
       }
-      return { text: t, wait: true, say: [say] };
+      const showTrick = level <= 10 && !extra.seen?.(key);
+      if (!showWet) return { text, wait: true, key, say: [say] };
+      if (!showTrick) return { text: wet.text, wait: true, key: wet.key, say: [wet.say] };
+      return { text: `${text} ${wet.text}`, wait: true, keys: [key, wet.key], say: [say, wet.say] };
     }
     case "slag erbij": {
       if (level > 3) return null;
       const w = st.lastTrickWinner;
       const p = st.players[w - 1];
-      const t = w === 1 ? `Je hebt nu ${p.tricks === 1 ? "een slag." : `${p.tricks} slagen.`}` : `${p.name} heeft nu ${p.tricks === 1 ? "een slag." : `${p.tricks} slagen.`}`;
-      return { text: `${t} Je ziet het aan het cijfer onder SLAGEN.`, wait: true, say: [SAY.trickCount] };
+      const vars = { n: p.tricks, name: p.name };
+      const text = w === 1
+        ? t(p.tricks === 1 ? "Je hebt nu een slag." : "Je hebt nu {n} slagen.", vars)
+        : t(p.tricks === 1 ? "{name} heeft nu een slag." : "{name} heeft nu {n} slagen.", vars);
+      return { text: `${text} ${t("Je ziet het aan het cijfer onder SLAGEN.")}`, wait: true, key: "slag erbij", say: [SAY.trickCount] };
     }
     case "score": {
       if (level > 5) return null;
       const [bid, tricks, score, , good] = me.rounds[st.round - 1];
-      let t = `Je had ${bid === 1 ? "1 slag" : `${bid} slagen`} voorspeld`;
-      if (good) t += ` en ook gekregen. Nu krijg je ${score} punten erbij.`;
-      else t += `, maar dat is niet gelukt: je hebt er ${tricks} gehaald. ${score > 0 ? `Je krijgt ${score} punten.` : "Geen punten erbij."}`;
-      if (level <= 3) t += " Alle scores staan op de scorelijst (de knop rechtsboven).";
-      return { text: t, wait: false, say: [good ? SAY.scoreGood : score > 0 ? SAY.scoreSome : SAY.scoreNone, ...(level <= 3 ? [SAY.scoreList] : [])] };
+      const vars = { bid, tricks, score };
+      let text = good
+        ? t(bid === 1 ? "Je had 1 slag voorspeld en ook gekregen. Nu krijg je {score} punten erbij." : "Je had {bid} slagen voorspeld en ook gekregen. Nu krijg je {score} punten erbij.", vars)
+        : `${t(bid === 1 ? "Je had 1 slag voorspeld, maar dat is niet gelukt: je hebt er {tricks} gehaald." : "Je had {bid} slagen voorspeld, maar dat is niet gelukt: je hebt er {tricks} gehaald.", vars)} ${
+          score > 0 ? t("Je krijgt {score} punten.", vars) : t("Geen punten erbij.")}`;
+      if (level <= 3) text += ` ${t("Alle scores staan op de scorelijst (de knop rechtsboven).")}`;
+      return { text, wait: false, key: good ? "score goed" : "score fout", say: [good ? SAY.scoreGood : score > 0 ? SAY.scoreSome : SAY.scoreNone, ...(level <= 3 ? [SAY.scoreList] : [])] };
     }
     case "hulp uit":
-      return { text: "Ik zal je niet meer helpen. Je kunt mijn uitleg altijd weer aanzetten in het menu tijdens het spel of bij Instellingen.", wait: false };
+      return { text: t(HELP_OFF), say: [HELP_OFF], wait: false };
   }
   return null;
 }
+
+const WELCOME = "Hallo, welkom bij 10 op en neer. Ik ben Tineke en ik ga je tijdens het spelen uitleggen wat je moet doen. Ken je het spel al? Tik dan op Uitleg stoppen. Met Begrepen klik je alleen mijn tekst weg.";
+const HELP_OFF = "Ik zal je niet meer helpen. Je kunt mijn uitleg altijd weer aanzetten in het menu tijdens het spel of bij Instellingen.";
 
 // Wat Tineke hardop zegt bij uitleg met een kaart, naam of getal erin: vaste zinnen, zodat er een opname van is
 const SAY = {
@@ -243,6 +342,14 @@ const SAY = {
   scoreSome: "Je voorspelling is niet gelukt, maar je krijgt nog wel wat punten.",
   scoreNone: "Je voorspelling is niet gelukt. Geen punten erbij.",
   scoreList: "Alle scores staan op de scorelijst, met de knop rechtsboven.",
+  trump: (suit) => `${suit[0].toUpperCase()}${suit.slice(1)} is deze ronde troef. Een troefkaart is sterker dan alle kaarten van de andere kleuren, ook dan een aas. Heb je de kleur die is uitgekomen niet, dan mag je troeven. Dan win je de slag, ook met een lage troef, tenzij een ander hoger troeft. Tel je troefkaarten dus mee als je voorspelt.`,
+  noTrump: "Deze ronde is er geen troef. De hoogste kaart in de kleur die is uitgekomen wint altijd de slag.",
+  exact: "Probeer precies zoveel slagen te halen als je voorspelt. Haal je er meer of minder, dan ben je nat en krijg je deze ronde geen punten.",
+  exactBB: "Probeer precies zoveel slagen te halen als je voorspelt. Haal je er meer of minder, dan ben je nat en gaan er punten af.",
+  wetMany: "Je bent nat: je hebt meer slagen dan je voorspelde. Ook te veel slagen is fout, dus deze ronde krijg je geen punten.",
+  wetFew: "Je bent nat: er zijn te weinig kaarten over om je voorspelling nog te halen. Deze ronde krijg je geen punten.",
+  wetManyBB: "Je bent nat: je hebt meer slagen dan je voorspelde. Elke slag verschil kost punten, dus probeer er niet nog meer te halen.",
+  wetFewBB: "Je bent nat: er zijn te weinig kaarten over om je voorspelling nog te halen. Elke slag verschil kost punten, dus haal er nog zoveel mogelijk.",
 };
 const adviceText = (n) => `Mijn advies: kies ${WORD[n] ?? n}.`;
 
@@ -251,12 +358,20 @@ export function spokenLines() {
   const all = [
     ...clickList(GREETINGS[0]), ...GREETINGS.slice(1),
     ...Object.values(COMMENTS).flat(), ...SUITS.map(followText),
-    ...END_OTHER, ...END_BEST, ...END_TABLE.flatMap(([, t]) => t),
-    help("welkom", { players: [] }).text, help("hulp uit", { players: [] }).text,
+    ...END_OTHER, ...END_BEST, ...END_TABLE.flatMap(([, x]) => x),
+    WELCOME, HELP_OFF,
     ...Object.values(SAY).flatMap((v) => (typeof v === "function" ? SUITS.map(v) : [v])),
     ...WORD.map((_, n) => adviceText(n)),
   ];
   return [...new Set(all)];
+}
+
+/** Alle vaste zinnen die Tineke op het scherm laat zien (voor de test dat ze allemaal een Engelse vertaling hebben). */
+export function shownLines() {
+  return [...new Set([
+    ...clickList(GREETINGS[0]), ...GREETINGS.slice(1), ...Object.values(COMMENTS).flat(),
+    ...END_OTHER, ...END_BEST, ...END_TABLE.flatMap(([, x]) => x), WELCOME, HELP_OFF,
+  ])];
 }
 
 /** Bestandsnaam van de opname van een zin (zonder .mp3): een korte hash, zodat tekst en opname bij elkaar blijven. */

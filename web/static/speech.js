@@ -33,6 +33,16 @@ export const PHRASES = [
   "Nog een potje?",
 ];
 export const PHRASE_VOICES = ["man", "vrouw", "neutraal"];
+
+/** Snelle berichten onder de chat (zonder stem). */
+export const QUICK = ["👍", "😂", "😮", "😢", "👏", "🔥", "Goed gespeeld!", "Pech!", "Haha", "Even wachten"];
+/** Wat je medespelers zien als je een tip gebruikt. */
+export const TIP_CHAT = "💡 Ik heb een tip gebruikt.";
+/**
+ * Vaste teksten die als chatbericht over de lijn gaan. Ze gaan altijd in het Nederlands (zo blijft een tafel met
+ * Nederlandse en Engelse spelers, en met oudere versies, werken); wie Engels speelt, ziet ze vertaald (i18n.js).
+ */
+export const WIRE_TEXTS = new Set([...PHRASES, ...QUICK, TIP_CHAT]);
 export const PHRASE_GAP_MS = 30000;
 
 export const openerFile = (k) => `open_${k}`;

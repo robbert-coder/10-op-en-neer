@@ -1,23 +1,39 @@
 // Wat er per versie nieuw is. Wie na een nieuwe versie terugkomt, ziet dit in het hoofdmenu.
+// items in het Nederlands, en dezelfde punten in het Engels (en), voor wie het spel in het Engels speelt.
 export const CHANGES = [
   { v: "2.41", items: [
     "De knop Overslaan bij Tineke heet nu Uitleg stoppen, want daarmee zet je haar uitleg uit. Met Begrepen klik je alleen haar tekst weg.",
+  ], en: [
+    "The Skip button on Tineke's panel is now called Stop explaining, because it switches her explanations off. Got it just hides her text.",
   ] },
   { v: "2.40", items: [
     "Het geluid als iemand nat gaat klinkt pas als de kaart op tafel ligt.",
     "Tineke heeft een knop Begrepen: die klikt alleen haar tekst weg, zodat je de tafel goed ziet. Overslaan stopt haar uitleg.",
     "Lobby: de chat heeft een scrollbalk, en de namen van wie er is zie je met de knop Aanwezigen.",
+  ], en: [
+    "The sound when someone misses their bid now plays once the card has landed on the table.",
+    "Tineke has a Got it button: it just hides her text so you can see the table properly. Skip stops her explanations.",
+    "Lobby: the chat has a scroll bar, and you can see who's there with the Here now button.",
   ] },
   { v: "2.39", items: [
     "Levendigere stemmen: alle computerspelers zijn opnieuw ingesproken, elk met een eigen toon. Ze klinken blij als het goed gaat en balen hoorbaar als het misgaat.",
     "Tineke spreekt nu met de stem van Truus.",
     "Tineke zet je tijdens het spel aan of uit via het spelmenu.",
     "Sterke computerspelers staan standaard uit, ook als je eerder speelde.",
+  ], en: [
+    "Livelier voices: all computer players have been re-recorded, each with their own tone. They sound happy when things go well and audibly fed up when they don't.",
+    "Tineke now speaks with Truus's voice.",
+    "Turn Tineke on or off during a game from the game menu.",
+    "Strong computer players are off by default, even if you played before.",
   ] },
   { v: "2.38", items: [
     "Truus roept je toe als je het spel opent, en daagt je uit voor nog een potje als je na een spel terugkomt.",
     "De uitleg van Tineke zet je nu ook aan of uit bij Nieuw spel.",
     "Spel delen: op het startscherm staat een QR-code die anderen met hun camera scannen om meteen mee te spelen.",
+  ], en: [
+    "Truus calls out to you when you open the game, and challenges you to another round when you come back after a game.",
+    "You can now also turn Tineke's explanations on or off under New game.",
+    "Share the game: the start screen has a QR code that others can scan with their camera to start playing straight away.",
   ] },
   { v: "2.37", items: [
     "Nieuwe, echte stemmen voor alle computerspelers, met accent: Henk met een heel lage stem, Truus uit Rotterdam, Kees uit Twente, Ria uit Vlaanderen, Gerda uit Groningen, Sjef uit Limburg, Mo uit Amsterdam en Bram zonder accent.",
@@ -29,13 +45,26 @@ export const CHANGES = [
     "Eén knop Nieuw spel; daarna kies je tegen de computer of samen met anderen.",
     "Nieuwe spelers beginnen tegen gewone computers; sterke computers zet je aan bij een nieuw spel.",
     "Tablet dwars: je zit weer zelf aan tafel. De pijlen van de beurtvolgorde kloppen weer, en je kaarten passen altijd op het scherm.",
+  ], en: [
+    "New, real voices for all computer players, with accents: Henk with a very deep voice, Truus from Rotterdam, Kees from Twente, Ria from Flanders, Gerda from Groningen, Sjef from Limburg, Mo from Amsterdam and Bram without an accent.",
+    "Tineke also speaks her explanations out loud (can be turned off in Settings).",
+    "An enthusiastic voice welcomes you when you open the game.",
+    "Playing together: with the 🗣️ button you can say something in your own voice, such as \"Are you still there?\" or \"Hurry up!\" (at most once every 30 seconds).",
+    "You can now also choose your voice for a new game and at a table, and you can choose no voice.",
+    "Tips are always allowed. The first time you tap Tip, you get a warning that the game will no longer count.",
+    "One New game button; then choose against the computer or with others.",
+    "New players start against regular computers; turn on strong computers when starting a new game.",
+    "Tablet in landscape: you're back at the table yourself. The turn-order arrows are correct again, and your cards always fit on the screen.",
   ] },
-  { v: "2.36", items: ["Highscores en Hall of Fame: filter op spellen tegen sterke computers, tegen gewone computers of met andere mensen."] },
-  { v: "2.35", items: ["Sterren gelden nu per soort spel: je hebt aparte sterren voor 10 op en neer en voor Boerenbridge, net als de highscores en de Hall of Fame."] },
-  { v: "2.34", items: ["Boerenbridge gaat altijd tot 13 kaarten, en kan daarom met hoogstens 4 spelers."] },
+  { v: "2.36", items: ["Highscores en Hall of Fame: filter op spellen tegen sterke computers, tegen gewone computers of met andere mensen."], en: ["High scores and Hall of Fame: filter on games against strong computers, against regular computers or with other people."] },
+  { v: "2.35", items: ["Sterren gelden nu per soort spel: je hebt aparte sterren voor 10 op en neer en voor Boerenbridge, net als de highscores en de Hall of Fame."], en: ["Stars now count per kind of game: you have separate stars for 10 op en neer and for Boerenbridge, just like the high scores and the Hall of Fame."] },
+  { v: "2.34", items: ["Boerenbridge gaat altijd tot 13 kaarten, en kan daarom met hoogstens 4 spelers."], en: ["Boerenbridge always goes up to 13 cards, so it can be played with at most 4 players."] },
   { v: "2.33", items: [
     "Achter de schermen opgeruimd: de code is opgesplitst in kleinere stukken, zodat verbeteringen sneller en veiliger gaan.",
     "Boerenbridge met 5 spelers (tot 10 kaarten, meer kan niet) telt nu als volledig spel voor de sterren en de highscores.",
+  ], en: [
+    "Tidied up behind the scenes: the code is split into smaller pieces, so improvements are quicker and safer.",
+    "Boerenbridge with 5 players (up to 10 cards, more isn't possible) now counts as a full game for the stars and high scores.",
   ] },
   { v: "2.32", items: [
     "Veiliger samen spelen: elk bericht is ondertekend, dus niemand kan zich voor een ander uitgeven of namens jou spelen.",
@@ -45,12 +74,24 @@ export const CHANGES = [
     "Opgelost: bij samen spelen kon het spel vastlopen als iemand precies tegelijk vertrok of werd overgenomen.",
     "Een gedeelde link opent niet meer zomaar een andere tafel terwijl je nog aan het spelen bent.",
     "Samen spelen werkt alleen met andere spelers die ook versie 2.32 of nieuwer hebben.",
+  ], en: [
+    "Safer playing together: every message is signed, so nobody can pretend to be someone else or play on your behalf.",
+    "Chat: at most 5 messages per 10 seconds, so nobody can spam the chat.",
+    "Everything that comes from others or from the database is checked first.",
+    "Fixed: the game could freeze if you left while Tineke was explaining something.",
+    "Fixed: when playing together, the game could get stuck if someone left or was taken over at exactly the same moment.",
+    "A shared link no longer just opens another table while you're still playing.",
+    "Playing together only works with other players who also have version 2.32 or newer.",
   ] },
-  { v: "2.31", items: ["De melding dat je (of een ander) te lang wacht, kun je wegklikken met het kruisje. Bij de volgende stap komt hij terug."] },
+  { v: "2.31", items: ["De melding dat je (of een ander) te lang wacht, kun je wegklikken met het kruisje. Bij de volgende stap komt hij terug."], en: ["You can close the message that you (or someone else) are taking too long with the cross. It comes back at the next step."] },
   { v: "2.30", items: [
     "Telefoon dwars in de webapp: het hele scherm wordt weer gebruikt, en de geïnstalleerde webapp mag ook liggend.",
     "Bij samen spelen zie je weer dezelfde gezichten om uit te kiezen als bij een spel tegen de computer.",
     "Op het startscherm kijken de drie spelers rustiger en doen ze elk iets met een speelkaart.",
+  ], en: [
+    "Phone in landscape in the web app: the whole screen is used again, and the installed web app may also be used in landscape.",
+    "When playing together you again get the same faces to choose from as in a game against the computer.",
+    "On the start screen the three players look calmer and each does something with a playing card.",
   ] },
   { v: "2.29", items: [
     "Het aantal kaarten van deze ronde staat groot bovenin.",
@@ -59,6 +100,13 @@ export const CHANGES = [
     "Tijdens het voorspellen zie je alleen de biedingen, nog niet de slagen.",
     "In de Android-app loopt de achtergrond door tot onder de systeemknoppen, zonder groene randen.",
     "Na een slag staat er niet meer dat je moet tikken: het spel gaat vanzelf verder.",
+  ], en: [
+    "The number of cards this round is shown large at the top.",
+    "Choose your own voice in Settings: male, female or neutral. Your fellow players hear it too.",
+    "A played card now sounds like paper sliding across the table.",
+    "While bidding you only see the bids, not the tricks yet.",
+    "In the Android app the background runs down under the system buttons, without green edges.",
+    "After a trick it no longer says you have to tap: the game carries on by itself.",
   ] },
   { v: "2.28", items: [
     "Vier nieuwe tegenstanders: Bram, Gerda, Sjef en Mo. Wie er tegen je speelt, wordt elk spel geloot.",
@@ -74,15 +122,32 @@ export const CHANGES = [
     "Tik op de sterren onder een gezicht voor uitleg over hoe ze werken.",
     "Is de online Hall of Fame even niet bereikbaar, dan zie je een melding en speel je gewoon door.",
     "Dit bericht: na een nieuwe versie zie je meteen wat er nieuw is.",
+  ], en: [
+    "Four new opponents: Bram, Gerda, Sjef and Mo. Who plays against you is drawn for each game.",
+    "Everyone says many more different things, each in their own way.",
+    "You hear the cards being shuffled, sliding across the table and swept together. Can be turned off in Settings.",
+    "When starting a new game you choose whether tips are allowed. If you use a tip, the game doesn't count for the high scores, the Hall of Fame and your stars, and your fellow players see that.",
+    "The trump card at the top right is easier to see, also for clubs and spades.",
+    "Phone in landscape: the table on the left and your cards on the right, instead of a long narrow table.",
+    "The website has a link to download the Android app, and if the website is open you get a notification when there's a new version.",
+    "On a tablet (portrait and landscape) everything fits better and is bigger.",
+    "While bidding, the bids of the others stand out in gold.",
+    "If you already have enough tricks, the tip suggests getting rid of your highest card.",
+    "Tap the stars under a face for an explanation of how they work.",
+    "If the online Hall of Fame can't be reached for a moment, you see a message and just keep playing.",
+    "This message: after a new version you immediately see what's new.",
   ] },
-  { v: "2.27", items: ["Geen kale mensen meer: Henk heeft weer haar."] },
-  { v: "2.26", items: ["Blije gezichten op het startscherm."] },
+  { v: "2.27", items: ["Geen kale mensen meer: Henk heeft weer haar."], en: ["No more bald people: Henk has his hair back."] },
+  { v: "2.26", items: ["Blije gezichten op het startscherm."], en: ["Happy faces on the start screen."] },
   { v: "2.25", items: [
     "Reageert iemand niet, dan krijgt die een waarschuwing en een aftelling. Daarna kunnen de anderen samen kiezen voor een computer.",
     "Na afloop van een online spel kun je blijven chatten en nog een potje spelen met dezelfde spelers.",
+  ], en: [
+    "If someone doesn't respond, they get a warning and a countdown. After that the others can choose together to let a computer take over.",
+    "After an online game you can keep chatting and play another round with the same players.",
   ] },
-  { v: "2.24", items: ["Een openbare tafel verdwijnt niet meer uit de lobby als de gastheer even weg is."] },
-  { v: "2.23", items: ["Openbare tafels met een naam en een gezamenlijke lobby met chat."] },
-  { v: "2.22", items: ["De Hall of Fame filteren op aantal spelers en op tegen wie je speelde."] },
-  { v: "2.21", items: ["Bij een topscore staat met hoeveel spelers het was, en of het mensen of computers waren."] },
+  { v: "2.24", items: ["Een openbare tafel verdwijnt niet meer uit de lobby als de gastheer even weg is."], en: ["A public table no longer disappears from the lobby when the host is away for a moment."] },
+  { v: "2.23", items: ["Openbare tafels met een naam en een gezamenlijke lobby met chat."], en: ["Public tables with a name, and a shared lobby with chat."] },
+  { v: "2.22", items: ["De Hall of Fame filteren op aantal spelers en op tegen wie je speelde."], en: ["Filter the Hall of Fame by number of players and by who you played against."] },
+  { v: "2.21", items: ["Bij een topscore staat met hoeveel spelers het was, en of het mensen of computers waren."], en: ["A top score now shows how many players there were, and whether they were people or computers."] },
 ];
