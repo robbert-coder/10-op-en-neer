@@ -7,6 +7,8 @@
 #                                                    mannenstem; per omschrijving drie voorbeelden
 #   python3 tools/elevenlabs.py naam:<Naam> <map>    Eén stem op naam opzoeken, in de bibliotheek en in de
 #                                                    eigen stemmen van het account
+#   python3 tools/elevenlabs.py inspreken[:henk,kees] <map>  Alle voorspellingen en nat-zinnen (uit
+#                                                    web/static/voices.js) inspreken met de stemmen in KEUZE
 #   python3 tools/elevenlabs.py proef:<eigenaar>/<stem>/<Naam> <map>  Bibliotheekstem aan het account toevoegen en
 #                                                    een paar spelzinnen laten inspreken (kost een paar honderd credits)
 import base64, json, os, re, sys, urllib.error, urllib.parse, urllib.request
@@ -223,8 +225,98 @@ def proef(out, spec):
     print(f"{name}: {len(rows)} zinnen ingesproken (stem {vid})")
 
 
+# Robbert koos deze stemmen op de luisterpagina (14 oktober 2026). Bibliotheekstemmen gaan rechtstreeks op
+# voice_id; ontworpen stemmen worden eerst (één keer) als eigen stem in het account bewaard.
+KEUZE = {
+    "henk": {"ontwerp": "nxXBLGMUMfo1A7EdM35R", "naam": "Henk (heel lage mannenstem)", "omschrijving": DESIGNS[6][1]},
+    "truus": {"ontwerp": "6BJ0RYaLcd17tZ1QUvZW", "naam": "Truus (Rotterdams)", "omschrijving": DESIGNS[3][1]},
+    "kees": {"ontwerp": "J6NuhSPdcAhsoLgb8T3P", "naam": "Kees (Twents)", "omschrijving": DESIGNS[4][1]},
+    "ria": {"stem": "D50w2srwVohKTPx9X6Th"},  # Evie (Vlaams)
+    "bram": {"stem": "dLPO5AsXc3FZDbTh1IKa"},  # Ido (ABN)
+    "gerda": {"ontwerp": "yT9L0gcO985AwRS9C0tf", "naam": "Gerda (Gronings)", "omschrijving": DESIGNS[1][1]},
+    "sjef": {"stem": "5tiZStRJQ98Xw420MFFx"},  # Reinoud (Limburgs)
+    "mo": {"stem": "MEdY7ytKGFW1Hy0uQq2T"},  # Jaimie (Amsterdams)
+    "speler_man": {"stem": "60CwgZt94Yf7yYIXMDDe"},  # Peter
+    "speler_vrouw": {"stem": "OlBRrVAItyi00MuGMbna"},  # Emma
+}
+# Ontworpen stemmen komen uit eleven_ttv_v3 en horen bij eleven_v3; bibliotheekstemmen bij multilingual v2
+MODEL = {"ontwerp": "eleven_v3", "stem": "eleven_multilingual_v2"}
+
+
+def js_object(src, name):
+    m = re.search(r"export const " + name + r" = (\{.*?\n\});", src, re.S) or re.search(r"export const " + name + r" = (\{.*?\});", src, re.S)
+    return json.loads(m.group(1))
+
+
+def saved_voice(k):
+    for v in get("/voices").get("voices", []):
+        if v.get("name") == k["naam"]:
+            return v["voice_id"]
+    return post("/text-to-voice", {"voice_name": k["naam"], "voice_description": k["omschrijving"],
+                                   "generated_voice_id": k["ontwerp"]})["voice_id"]
+
+
+def speak(voice_id, model, text, path):
+    import time
+    body = {"text": text, "model_id": model, "language_code": "nl"}
+    for attempt in range(6):
+        req = urllib.request.Request(f"{API}/text-to-speech/{voice_id}?output_format=mp3_44100_128", method="POST",
+                                     data=json.dumps(body).encode(),
+                                     headers={"xi-api-key": KEY, "Content-Type": "application/json", "Accept": "audio/mpeg"})
+        try:
+            with urllib.request.urlopen(req, timeout=180) as r:
+                open(path, "wb").write(r.read())
+                return
+        except urllib.error.HTTPError as e:
+            if e.code not in (429, 500, 502, 503) or attempt == 5:
+                raise
+            time.sleep(2 ** attempt)
+
+
+def inspreken(out, only):
+    import subprocess
+    from concurrent.futures import ThreadPoolExecutor
+    src = open(os.path.join(os.path.dirname(__file__), "..", "web", "static", "voices.js"), encoding="utf8").read()
+    bid, wet = js_object(src, "BID_LINES"), js_object(src, "WET_LINES")
+    os.makedirs(f"{out}/ruw", exist_ok=True)
+    os.makedirs(f"{out}/mp3", exist_ok=True)
+    who = [w for w in KEUZE if not only or w in only]
+    ids, jobs = {}, []
+    for w in who:
+        k = KEUZE[w]
+        ids[w] = (saved_voice(k), MODEL["ontwerp"]) if "ontwerp" in k else (k["stem"], MODEL["stem"])
+        jobs += [(w, f"bod_{w}_{n}_{i}", t) for n, row in enumerate(bid[w]) for i, t in enumerate(row)]
+        jobs += [(w, f"nat_{w}_{i}", t) for i, t in enumerate(wet.get(w, []))]
+    print("stemmen:", ids, flush=True)
+    print(len(jobs), "zinnen,", sum(len(t) for _, _, t in jobs), "tekens", flush=True)
+
+    def one(job):
+        w, name, text = job
+        speak(*ids[w], text, f"{out}/ruw/{name}.mp3")
+        # Stilte voor en achter weg, even hard als de rest, klein bestand (zoals de oude stemmen)
+        f = ("silenceremove=start_periods=1:start_threshold=-45dB,areverse,silenceremove=start_periods=1:start_threshold=-45dB,"
+             "areverse,loudnorm=I=-16:TP=-1.5")
+        subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", f"{out}/ruw/{name}.mp3", "-af", f, "-ac", "1", "-ar", "22050",
+                        "-c:a", "libmp3lame", "-q:a", "6", f"{out}/mp3/{name}.mp3"], check=True)
+        d = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", f"{out}/mp3/{name}.mp3"],
+                           capture_output=True, text=True).stdout
+        return name, round(float(d) * 1000)
+
+    with ThreadPoolExecutor(4) as pool:
+        ms = dict(pool.map(one, jobs))
+    res = {"bidMs": {w: [[ms[f"bod_{w}_{n}_{i}"] for i in range(len(row))] for n, row in enumerate(bid[w])] for w in who},
+           "wetMs": {w: [ms[f"nat_{w}_{i}"] for i in range(len(wet[w]))] for w in who if w in wet},
+           "stemmen": {w: {"voice_id": v, "model": m} for w, (v, m) in ids.items()}}
+    json.dump(res, open(f"{out}/res.json", "w"), ensure_ascii=False)
+    import shutil
+    shutil.rmtree(f"{out}/ruw")
+    print("klaar:", len(ms), "geluiden")
+
+
 def main(stap, out):
-    if stap.startswith("proef:"):
+    if stap.startswith("inspreken"):
+        inspreken(out, stap[10:].split(",") if ":" in stap else None)
+    elif stap.startswith("proef:"):
         proef(out, stap[6:])
     elif stap.startswith("naam:"):
         naam(out, stap[5:])

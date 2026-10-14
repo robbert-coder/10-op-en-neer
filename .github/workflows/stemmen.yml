@@ -25,6 +25,7 @@ jobs:
           STAP: ${{ inputs.stap }}
         run: |
           [ -n "$ELEVENLABS_API_KEY" ] || { echo "::error::Secret ELEVENLABS_API_KEY ontbreekt"; exit 1; }
+          command -v ffmpeg >/dev/null || { sudo apt-get update -q && sudo apt-get install -yq ffmpeg; }
           python3 tools/elevenlabs.py "$STAP" uit
           (cd uit && zip -qr "../stemmen-$(echo "$STAP" | tr -c "A-Za-z0-9\n-" "-").zip" .)
 
