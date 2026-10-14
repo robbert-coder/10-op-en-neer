@@ -261,9 +261,9 @@ def saved_voice(k):
                                    "generated_voice_id": k["ontwerp"]})["voice_id"]
 
 
-def speak(voice_id, model, text, path):
+def speak(voice_id, model, text, path, settings=None):
     import time
-    body = {"text": text, "model_id": model, "language_code": "nl"}
+    body = {"text": text, "model_id": model, "language_code": "nl"} | ({"voice_settings": settings} if settings else {})
     for attempt in range(6):
         req = urllib.request.Request(f"{API}/text-to-speech/{voice_id}?output_format=mp3_44100_128", method="POST",
                                      data=json.dumps(body).encode(),
@@ -320,6 +320,38 @@ def extra(out, only):
     print("klaar:", len(ms), "geluiden")
 
 
+# Kandidaten voor een uitbundigere begroeting: elke stem zegt elke zin, zo expressief mogelijk (v3, stabiliteit 0)
+BEGROETING_STEMMEN = {"henk": "nxXBLGMUMfo1A7EdM35R", "mo": "MEdY7ytKGFW1Hy0uQq2T", "truus": "6BJ0RYaLcd17tZ1QUvZW",
+                      "bram": "dLPO5AsXc3FZDbTh1IKa", "tineke": "7qdUFMklKPaaAVMsBTBt"}
+BEGROETING = [
+    "[excited] [shouting] Tien op en neeeeer!",
+    "[excited] Jaaa! Daar zijn we weer! [shouting] Tien op en neeer!",
+    "[excited] Dames en heren... [shouting] tien op en neeeeer!",
+    "[excited] Welkom aan tafel! Schud die kaarten maar, [shouting] het feest gaat beginnen!",
+    "[excited] Hup hup hup, kaarten op tafel! [shouting] Tien op en neer!",
+]
+
+
+def begroeting(out):
+    from concurrent.futures import ThreadPoolExecutor
+    os.makedirs(f"{out}/ruw", exist_ok=True)
+    os.makedirs(f"{out}/mp3", exist_ok=True)
+    jobs = [(w, k, t) for w in BEGROETING_STEMMEN for k, t in enumerate(BEGROETING)]
+
+    def one(job):
+        w, k, text = job
+        name = f"begroeting_{w}_{k}"
+        speak(BEGROETING_STEMMEN[w], "eleven_v3", text, f"{out}/ruw/{name}.mp3", {"stability": 0.0})
+        return name, polish(out, name)
+
+    with ThreadPoolExecutor(4) as pool:
+        ms = dict(pool.map(one, jobs))
+    json.dump({"ms": ms, "zinnen": BEGROETING}, open(f"{out}/begroeting.json", "w"), ensure_ascii=False)
+    import shutil
+    shutil.rmtree(f"{out}/ruw")
+    print("klaar:", len(ms))
+
+
 def inspreken(out, only):
     from concurrent.futures import ThreadPoolExecutor
     src = open(os.path.join(os.path.dirname(__file__), "..", "web", "static", "voices.js"), encoding="utf8").read()
@@ -353,7 +385,9 @@ def inspreken(out, only):
 
 
 def main(stap, out):
-    if stap.startswith("extra"):
+    if stap == "begroeting":
+        begroeting(out)
+    elif stap.startswith("extra"):
         extra(out, stap[6:].split(",") if ":" in stap else None)
     elif stap.startswith("inspreken"):
         inspreken(out, stap[10:].split(",") if ":" in stap else None)
