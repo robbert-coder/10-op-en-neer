@@ -1,6 +1,17 @@
 // Wat er per versie nieuw is. Wie na een nieuwe versie terugkomt, ziet dit in het hoofdmenu.
 // items in het Nederlands, en dezelfde punten in het Engels (en), voor wie het spel in het Engels speelt.
 export const CHANGES = [
+  { v: "2.42", items: [
+    "Het spel is er nu ook in het Engels. Het volgt de taal van je toestel; wisselen doe je met de vlaggetjes op het startscherm of bij Instellingen.",
+    "Tineke legt uit wat troef is, dat je precies je voorspelling moet halen, en waarom je nat bent als dat gebeurt.",
+    "Nieuwe instelling bij Tineke: Alleen nieuwe tips. Uitleg die je al eens kreeg, slaat ze dan over.",
+    "In de uitslag van een ronde staat nu \"slagen behaald\".",
+  ], en: [
+    "The game is now available in English. It follows your device's language; switch with the flags on the home screen or in Settings.",
+    "Tineke explains what trumps are, that you must win exactly the number of tricks you bid, and why you missed your bid when that happens.",
+    "New Tineke setting: Only new tips. She skips explanations she has already given you.",
+    "The round result now says \"won\" next to the number of tricks.",
+  ] },
   { v: "2.41", items: [
     "De knop Overslaan bij Tineke heet nu Uitleg stoppen, want daarmee zet je haar uitleg uit. Met Begrepen klik je alleen haar tekst weg.",
   ], en: [
