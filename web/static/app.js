@@ -13,7 +13,7 @@ import { loadIdentity } from "./ident.js";
 import { $, $$, esc, nativeApp, reducedMotion } from "./dom.js";
 import { myAvatar, myVoice, saveSettings, settings, store } from "./storage.js";
 import { BOERENBRIDGE, TIEN_OP_EN_NEER, createGame, maxCardsFor, maxPlayersFor, variantKey, variantName } from "./rules.js";
-import { KINDS, addGame, addHighScore, loadHighScores, loadStats, mergeGames, starRating, starsHtml, statsForKind, statsSummary } from "./stats.js";
+import { KINDS, addGame, addHighScore, loadHighScores, matchesVs, playersDetail, loadStats, mergeGames, starRating, starsHtml, statsForKind, statsSummary } from "./stats.js";
 import { flushHof, hofCache, hofId, queueHof, sha256Hex } from "./hof.js";
 import { cardSound, initSound, loadSound, playSound, soundReady } from "./sound.js";
 import { celebrate, isCelebrating } from "./celebrate.js";
@@ -373,7 +373,7 @@ const SHORT_MAX = 5;
 let hsTab = "10openneer";
 let hsShort = false; // de lijst van korte spellen tonen
 let hsPlayers = 0; // filter: alleen spellen met zoveel spelers (0 = alle)
-let hsVs = ""; // filter: "computers" (jij alleen tegen computers), "mensen" (met andere mensen) of "" (alles)
+let hsVs = ""; // filter tegen wie: "" (iedereen), "sterk" of "gewoon" (alleen computers) of "mensen" (zie matchesVs)
 let hsScope = "hof"; // "hof": Hall of Fame van iedereen, "local": op dit apparaat
 let highScoreShort = false;
 const hsKey = () => (hsShort ? `${hsTab}.kort` : hsTab);
@@ -762,8 +762,7 @@ function handleGameOver() {
   const upTo = `tot ${(st.rounds + 1) / 2}`;
   highScoreShort = short;
   const humans = st.players.filter((p) => p.human).length;
-  const bots = st.players.length - humans;
-  const mix = `${st.players.length} spelers: ${[humans ? `${humans} ${humans === 1 ? "mens" : "mensen"}` : "", bots ? `${bots} ${bots === 1 ? "computer" : "computers"}` : ""].filter(Boolean).join(", ")}`;
+  const mix = playersDetail(st.players.length, humans, currentSmart);
   const gameId = `${game.seed}|${game.actionCount()}|${st.variant}`;
   if (tipUsed()) highScorePlace = 0; // met tips telt het spel niet mee
   else if (!short && st.players.length >= 3) {
@@ -1711,16 +1710,15 @@ function renderNewGame() {
 }
 
 const hsFiltered = () => !!hsPlayers || !!hsVs;
+/** Bij het filter op sterke of gewone computers: oudere scores weten de sterkte niet. */
+const vsNote = () => (hsVs === "sterk" || hsVs === "gewoon" ? " Scores van vóór versie 2.36 staan alleen bij Iedereen." : "");
 
 /** Past een score bij de filters? De omschrijving is bijvoorbeeld "tot 5 · 4 spelers: 1 mens, 3 computers". */
 function matchesHsFilter(h) {
   if (!hsFiltered()) return true;
   const n = Number(h.detail?.match(/(\d+) spelers/)?.[1] ?? (hsShort ? 0 : 4));
-  const humans = Number(h.detail?.match(/(\d+) mens/)?.[1] ?? 0);
   if (hsPlayers && n !== hsPlayers) return false;
-  if (hsVs === "computers" && humans !== 1) return false;
-  if (hsVs === "mensen" && humans < 2) return false;
-  return true;
+  return matchesVs(h.detail, hsVs);
 }
 
 function renderHsFilters() {
@@ -1747,6 +1745,7 @@ $$("#hs-scope button").forEach((b) => b.classList.toggle("selected", b.dataset.s
   $("#hs-note").textContent = hsShort
     ? "Spellen die niet tot het hoogste aantal kaarten gaan. Erbij staat tot hoeveel kaarten en met hoeveel mensen en computers."
     : "Spellen die helemaal tot het hoogste aantal kaarten gaan, met drie of meer spelers. Erbij staat met hoeveel mensen en computers.";
+  $("#hs-note").textContent += vsNote();
   const list = loadHighScores(hsKey()).filter(matchesHsFilter);
   $("#hs-list").innerHTML = list.length === 0 && hsFiltered()
     ? `<p class="empty-note">Geen scores met deze filters.</p>`
@@ -1767,7 +1766,7 @@ async function renderHallOfFame() {
   $("#hs-note").textContent = (hsShort
     ? "De beste korte spellen van alle spelers, met erbij tot hoeveel kaarten en met hoeveel spelers."
     : "De beste volledige spellen (vanaf drie spelers) van iedereen. Iedereen staat er één keer in, met zijn beste score.")
-    + (settings.hof === false ? " Je doet zelf niet mee; dat zet je aan bij Instellingen." : "");
+    + vsNote() + (settings.hof === false ? " Je doet zelf niet mee; dat zet je aan bij Instellingen." : "");
   const cached = hofCache.get(key);
   if (!cached) { $("#hs-list").innerHTML = `<p class="empty-note">Hall of Fame laden…</p>`; $("#hof-players").innerHTML = ""; }
   let data = cached?.data;

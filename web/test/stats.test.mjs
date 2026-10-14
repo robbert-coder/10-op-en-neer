@@ -14,6 +14,7 @@ const stats = await import("../static/stats.js");
 const { randomCode, normalizeCode, isCode, CODE_CHARS } = await import("../static/codes.js");
 const { isNewerVersion } = await import("../static/version.js");
 const { sortHand, suitOrder } = await import("../static/cards.js");
+const { playersDetail, matchesVs } = stats;
 
 const game = (id, extra = {}) => ({ id, time: 1000 + Number(id.slice(1)), variant: "10 op en neer", players: 4, rank: 1, score: 150, won: true, rounds: 19, good: 12, ...extra });
 
@@ -92,4 +93,18 @@ test("sterren per soort spel: 10 op en neer en Boerenbridge apart", () => {
   assert.equal(stats.statsForKind(s, "hybride"), null);
   // Oudere versies deelden alleen het totaal
   assert.equal(stats.statsForKind({ a: 1, g: 1 }, "boerenbridge").g, 1);
+});
+
+test("tegen wie: mensen, sterke of gewone computers", () => {
+  const sterk = playersDetail(4, 1, true);
+  const gewoon = playersDetail(4, 1, false);
+  const samen = playersDetail(4, 2, true);
+  assert.equal(sterk, "4 spelers: 1 mens, 3 sterke computers");
+  assert.equal(playersDetail(2, 1, false), "2 spelers: 1 mens, 1 gewone computer");
+  assert.equal(playersDetail(3, 3, true), "3 spelers: 3 mensen");
+  assert.deepEqual(["", "sterk", "gewoon", "mensen"].map((vs) => matchesVs(sterk, vs)), [true, true, false, false]);
+  assert.deepEqual(["", "sterk", "gewoon", "mensen"].map((vs) => matchesVs(gewoon, vs)), [true, false, true, false]);
+  assert.deepEqual(["", "sterk", "gewoon", "mensen"].map((vs) => matchesVs(samen, vs)), [true, false, false, true]);
+  // Oude score zonder sterkte: alleen bij iedereen
+  assert.deepEqual(["", "sterk", "gewoon"].map((vs) => matchesVs("4 spelers: 1 mens, 3 computers", vs)), [true, false, false]);
 });

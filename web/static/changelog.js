@@ -1,5 +1,6 @@
 // Wat er per versie nieuw is. Wie na een nieuwe versie terugkomt, ziet dit in het hoofdmenu.
 export const CHANGES = [
+  { v: "2.36", items: ["Highscores en Hall of Fame: filter op spellen tegen sterke computers, tegen gewone computers of met andere mensen."] },
   { v: "2.35", items: ["Sterren gelden nu per soort spel: je hebt aparte sterren voor 10 op en neer en voor Boerenbridge, net als de highscores en de Hall of Fame."] },
   { v: "2.34", items: ["Boerenbridge gaat altijd tot 13 kaarten, en kan daarom met hoogstens 4 spelers."] },
   { v: "2.33", items: [

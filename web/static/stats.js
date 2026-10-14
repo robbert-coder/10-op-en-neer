@@ -104,6 +104,31 @@ export function mergeGames(a, b, clearedAt) {
   return [...byId.values()].sort((x, y) => y.time - x.time).slice(0, MAX_STATS);
 }
 
+/**
+ * Wie er meespeelden, als tekst bij een highscore: "4 spelers: 1 mens, 3 sterke computers". Ook de Hall of
+ * Fame filtert op deze tekst (supabase-hof.sql), dus de woorden "spelers", "mens", "sterke" en "gewone" blijven.
+ */
+export function playersDetail(players, humans, smart) {
+  const bots = players - humans;
+  const kind = smart ? "sterke" : "gewone";
+  const parts = [humans ? `${humans} ${humans === 1 ? "mens" : "mensen"}` : "", bots ? `${bots} ${kind} ${bots === 1 ? "computer" : "computers"}` : ""];
+  return `${players} spelers: ${parts.filter(Boolean).join(", ")}`;
+}
+
+/**
+ * Past een highscore bij het filter "tegen wie": "" (iedereen), "mensen" (met andere mensen), "sterk" of
+ * "gewoon" (jij alleen tegen sterke of gewone computers). Oude scores zonder sterkte tellen alleen bij iedereen.
+ */
+export function matchesVs(detail, vs) {
+  if (!vs) return true;
+  const humans = Number(String(detail ?? "").match(/(\d+) mens/)?.[1] ?? 0);
+  if (vs === "mensen") return humans >= 2;
+  if (humans !== 1) return false;
+  if (vs === "sterk") return /sterke computer/.test(detail);
+  if (vs === "gewoon") return /gewone computer/.test(detail);
+  return vs === "computers";
+}
+
 /** De highscores van één lijst (bijvoorbeeld "10openneer" of "boerenbridge.kort"). */
 export const loadHighScores = (key) => store.get("highscore." + key, []);
 

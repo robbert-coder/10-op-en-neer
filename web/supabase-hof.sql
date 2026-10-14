@@ -1,5 +1,5 @@
 -- Hall of Fame van 10 op en neer: de beste scores en spelers van iedereen.
--- Versie 2 (v2.32): spelersnummers niet meer zichtbaar, strengere controle. Opnieuw uitvoeren mag.
+-- Versie 3 (v2.36): filter op sterke of gewone computers. Opnieuw uitvoeren mag.
 -- Plak dit in Supabase onder SQL Editor > New query en klik op Run (na supabase.sql).
 -- De tabellen zijn afgeschermd; de app kan alleen via de functies hieronder lezen en schrijven.
 
@@ -75,7 +75,8 @@ end;
 $$;
 
 -- De beste score per speler in een lijst (hoogstens 50), eventueel alleen met zoveel spelers (p_players)
--- of alleen tegen computers / met andere mensen (p_vs = 'computers' / 'mensen'),
+-- of tegen wie (p_vs): 'sterk' of 'gewoon' (alleen tegen sterke of gewone computers), 'computers' (alle
+-- computers, voor oudere versies) of 'mensen' (met andere mensen),
 -- en de spelers met minstens één volledig spel
 drop function if exists public.hof_get(text);
 create or replace function public.hof_get(p_list text, p_players int default null, p_vs text default null) returns jsonb
@@ -92,7 +93,9 @@ language sql security definer set search_path = public as $$
         select distinct on (player) encode(sha256(convert_to(player, 'UTF8')), 'hex') as p, name, avatar, score, detail, created_at::date as date
         from f
         where (p_players is null or n = p_players)
-          and (p_vs is null or (p_vs = 'computers' and h = 1) or (p_vs = 'mensen' and h >= 2))
+          and (p_vs is null or (p_vs = 'computers' and h = 1) or (p_vs = 'mensen' and h >= 2)
+               or (p_vs = 'sterk' and h = 1 and detail like '%sterke computer%')
+               or (p_vs = 'gewoon' and h = 1 and detail like '%gewone computer%'))
         order by player, score desc, created_at
       ) best order by score desc, date limit 50
     ) s), '[]'::jsonb),
