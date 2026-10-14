@@ -5,6 +5,8 @@
 #   python3 tools/elevenlabs.py ontwerp <uitvoermap> Stemmen laten ontwerpen voor accenten die de bibliotheek
 #                                                    niet heeft (Gronings, Rotterdams, Twents) en een heel lage
 #                                                    mannenstem; per omschrijving drie voorbeelden
+#   python3 tools/elevenlabs.py naam:<Naam> <map>    Eén stem op naam opzoeken, in de bibliotheek en in de
+#                                                    eigen stemmen van het account
 import base64, json, os, re, sys, urllib.parse, urllib.request
 
 API = "https://api.elevenlabs.io/v1"
@@ -147,5 +149,42 @@ def zoek(out):
         print(g, sum(r["groep"] == g for r in rows))
 
 
+def naam(out, wanted):
+    os.makedirs(f"{out}/mp3", exist_ok=True)
+    found = []
+    for page in range(5):
+        data = get("/shared-voices", page_size=100, page=page, search=wanted)
+        found += [v | {"bron": "bibliotheek"} for v in data.get("voices", [])]
+        if not data.get("has_more"):
+            break
+    try:
+        found += [v | {"bron": "account", "voice_id": v["voice_id"]} for v in get("/voices").get("voices", [])
+                  if wanted.lower() in (v.get("name") or "").lower()]
+    except Exception as e:  # noqa: BLE001
+        print("eigen stemmen ophalen mislukt", e)
+    rows = []
+    for v in found:
+        fn = f"mp3/{v['voice_id']}.mp3"
+        if v.get("preview_url"):
+            try:
+                urllib.request.urlretrieve(v["preview_url"], f"{out}/{fn}")
+            except Exception as e:  # noqa: BLE001
+                print("voorbeeld mislukt", v.get("name"), e)
+                fn = None
+        labels = v.get("labels") or {}
+        rows.append({"bron": v["bron"], "voice_id": v["voice_id"], "public_owner_id": v.get("public_owner_id"),
+                     "name": v.get("name"), "gender": v.get("gender") or labels.get("gender"),
+                     "accent": v.get("accent") or labels.get("accent"), "language": v.get("language") or labels.get("language"),
+                     "description": v.get("description"), "category": v.get("category"), "mp3": fn})
+    json.dump(rows, open(f"{out}/naam.json", "w"), ensure_ascii=False, indent=1)
+    print(f"{len(rows)} stemmen gevonden voor {wanted!r}")
+    for r in rows:
+        print(r["bron"], r["name"], r["voice_id"], r["language"], r["accent"])
+
+
 if __name__ == "__main__":
-    {"zoek": zoek, "ontwerp": ontwerp}[sys.argv[1]](sys.argv[2])
+    stap = sys.argv[1]
+    if stap.startswith("naam:"):
+        naam(sys.argv[2], stap[5:])
+    else:
+        {"zoek": zoek, "ontwerp": ontwerp}[stap](sys.argv[2])
