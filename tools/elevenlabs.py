@@ -7,6 +7,8 @@
 #                                                    mannenstem; per omschrijving drie voorbeelden
 #   python3 tools/elevenlabs.py naam:<Naam> <map>    Eén stem op naam opzoeken, in de bibliotheek en in de
 #                                                    eigen stemmen van het account
+#   python3 tools/elevenlabs.py proef:<eigenaar>/<stem>/<Naam> <map>  Bibliotheekstem aan het account toevoegen en
+#                                                    een paar spelzinnen laten inspreken (kost een paar honderd credits)
 import base64, json, os, re, sys, urllib.parse, urllib.request
 
 API = "https://api.elevenlabs.io/v1"
@@ -182,9 +184,45 @@ def naam(out, wanted):
         print(r["bron"], r["name"], r["voice_id"], r["language"], r["accent"])
 
 
+PROEF = {
+    "Vlaams": ["Allez, ik ga er twee halen, hè.", "Da's nu ne keer goed gespeeld, zenne!", "Amai, dat had ik nie verwacht."],
+}
+
+
+def tts(voice_id, text):
+    req = urllib.request.Request(f"{API}/text-to-speech/{voice_id}?output_format=mp3_44100_128", method="POST",
+                                 data=json.dumps({"text": text, "model_id": "eleven_multilingual_v2"}).encode(),
+                                 headers={"xi-api-key": KEY, "Content-Type": "application/json", "Accept": "audio/mpeg"})
+    with urllib.request.urlopen(req, timeout=180) as r:
+        return r.read()
+
+
+def account_voice(owner, voice, name):
+    for v in get("/voices").get("voices", []):
+        if v.get("name") == name or (v.get("sharing") or {}).get("original_voice_id") == voice:
+            return v["voice_id"]
+    return post(f"/voices/add/{owner}/{voice}", {"new_name": name})["voice_id"]
+
+
+def proef(out, spec):
+    owner, voice, name = spec.split("/", 2)
+    os.makedirs(f"{out}/mp3", exist_ok=True)
+    vid = account_voice(owner, voice, name)
+    rows = []
+    for group, lines in PROEF.items():
+        for i, text in enumerate(lines):
+            fn = f"mp3/proef-{name}-{group}-{i}.mp3"
+            open(f"{out}/{fn}", "wb").write(tts(vid, text))
+            rows.append({"name": name, "account_voice_id": vid, "groep": group, "text": text, "mp3": fn})
+    json.dump(rows, open(f"{out}/proef.json", "w"), ensure_ascii=False, indent=1)
+    print(f"{name}: {len(rows)} zinnen ingesproken (stem {vid})")
+
+
 if __name__ == "__main__":
     stap = sys.argv[1]
-    if stap.startswith("naam:"):
+    if stap.startswith("proef:"):
+        proef(sys.argv[2], stap[6:])
+    elif stap.startswith("naam:"):
         naam(sys.argv[2], stap[5:])
     else:
         {"zoek": zoek, "ontwerp": ontwerp}[stap](sys.argv[2])

@@ -26,7 +26,7 @@ jobs:
         run: |
           [ -n "$ELEVENLABS_API_KEY" ] || { echo "::error::Secret ELEVENLABS_API_KEY ontbreekt"; exit 1; }
           python3 tools/elevenlabs.py "$STAP" uit
-          (cd uit && zip -qr "../stemmen-${STAP//:/-}.zip" .)
+          (cd uit && zip -qr "../stemmen-$(echo "$STAP" | tr -c "A-Za-z0-9\n-" "-").zip" .)
 
       - name: Bij de pre-release zetten
         env:
@@ -34,4 +34,4 @@ jobs:
           STAP: ${{ inputs.stap }}
         run: |
           gh release view stemmen >/dev/null 2>&1 || gh release create stemmen --prerelease --title "Stemmen (werkbestanden)" --notes "Werkbestanden voor nieuwe stemmen; niet om te installeren."
-          gh release upload stemmen "stemmen-${STAP//:/-}.zip" --clobber
+          gh release upload stemmen "stemmen-$(echo "$STAP" | tr -c "A-Za-z0-9\n-" "-").zip" --clobber
