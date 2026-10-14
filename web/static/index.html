@@ -30,8 +30,7 @@
       <div class="news" id="news" hidden></div>
       <div class="buttons">
         <button id="btn-resume" class="primary">Doorgaan met spel</button>
-        <button id="btn-new" class="primary">Nieuw spel tegen computers</button>
-        <button id="btn-online" class="online-btn">Nieuw multiplayer spel tegen andere mensen</button>
+        <button id="btn-play" class="primary">Nieuw spel</button>
         <div class="button-row">
           <button data-go="rules">Spelregels</button>
           <button data-go="highscores">Hall of Fame</button>
@@ -46,13 +45,32 @@
       <p class="credits">Gebaseerd op "10 op en neer" van A.A. Brink<br>Vrije software onder de GNU GPL v3<br><span id="menu-version"></span></p>
     </section>
 
+    <!-- Nieuw spel: eerst kiezen tegen wie -->
+    <section id="play" class="screen page">
+      <header><button class="back" data-go="menu" aria-label="Terug">‹</button><h2>Nieuw spel</h2></header>
+      <div class="content">
+        <div class="play-choice">
+          <button id="btn-new" class="primary">Tegen de computer<small>Je speelt meteen, met computerspelers aan tafel</small></button>
+          <button id="btn-online" class="online-btn">Samen met anderen<small>Via internet, met vrienden of aan een openbare tafel</small></button>
+        </div>
+      </div>
+    </section>
+
     <!-- Nieuw spel -->
     <section id="newgame" class="screen page">
-      <header><button class="back" data-go="menu" aria-label="Terug">‹</button><h2>Nieuw spel</h2></header>
+      <header><button class="back" data-go="play" aria-label="Terug">‹</button><h2>Nieuw spel</h2></header>
       <div class="content">
         <div class="group">
           <label class="field">Jouw naam<input type="text" id="ng-name" maxlength="16" autocomplete="off"></label>
           <div class="field">Jouw plaatje<div class="avatar-pick"></div></div>
+          <div class="field">Jouw stem
+            <div class="seg four voice-pick">
+              <button type="button" data-voice="man">Man</button>
+              <button type="button" data-voice="vrouw">Vrouw</button>
+              <button type="button" data-voice="neutraal">Neutraal</button>
+              <button type="button" data-voice="geen">Geen</button>
+            </div>
+          </div>
         </div>
         <div class="group" id="ng-public" hidden>
           <div class="field">Soort tafel
@@ -101,7 +119,7 @@
         </div>
         <div class="group">
           <label class="switch-row">
-            <span><b>Sterke computerspelers</b><small>De computerspelers rekenen vooruit en spelen slimmer dan in het originele spel.</small></span>
+            <span><b>Sterke computerspelers</b><small>De computerspelers rekenen vooruit en spelen slimmer.</small></span>
             <input type="checkbox" id="opt-smart" class="switch">
           </label>
           <label class="switch-row">
@@ -114,12 +132,6 @@
           </label>
         </div>
         </details>
-        <div class="group">
-          <label class="switch-row">
-            <span><b>Tips toestaan</b><small id="tips-note"></small></span>
-            <input type="checkbox" id="opt-tips" class="switch">
-          </label>
-        </div>
         <p class="variant-name" id="variant-name"></p>
         <button class="primary wide" id="btn-start">Start</button>
       </div>
@@ -170,6 +182,13 @@
             <b>Jouw plaatje</b>
             <p class="note">Dit zien de anderen bij jouw plaats aan tafel. Kies een plaatje of een eigen foto.</p>
             <div class="avatar-pick"></div>
+            <b>Jouw stem</b>
+            <div class="seg four voice-pick">
+              <button type="button" data-voice="man">Man</button>
+              <button type="button" data-voice="vrouw">Vrouw</button>
+              <button type="button" data-voice="neutraal">Neutraal</button>
+              <button type="button" data-voice="geen">Geen</button>
+            </div>
           </div>
         </div>
         <div id="online-lobby" class="online-lobby" hidden>
@@ -185,8 +204,14 @@
             <button class="wide" id="btn-notify">Meldingen aanzetten</button>
           </div>
           <details class="group pad lobby-avatar">
-            <summary>Jouw plaatje wijzigen</summary>
+            <summary>Jouw plaatje of stem wijzigen</summary>
             <div class="avatar-pick"></div>
+            <div class="seg four voice-pick">
+              <button type="button" data-voice="man">Man</button>
+              <button type="button" data-voice="vrouw">Vrouw</button>
+              <button type="button" data-voice="neutraal">Neutraal</button>
+              <button type="button" data-voice="geen">Geen</button>
+            </div>
           </details>
           <button class="wide chat-lobby-btn" id="btn-lobby-chat">Chat <span class="badge inline" id="lobby-chat-badge" hidden></span></button>
           <button class="primary wide" id="btn-online-back" hidden>Verder spelen</button>
@@ -242,7 +267,8 @@
           <div class="trump-big" id="trump-big" hidden></div>
         </div>
       </div>
-      <div class="status"><span id="g-status"></span><button class="tip-btn" id="btn-tip">Tip</button></div>
+      <div class="status"><span id="g-status"></span><button class="tip-btn" id="btn-say" aria-label="Iets zeggen" hidden>🗣️</button><button class="tip-btn" id="btn-tip">Tip</button>
+        <div class="say-menu" id="say-menu" hidden></div></div>
       <div class="bids" id="bids"></div>
       <div class="seat south" id="seat-1"></div>
       <div class="hand" id="hand"></div>
@@ -369,7 +395,7 @@
             <input type="checkbox" id="set-desc" class="switch">
           </label>
           <label class="switch-row">
-            <span><b>Geluid</b><small>De geluidjes uit het originele spel, bijvoorbeeld bij een slag te veel of een goede voorspelling.</small></span>
+            <span><b>Geluid</b><small>Geluidjes bij het spel, bijvoorbeeld bij een slag te veel of een goede voorspelling.</small></span>
             <input type="checkbox" id="set-sound" class="switch">
           </label>
           <label class="switch-row" id="row-cards">
@@ -384,13 +410,22 @@
             <span><b>Stemmen van mensen</b><small>Ook de voorspelling van jezelf en je medespelers hardop, alleen het getal.</small></span>
             <input type="checkbox" id="set-speak-humans" class="switch">
           </label>
-          <div class="field" id="row-voice">Jouw stem<small class="field-note">Zo klinkt jouw voorspelling, ook bij je medespelers.</small>
-            <div class="seg three" id="opt-voice">
+          <div class="field" id="row-voice">Jouw stem<small class="field-note">Zo klinken jouw voorspelling en snelle zinnen, ook bij je medespelers.</small>
+            <div class="seg four voice-pick">
               <button type="button" data-voice="man">Man</button>
               <button type="button" data-voice="vrouw">Vrouw</button>
               <button type="button" data-voice="neutraal">Neutraal</button>
+              <button type="button" data-voice="geen">Geen</button>
             </div>
           </div>
+          <label class="switch-row" id="row-tineke-voice">
+            <span><b>Tineke spreekt</b><small>Tineke zegt haar uitleg en opmerkingen ook hardop.</small></span>
+            <input type="checkbox" id="set-tineke-voice" class="switch">
+          </label>
+          <label class="switch-row" id="row-opener">
+            <span><b>Begroeting</b><small>Een enthousiaste stem bij het openen van het spel.</small></span>
+            <input type="checkbox" id="set-opener" class="switch">
+          </label>
         </div>
         <p class="note center version" id="app-version"></p>
       </div>

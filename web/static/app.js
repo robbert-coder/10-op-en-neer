@@ -10,12 +10,13 @@ import { cloudEnabled, makeCloudCode, normalizeCloudCode, formatCloudCode, valid
 import { Host, Guest, PublicLobby, makeCode, normalizeCode, useIdentity, AVATAR_EMOJIS, AVATAR_FACES, cleanAvatar, cleanStats, cleanVoice } from "./net.js";
 import { chatLimit, cleanStartGame, cleanText, devParam } from "./validate.js";
 import { loadIdentity } from "./ident.js";
-import { $, $$, esc, nativeApp, reducedMotion } from "./dom.js";
+import { $, $$, esc, nativeApp, reducedMotion, wait } from "./dom.js";
 import { myAvatar, myVoice, saveSettings, settings, store } from "./storage.js";
 import { BOERENBRIDGE, TIEN_OP_EN_NEER, createGame, maxCardsFor, maxPlayersFor, variantKey, variantName } from "./rules.js";
 import { KINDS, addGame, addHighScore, loadHighScores, matchesVs, playersDetail, loadStats, mergeGames, starRating, starsHtml, statsForKind, statsSummary } from "./stats.js";
 import { flushHof, hofCache, hofId, queueHof, sha256Hex } from "./hof.js";
-import { cardSound, initSound, loadSound, playSound, soundReady } from "./sound.js";
+import { cardSound, initSound, loadSound, playSound, soundReady, stopSound } from "./sound.js";
+import { OPENERS, PHRASES, PHRASE_GAP_MS, openerFile, phraseFile, tinekeFile } from "./speech.js";
 import { celebrate, isCelebrating } from "./celebrate.js";
 import { askNotifications, clearTurnNotice, inBackground, iosBrowser, isIOS, notifyAlways, notifyPermission, notifyUnsupportedText, setAppVisible, turnNotice } from "./notify.js";
 import { cardHtml, sortHand, trumpMiniHtml } from "./cards.js";
@@ -268,10 +269,20 @@ onCloudHealth((ok) => {
 
 // Geluid (sound.js): bij de eerste tik alvast je eigen stem en die van de computerspelers laden, zodat het
 // eerste geluid niet hapert
+// In de app mag het geluid meteen aan; op de website pas na de eerste tik
 initSound(() => {
-  BID_LINES[`speler_${myVoice()}`].forEach((row, n) => loadSound(`bod_speler_${myVoice()}_${n}_0`));
+  if (myVoice() !== "geen") BID_LINES[`speler_${myVoice()}`].forEach((row, n) => loadSound(`bod_speler_${myVoice()}_${n}_0`));
   preloadCast();
-});
+  playOpener();
+}, !!nativeApp);
+
+/** Eén keer per keer openen roept een enthousiaste stem iets, zolang je nog op het startscherm staat. */
+let openerPlayed = false;
+function playOpener() {
+  if (openerPlayed || screen !== "menu" || !settings.sound || settings.opener === false) return;
+  openerPlayed = true;
+  playSound(openerFile(Math.floor(Math.random() * OPENERS.length)));
+}
 
 /** De stemmen van de computerspelers in het huidige spel alvast laden. */
 function preloadCast() {
@@ -309,7 +320,8 @@ function faceFor(nr) {
   if (!p) return castOf(nr);
   return p.human ? null : castOf(p.seat);
 }
-const voiceFor = (nr) => faceFor(nr) ?? `speler_${humanVoice(nr)}`;
+// Een mens zonder stem ("geen") heeft wel teksten nodig; die van neutraal (alleen het getal)
+const voiceFor = (nr) => faceFor(nr) ?? `speler_${humanVoice(nr) === "geen" ? "neutraal" : humanVoice(nr)}`;
 
 function humanVoice(nr) {
   const p = st?.players[nr - 1];
@@ -333,9 +345,7 @@ let highScorePlace = 0;
 let message = null;
 let hintCard = 0;
 let hintBid = -1;
-// Tips: mogen ze in dit spel (instelling bij het starten) en heb je er een gebruikt? Dan telt het spel niet mee
-let currentTips = false;
-const tipsAllowed = () => (online?.game ? !!online.game.tips : currentTips);
+// Tips mogen altijd; heb je er een gebruikt, dan telt het spel niet mee
 // Per spel (beginwaarde) bijgehouden, zodat een tip in het ene spel niet wegvalt door een ander spel
 const tipSeeds = () => { const v = store.get("tip-gebruikt", []); return Array.isArray(v) ? v : [v]; };
 const tipUsed = () => !!game && tipSeeds().includes(game.seed);
@@ -414,7 +424,6 @@ function restoreSavedGame() {
   try {
     currentRules = saved.rules;
     currentSmart = saved.smart ?? false;
-    currentTips = !!saved.tips;
     currentCast = Array.isArray(saved.cast) ? saved.cast.map((c) => (c && CHARACTERS[c] ? c : null)) : SEAT_FACE.slice();
     game = createGame({ rules: saved.rules, smart: currentSmart, seed: saved.seed, names: saved.names, actions: saved.actions });
     game.setPlayerName(settings.playerName);
@@ -439,7 +448,6 @@ function saveGame() {
     seed: game.seed,
     names: st.players.map((p) => p.name),
     actions: Array.from(game.actions()),
-    tips: currentTips,
     cast: currentCast,
   });
 }
@@ -469,7 +477,6 @@ function startNewGame(rules) {
   names[0] = settings.playerName;
   currentRules = rules;
   currentSmart = settings.smart;
-  currentTips = !!settings.tips;
   game = createGame({ rules, smart: currentSmart, seed: Math.floor(Math.random() * 2147483647), names });
   gameOverHandled = false;
   endComment = null;
@@ -543,7 +550,7 @@ function announceBids() {
       announced[nr] = true;
       // Mensen zeggen alleen het getal; hun stem kan apart uit
       const human = !faceFor(nr);
-      const speak = settings.sound && settings.speakBids && !(human && settings.speakHumans === false);
+      const speak = settings.sound && settings.speakBids && !(human && (settings.speakHumans === false || humanVoice(nr) === "geen"));
       const v = voiceFor(nr);
       const k = human ? 0 : pickLine(`bod${nr}`, BID_LINES[v][p.bid].length, true);
       if (speak) playSound(`bod_${v}_${p.bid}_${k}`);
@@ -849,8 +856,22 @@ function onCardTap(code, el) {
 }
 
 function onTip() {
-  if (!tipsAllowed()) return;
-  markTipUsed();
+  // De eerste tip in een spel eerst bevestigen: daarna telt het spel niet meer mee
+  if (!tipUsed()) {
+    confirmDialog = {
+      title: "Tip gebruiken?",
+      text: `Gebruik je een tip, dan telt dit spel niet mee voor de highscores, de Hall of Fame en je sterren${online?.game ? ", en zien je medespelers dat je een tip gebruikte" : ""}.`,
+      yes: "Geef een tip",
+      no: "Toch niet",
+      action: () => { markTipUsed(); giveTip(); },
+    };
+    renderDialog();
+    return;
+  }
+  giveTip();
+}
+
+function giveTip() {
   if (humanBidding()) {
     hintBid = game.hintBid();
     message = `Tip: voorspel ${hintBid}.`;
@@ -903,16 +924,45 @@ function leaveGame() {
 // ------------------------------------------------------------------------------------------
 
 /** Laat Tineke iets zeggen. Bij wait=true pauzeert het spel tot je op Doorgaan tikt. */
-function tinekeSay(text, { wait = false, isHelp = false } = {}) {
+/** Tineke zegt de zinnen hardop, na elkaar (opnames uit speech.js). Een nieuwe uitleg breekt de vorige af. */
+let tinekeVoiceToken = 0;
+let tinekeTalking = false;
+async function tinekeSpeak(lines) {
+  const token = ++tinekeVoiceToken;
+  if (!soundReady() || !settings.sound || settings.tinekeVoice === false) return;
+  for (const line of lines) {
+    if (token !== tinekeVoiceToken) return;
+    tinekeTalking = true;
+    const ms = await playSound(tinekeFile(line));
+    if (!ms) break;
+    await wait(ms + 150);
+  }
+  if (token === tinekeVoiceToken) tinekeTalking = false;
+}
+function tinekeSilence() {
+  tinekeVoiceToken++;
+  if (tinekeTalking) stopSound();
+  tinekeTalking = false;
+}
+/** Eén keer hardop zeggen wat in een venster staat (dat venster wordt vaker opnieuw getekend). */
+let tinekeSpokenKey = "";
+function tinekeSpeakOnce(key, lines) {
+  if (tinekeSpokenKey === key) return;
+  tinekeSpokenKey = key;
+  tinekeSpeak(lines);
+}
+
+function tinekeSay(text, { wait = false, isHelp = false, say = null } = {}) {
   if (screen !== "game") return Promise.resolve();
   if (tinekeWaiting && !wait) {
     // Eerst de lopende uitleg afmaken
-    if (isHelp) tinekePending = { text, wait, isHelp };
+    if (isHelp) tinekePending = { text, wait, isHelp, say };
     return Promise.resolve();
   }
   if (wait && tinekeShown?.isHelp && !tinekeShown.wait) tinekePending = tinekeShown;
   clearTimeout(tinekeTimer);
-  tinekeShown = { text, wait, isHelp };
+  tinekeShown = { text, wait, isHelp, say };
+  tinekeSpeak(say ?? [text]);
   const panel = $("#tineke-panel");
   panel.className = `tineke-panel ${isHelp ? "" : "comment"}`;
   $("#tineke-text").textContent = text;
@@ -934,6 +984,7 @@ function tinekeSay(text, { wait = false, isHelp = false } = {}) {
  * (en elk volgend spel) stilstaan, omdat drive() wacht tot Tineke klaar is.
  */
 function tinekeRelease() {
+  tinekeSilence();
   const resolve = tinekeWaiting;
   tinekeWaiting = null;
   tinekePending = null;
@@ -949,6 +1000,7 @@ function tinekeHide() {
 
 /** Doorgaan na een uitleg: het spel loopt weer, en een eerdere uitleg komt terug. */
 function tinekeContinue() {
+  tinekeSilence();
   const resolve = tinekeWaiting;
   tinekeWaiting = null;
   tinekeHide();
@@ -966,7 +1018,7 @@ function tinekeHelp(event, extra = {}) {
   if (!settings.tinekeHelp || !st || online?.game) return Promise.resolve();
   const h = tineke.help(event, st, helpLevel, describeCard, extra);
   if (!h) return Promise.resolve();
-  return tinekeSay(h.text, { wait: h.wait, isHelp: true });
+  return tinekeSay(h.text, { wait: h.wait, isHelp: true, say: h.say });
 }
 
 function tinekeComment(event, always = false) {
@@ -1026,9 +1078,8 @@ function onTurn() {
     else if (humanPlaying()) turnNotice("Je bent aan de beurt: leg een kaart op.");
   }
   if (humanBidding()) {
-    // Het advies van Tineke is ook een tip; alleen als tips mogen
-    adviceBid = tipsAllowed() ? game.hintBid() : null;
-    if (adviceBid != null && settings.tinekeHelp && helpLevel > 1) markTipUsed();
+    // Het advies van Tineke is ook een tip: alleen in het begin van de uitleg, of als je al een tip gebruikte
+    adviceBid = helpLevel <= 1 || tipUsed() ? game.hintBid() : null;
     tinekeHelp("voorspellen", { advice: adviceBid });
   } else if (humanPlaying()) {
     tinekeHelp("kies een kaart");
@@ -1363,6 +1414,8 @@ function renderBidOrder() {
   svg.innerHTML = `<defs>${["done", "now", "todo"].map((s) =>
     `<marker id="bo-head-${s}" class="${s}" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto"><path d="M0,0 L10,5 L0,10 z"/></marker>`).join("")}</defs>${paths}`;
 }
+// Ook als alleen de tafel van maat verandert (de hand of de voorspelknoppen verschijnen), anders klopt de ovaal niet
+new ResizeObserver(() => { if (screen === "game" && st) { $("#bid-order").dataset.key = ""; renderBidOrder(); } }).observe($("#table"));
 window.addEventListener("resize", () => { if (screen === "game" && st) { $("#bid-order").dataset.key = ""; renderBidOrder(); } });
 
 function renderGame() {
@@ -1414,7 +1467,8 @@ function renderGame() {
   const status = $("#g-status");
   status.textContent = text;
   status.classList.toggle("msg", !!message);
-  $("#btn-tip").hidden = !tipsAllowed() || !(humanBidding() || humanPlaying());
+  $("#btn-tip").hidden = !(humanBidding() || humanPlaying());
+  $("#btn-say").hidden = !othersAtTable() || st.phase === "GAME_OVER";
 
   // Voorspellen
   const bids = $("#bids");
@@ -1456,14 +1510,15 @@ function layout() {
   $("#g-round").textContent = window.innerWidth < 440 ? `Ronde ${st.round}/${st.rounds}` : `Ronde ${st.round} van ${st.rounds}`;
   // Telefoon dwars: de hand staat in de rechterkolom en mag niet te hoog worden
   const sideways = phoneSideways();
-  const width = sideways ? $("#seat-1").clientWidth : $("#game").clientWidth;
+  const width = sideways ? $("#bids").clientWidth : $("#game").clientWidth;
   const handEl = $("#hand");
   const cards = Array.from(handEl.children);
   const n = cards.length;
   const wide = isWide();
   const maxW = wide ? Math.min(118, Math.max(74, window.innerHeight / 8.5)) : sideways ? Math.min(74, Math.max(44, window.innerHeight / 6))
     : isTablet() ? Math.min(120, window.innerWidth / 7) : 74;
-  const available = Math.min(width - 24, wide || isTablet() ? 1000 : 640);
+  // Door het waaieren steken de buitenste kaarten wat uit; die ruimte houden we vrij
+  const available = Math.min(width - 24, wide || isTablet() ? 1000 : 640) - (n > 4 ? maxW * 0.7 : 0);
   const hw = n <= 1 ? maxW : Math.min(maxW, available / (0.58 * (n - 1) + 1));
   const spacing = n <= 1 ? 0 : Math.min(hw + 6, (available - hw) / (n - 1));
   handEl.style.setProperty("--hw", `${hw}px`);
@@ -1535,6 +1590,7 @@ function roundResultHtml() {
       <div class="pts ${good ? "good" : "bad"}">${pts}</div><div class="tot">${p.total}</div></div>`;
   }).join("");
   const h = settings.tinekeHelp ? tineke.help("score", st, helpLevel, describeCard) : null;
+  if (h) tinekeSpeakOnce(`score${game.seed}|${st.round}`, h.say);
   return `<h3>Ronde ${st.round} is afgelopen</h3>${h ? tinekeLine(h.text) : ""}<div class="result-rows">${rows}</div>
     <div class="actions"><button data-action="scores">Scorelijst</button>
     <button class="primary" data-action="next-round">${st.round === st.rounds ? "Uitslag" : "Volgende ronde"}</button></div>`;
@@ -1555,6 +1611,7 @@ function gameOverHtml() {
     : highScorePlace > 0
     ? `<p class="gold">Je staat op plaats ${highScorePlace} in de highscore van ${highScoreShort ? "korte spellen " : ""}${esc(st.variant.replace(/ tot \d+$/, ""))}.</p>` : "";
   const say = settings.tinekeHelp ? endComment ??= tineke.comment("afgelopen", st) : null;
+  if (say && !online?.game) tinekeSpeakOnce(`einde${game.seed}`, [say]);
   if (!online?.game) {
     return `<h3>${title}</h3>${say ? tinekeLine(say) : ""}<div class="result-rows">${rows}</div>${hs}
     <div class="actions"><button data-action="scores">Scorelijst</button>
@@ -1644,6 +1701,7 @@ function show(name) {
   if (name === "online") renderOnline();
   else stopPublicLobby();
   if (name === "online" || name === "settings") renderAvatarPick();
+  renderVoicePick();
   if (name !== "game" && name !== "online" && chatOpen) { chatOpen = false; }
   renderChat();
   if (name === "game") {
@@ -1660,7 +1718,7 @@ function show(name) {
 function renderMenu() {
   const inProgress = hasGameInProgress();
   $("#btn-resume").hidden = !inProgress;
-  $("#btn-new").className = inProgress ? "" : "primary";
+  $("#btn-play").className = inProgress ? "" : "primary";
 }
 
 const newMaxCards = () => Math.min(newMax ?? newBase.maxCards, maxCardsFor(newBase, newPlayers));
@@ -1700,13 +1758,9 @@ function renderNewGame() {
   const rounds = 2 * newMaxCards() - 1;
   $("#max-note").textContent = `1 tot en met ${newMaxCards()} kaarten en weer terug: ${rounds} rondes.`;
   $("#opt-smart").checked = settings.smart;
-  $("#opt-tips").checked = !!settings.tips;
-  $("#tips-note").textContent = settings.tips
-    ? `Je kunt de knop Tip gebruiken${settings.tinekeHelp ? " en Tineke geeft advies" : ""}. Gebruik je een tip, dan telt dit spel niet mee voor de highscores, de Hall of Fame en je sterren, en zien je medespelers dat je een tip gebruikte.${newOnline ? " Dit geldt voor iedereen aan tafel." : ""}`
-    : `Geen Tip-knop en geen advies van Tineke. Het spel telt mee voor de highscores, de Hall of Fame en je sterren.${newOnline ? " Dit geldt voor iedereen aan tafel." : ""}`;
   $("#opt-rounding").checked = newRounding;
   $("#opt-musttrump").checked = newMustTrump;
-  $("#variant-name").textContent = `Je speelt: ${variantName(newRules())} met ${newPlayers} spelers${settings.tips ? ", tips mogen" : ""}`;
+  $("#variant-name").textContent = `Je speelt: ${variantName(newRules())} met ${newPlayers} spelers`;
 }
 
 const hsFiltered = () => !!hsPlayers || !!hsVs;
@@ -1880,7 +1934,11 @@ function renderSettings() {
   $("#row-speak").hidden = !settings.sound;
   $("#row-cards").hidden = !settings.sound;
   $("#set-cards").checked = settings.cardSounds !== false;
-  $$("#opt-voice button").forEach((b) => b.classList.toggle("selected", b.dataset.voice === myVoice()));
+  renderVoicePick();
+  $("#set-tineke-voice").checked = settings.tinekeVoice !== false;
+  $("#row-tineke-voice").hidden = !settings.sound;
+  $("#set-opener").checked = settings.opener !== false;
+  $("#row-opener").hidden = !settings.sound;
   $("#row-speak-humans").hidden = !settings.sound || !settings.speakBids;
   $("#app-version").textContent = `Versie ${APP_VERSION}${nativeApp ? " (app)" : ""}`;
   $("#set-help").checked = settings.tinekeHelp;
@@ -1901,7 +1959,7 @@ const RULES_TEXT = [
   ["Voorbeeld", "Harten is troef. Speler 1 komt uit met klaver heer. Speler 2 legt schoppen aas bij (dat mag, want hij heeft geen klaver). Speler 3 legt klaver vijf (hij heeft klaver en moet dus kleur bekennen). Speler 4 legt harten twee (een troef; dat mag, want hij heeft geen klaver). De slag gaat naar speler 4."],
   ["Punten bij 10 op en neer", "Haal je precies het aantal slagen dat je voorspeld hebt, dan krijg je 10 punten plus 1 punt per slag. Lukt dat niet, dan krijg je niets. Een score van 170 is zeer goed, boven de 200 is bijna niet te halen."],
   ["Punten bij Boerenbridge", "Goed voorspeld: 10 punten plus 3 punten per slag. Fout voorspeld: 10 punten min 3 punten per slag verschil (niet lager dan 0)."],
-  ["Sterke computerspelers", "Met deze instelling rekenen de computerspelers bij elke beslissing een groot aantal mogelijke verdelingen van de kaarten door. Ze spelen dan slimmer dan in het originele spel. Zet je hem uit, dan spelen ze precies zoals in het origineel."],
+  ["Sterke computerspelers", "Met deze instelling rekenen de computerspelers bij elke beslissing een groot aantal mogelijke verdelingen van de kaarten door. Ze spelen dan een stuk slimmer. Zet je hem uit, dan spelen ze eenvoudiger en sneller."],
   ["Tips", "Tik op Tip om te zien wat de computer zou doen. Tik op de tafel om een volle slag meteen binnen te halen. Via het menu linksboven kun je de laatste slag nog eens bekijken."],
   ["Op je beginscherm", "Op een iPhone of iPad: open deze pagina in Safari, tik op Deel en kies Zet op beginscherm. Op Android: kies in het menu van Chrome Toevoegen aan startscherm. Daarna start het spel als een gewone app en werkt het ook zonder internet."],
   ["Over dit spel", "Gebaseerd op het Windows-spel \"10 op en neer\" van A.A. Brink (sourceforge.net/projects/tienopenneer). Vrije software onder de GNU General Public License versie 3."],
@@ -2026,6 +2084,7 @@ const viewOfSeat = (seat) => (seat - online.seat + tableSize()) % tableSize() + 
 
 function onChatMessage(m, own) {
   if (!online) return;
+  if (!own) hearPhrase(m);
   online.chat.push(m);
   if (online.chat.length > 100) online.chat.shift();
   if (!own && !chatOpen && !(dockShown() && settings.chatDock !== false)) online.unread++;
@@ -2143,6 +2202,46 @@ function openChat(open) {
   if (open && !window.matchMedia("(pointer: coarse)").matches) $("#chat-input").focus();
 }
 
+// Snelle zinnen (speech.js): je laat ze in je eigen stem zeggen, hoogstens één per 30 seconden. Ze gaan als gewoon
+// chatbericht, dus wie een oudere versie heeft, ziet alleen de tekst.
+let lastSaid = 0;
+const heardAt = new Map();
+const sayWait = () => Math.max(0, lastSaid + PHRASE_GAP_MS - Date.now());
+const othersAtTable = () => !!online?.game && online.players.some((p) => p.seat !== online.seat && !p.left);
+function renderSayMenu() {
+  const left = Math.ceil(sayWait() / 1000);
+  $("#say-menu").innerHTML = (left ? `<p>Over ${left} ${left === 1 ? "seconde" : "seconden"} kun je weer iets zeggen.</p>` : "<p>Zeg hardop tegen de anderen:</p>") +
+    PHRASES.map((q, k) => `<button type="button" data-say="${k}"${left ? " disabled" : ""}>${esc(q)}</button>`).join("");
+}
+$("#btn-say").addEventListener("click", (e) => {
+  e.stopPropagation();
+  const menu = $("#say-menu");
+  menu.hidden = !menu.hidden;
+  if (!menu.hidden) renderSayMenu();
+});
+$("#say-menu").addEventListener("click", (e) => {
+  e.stopPropagation();
+  const b = e.target.closest("[data-say]");
+  if (!b || sayWait()) return;
+  const k = Number(b.dataset.say);
+  if (!sendChat(PHRASES[k])) return;
+  lastSaid = Date.now();
+  $("#say-menu").hidden = true;
+  if (soundReady() && settings.sound && myVoice() !== "geen") playSound(phraseFile(myVoice(), k));
+});
+document.addEventListener("click", (e) => { if (!e.target.closest("#say-menu")) $("#say-menu").hidden = true; });
+setInterval(() => { if (!$("#say-menu").hidden) renderSayMenu(); }, 1000);
+
+/** Een snelle zin van een medespeler hardop, in zijn stem (en niet vaker dan de afzender mag). */
+function hearPhrase(m) {
+  const k = PHRASES.indexOf(m.text);
+  if (k < 0 || !settings.sound || settings.speakHumans === false || !soundReady()) return;
+  if (Date.now() - (heardAt.get(m.seat) ?? 0) < PHRASE_GAP_MS - 5000) return;
+  heardAt.set(m.seat, Date.now());
+  const voice = cleanVoice(online.players.find((p) => p.seat === m.seat)?.voice) ?? "neutraal";
+  if (voice !== "geen") playSound(phraseFile(voice, k));
+}
+
 $("#chat-quick").innerHTML = QUICK.map((q) => `<button type="button" class="${q.length > 2 ? "txt" : ""}" data-q="${esc(q)}">${esc(q)}</button>`).join("");
 $("#chat-quick").addEventListener("click", (e) => {
   const b = e.target.closest("[data-q]");
@@ -2192,11 +2291,11 @@ function openTable(rules) {
   const code = makeCode();
   online = {
     role: "host", code, seat: 1, players: [{ name: settings.playerName, seat: 1, online: true, avatar: myAvatar() }],
-    queue: new Map(), game: null, rules, smart: settings.smart, tips: !!settings.tips, status: "Tafel openen…", error: "", chat: [], unread: 0,
+    queue: new Map(), game: null, rules, smart: settings.smart, status: "Tafel openen…", error: "", chat: [], unread: 0,
   };
   const pub = newPublic ? {
     title: newTitle.trim().slice(0, 40),
-    variant: variantName(rules) + (settings.tips ? " · tips mogen" : ""), rounds: 2 * rules.maxCards - 1,
+    variant: variantName(rules), rounds: 2 * rules.maxCards - 1,
   } : null;
   online.pub = pub;
   online.link = new Host(code, settings.playerName, netEvents(), null, myAvatar(), rules.players ?? 4, pub);
@@ -2238,7 +2337,7 @@ function startHostGame(fill) {
     names[p.seat - 1] = p.seat === 1 ? settings.playerName : p.name;
     humanSeats.push(p.seat);
   }
-  const g = { rules: online.rules, smart: online.smart, tips: !!online.tips, cast, seed: Math.floor(Math.random() * 2147483647), names, humanSeats };
+  const g = { rules: online.rules, smart: online.smart, cast, seed: Math.floor(Math.random() * 2147483647), names, humanSeats };
   online.link.start(g);
   startOnlineGame(g, []);
 }
@@ -2641,8 +2740,7 @@ function renderOnline() {
   const isHost = online.role === "host";
   $("#share-row").hidden = !isHost || !!online.pub;
   const rules = online.rules ?? online.game?.rules;
-  const tipsText = online.game ? (online.game.tips ? " · tips mogen" : "") : online.role === "host" && online.tips ? " · tips mogen" : "";
-  $("#lobby-variant").textContent = rules ? variantName(rules) + tipsText : "";
+  $("#lobby-variant").textContent = rules ? variantName(rules) : "";
   const rows = Array.from({ length: tableSize() }, (_, i) => i + 1).map((seat) => {
     const p = online.players.find((x) => x.seat === seat);
     if (p) {
@@ -2787,6 +2885,7 @@ document.addEventListener("click", (e) => {
 });
 
 $("#btn-resume").addEventListener("click", () => { show("game"); drive(); });
+$("#btn-play").addEventListener("click", () => show("play"));
 $("#btn-new").addEventListener("click", () => { newOnline = false; show("newgame"); });
 
 $$(".variant").forEach((el) => el.addEventListener("click", () => {
@@ -2798,7 +2897,6 @@ $$(".variant").forEach((el) => el.addEventListener("click", () => {
   renderNewGame();
 }));
 $("#opt-smart").addEventListener("change", (e) => { settings.smart = e.target.checked; saveSettings(); });
-$("#opt-tips").addEventListener("change", (e) => { settings.tips = e.target.checked; saveSettings(); renderNewGame(); });
 $("#opt-rounding").addEventListener("change", (e) => { newRounding = e.target.checked; renderNewGame(); });
 $("#opt-players").addEventListener("click", (e) => {
   const b = e.target.closest("[data-players]");
@@ -2892,13 +2990,19 @@ $("#set-name").addEventListener("input", (e) => {
 $("#set-speed").addEventListener("input", (e) => { settings.speed = Number(e.target.value); saveSettings(); });
 $("#set-desc").addEventListener("change", (e) => { settings.sortDescending = e.target.checked; saveSettings(); });
 $("#set-sound").addEventListener("change", (e) => { settings.sound = e.target.checked; saveSettings(); renderSettings(); });
-$$("#opt-voice button").forEach((b) => b.addEventListener("click", () => {
+// Je stem kies je bij Instellingen, bij een nieuw spel en aan een tafel; overal dezelfde keuze
+const renderVoicePick = () => $$(".voice-pick button").forEach((b) => b.classList.toggle("selected", b.dataset.voice === myVoice()));
+document.addEventListener("click", (e) => {
+  const b = e.target.closest(".voice-pick button");
+  if (!b) return;
   settings.voice = b.dataset.voice;
   saveSettings();
-  renderSettings();
+  renderVoicePick();
   online?.link?.setVoice?.(settings.voice);
-  if (soundReady() && settings.sound) playSound(`bod_speler_${myVoice()}_${2 + Math.floor(Math.random() * 6)}_0`);
-}));
+  if (soundReady() && settings.sound && myVoice() !== "geen") playSound(`bod_speler_${myVoice()}_${2 + Math.floor(Math.random() * 6)}_0`);
+});
+$("#set-tineke-voice").addEventListener("change", (e) => { settings.tinekeVoice = e.target.checked; saveSettings(); if (!e.target.checked) tinekeSilence(); });
+$("#set-opener").addEventListener("change", (e) => { settings.opener = e.target.checked; saveSettings(); });
 $("#set-cards").addEventListener("change", (e) => { settings.cardSounds = e.target.checked; saveSettings(); });
 $("#set-speak-humans").addEventListener("change", (e) => { settings.speakHumans = e.target.checked; saveSettings(); });
 $("#set-speak").addEventListener("change", (e) => { settings.speakBids = e.target.checked; saveSettings(); renderSettings(); });
@@ -2964,6 +3068,7 @@ $("#dialog-box").addEventListener("click", (e) => {
   if (!a) return;
   switch (a.dataset.action) {
     case "confirm-yes": {
+      if (!confirmDialog) break; // dubbel getikt: het venster is al weg
       const action = confirmDialog.action;
       confirmDialog = null;
       renderDialog();
@@ -2971,6 +3076,7 @@ $("#dialog-box").addEventListener("click", (e) => {
       break;
     }
     case "confirm-no": {
+      if (!confirmDialog) break; // dubbel getikt: het venster is al weg
       const noAction = confirmDialog.noAction;
       confirmDialog = null;
       renderDialog();
@@ -3022,9 +3128,7 @@ $$(".logo-cards .card-slot").forEach((el) => {
   el.innerHTML = cardHtml(Number(el.dataset.card), "", "--w:70px");
 });
 // Op het startscherm kijken de spelers blij: zin in een potje
-// Drie spelers op het startscherm, elk met een kaart: de een gluurt, de ander draait hem om, de derde laat hem zien
-$("#menu-faces").innerHTML = [[2, 414], [3, 210], [4, 114]].map(([nr, code], i) =>
-  `<div class="menu-face">${avatarHtml(nr, "")}<div class="mf-card mf-${i + 1}">${trumpMiniHtml(code).replace("--w:36px", "--w:22px")}</div></div>`).join("");
+$("#menu-faces").innerHTML = [2, 3, 4].map((nr) => `<div class="menu-face">${avatarHtml(nr, "")}</div>`).join("");
 
 const linkParams = new URLSearchParams(location.search);
 const joinCode = normalizeCode(linkParams.get("spel"));

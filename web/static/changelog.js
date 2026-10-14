@@ -1,5 +1,16 @@
 // Wat er per versie nieuw is. Wie na een nieuwe versie terugkomt, ziet dit in het hoofdmenu.
 export const CHANGES = [
+  { v: "2.37", items: [
+    "Nieuwe, echte stemmen voor alle computerspelers, met accent: Henk met een heel lage stem, Truus uit Rotterdam, Kees uit Twente, Ria uit Vlaanderen, Gerda uit Groningen, Sjef uit Limburg, Mo uit Amsterdam en Bram zonder accent.",
+    "Tineke spreekt haar uitleg ook hardop (uit te zetten bij Instellingen).",
+    "Bij het openen roept een enthousiaste stem je welkom.",
+    "Samen spelen: met de knop 🗣️ laat je in je eigen stem iets zeggen, zoals \"Ben je er nog?\" of \"Schiet eens op!\" (hoogstens één keer per 30 seconden).",
+    "Je kiest je stem nu ook bij een nieuw spel en aan een tafel, en je kunt kiezen voor geen stem.",
+    "Tips mogen altijd. De eerste keer dat je op Tip tikt, krijg je eerst een waarschuwing dat het spel dan niet meer meetelt.",
+    "Eén knop Nieuw spel; daarna kies je tegen de computer of samen met anderen.",
+    "Nieuwe spelers beginnen tegen gewone computers; sterke computers zet je aan bij een nieuw spel.",
+    "Tablet dwars: je zit weer zelf aan tafel. De pijlen van de beurtvolgorde kloppen weer, en je kaarten passen altijd op het scherm.",
+  ] },
   { v: "2.36", items: ["Highscores en Hall of Fame: filter op spellen tegen sterke computers, tegen gewone computers of met andere mensen."] },
   { v: "2.35", items: ["Sterren gelden nu per soort spel: je hebt aparte sterren voor 10 op en neer en voor Boerenbridge, net als de highscores en de Hall of Fame."] },
   { v: "2.34", items: ["Boerenbridge gaat altijd tot 13 kaarten, en kan daarom met hoogstens 4 spelers."] },

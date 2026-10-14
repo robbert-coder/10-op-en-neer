@@ -22,8 +22,8 @@ export const store = {
 /** Je instellingen; één gedeeld object, dat elk scherm kan aanpassen en daarna met saveSettings bewaart. */
 export const settings = Object.assign(
   {
-    playerName: "Speler", tips: false, speed: 3, sortDescending: false, sound: true, speakBids: true, smart: true,
-    tinekeHelp: true, tinekeComments: true, tinekeAsked: false,
+    playerName: "Speler", speed: 3, sortDescending: false, sound: true, speakBids: true, smart: false,
+    tinekeHelp: true, tinekeComments: true, tinekeAsked: false, tinekeVoice: true, opener: true,
   },
   store.get("instellingen", {}),
 );

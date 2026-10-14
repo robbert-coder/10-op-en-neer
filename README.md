@@ -18,7 +18,7 @@ Deze app is een port van het Windows-spel [10 op en neer](https://sourceforge.ne
 
 De geluidjes in `web/static/sounds/` zijn zelf gemaakt met klanksynthese (`tools/geluiden.py`); er zitten geen opnames van anderen in.
 
-De uitgesproken voorspellingen (`bod_*.mp3`, `nat_*.mp3`, `tools/stemmen.py`) zijn gemaakt met de Piper-stemmen nl_NL-pim, nl_NL-ronnie, nl_BE-nathalie en nl_BE-rdh (CC0).
+De uitgesproken zinnen van de computerspelers, de spelersstemmen, Tineke, de begroeting en de snelle zinnen (`bod_*.mp3`, `nat_*.mp3`, `tineke_*.mp3`, `open_*.mp3`, `zin_*.mp3`) zijn ingesproken met stemmen van ElevenLabs (betaald abonnement, met commerciële licentie; zie `tools/elevenlabs.py` en de workflow Stemmen). De oude stemmen (`tools/stemmen.py`) waren gemaakt met de Piper-stemmen nl_NL-pim, nl_NL-ronnie, nl_BE-nathalie en nl_BE-rdh (CC0).
 
 ## Webversie (iPhone en iPad)
 

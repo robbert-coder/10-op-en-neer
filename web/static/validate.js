@@ -42,7 +42,7 @@ export function cleanList(v, max, clean) {
 export const isObject = (v) => !!v && typeof v === "object" && !Array.isArray(v);
 
 /** Je eigen stem bij het voorspellen: man, vrouw of neutraal. */
-export const cleanVoice = (v) => (["man", "vrouw", "neutraal"].includes(v) ? v : null);
+export const cleanVoice = (v) => (["man", "vrouw", "neutraal", "geen"].includes(v) ? v : null);
 
 /**
  * Een plaatje van een ander alleen gebruiken als het een gezicht, een emoji (oudere versies) of een kleine

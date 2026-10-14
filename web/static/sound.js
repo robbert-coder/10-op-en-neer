@@ -22,10 +22,11 @@ function unlockAudio() {
   if (audio.state === "suspended") audio.resume();
 }
 
-/** Luisteren naar de eerste tik; [unlocked] wordt dan één keer aangeroepen. */
-export function initSound(unlocked) {
+/** Luisteren naar de eerste tik; [unlocked] wordt dan één keer aangeroepen. [now]: meteen (de app mag dat). */
+export function initSound(unlocked, now = false) {
   onUnlock = unlocked;
   for (const ev of ["touchend", "click", "keydown"]) document.addEventListener(ev, unlockAudio, true);
+  if (now) setTimeout(unlockAudio, 0); // pas als de app helemaal geladen is
 }
 
 /** Kan er geluid klinken (heeft de speler al getikt)? */
@@ -104,7 +105,13 @@ export function loadSound(name) {
   return buffers.get(name);
 }
 
-/** Speelt een geluid; een nieuw geluid onderbreekt het vorige, net als in het origineel. Geeft de duur in ms. */
+/** Het stemgeluid dat nu klinkt stoppen. */
+export function stopSound() {
+  try { currentSource?.stop(); } catch { /* al gestopt */ }
+  currentSource = null;
+}
+
+/** Speelt een geluid; een nieuw geluid onderbreekt het vorige. Geeft de duur in ms. */
 export async function playSound(name) {
   if (!audio) return 0;
   const buffer = await loadSound(name);
