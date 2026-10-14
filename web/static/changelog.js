@@ -1,5 +1,8 @@
 // Wat er per versie nieuw is. Wie na een nieuwe versie terugkomt, ziet dit in het hoofdmenu.
 export const CHANGES = [
+  { v: "2.41", items: [
+    "De knop Overslaan bij Tineke heet nu Uitleg stoppen, want daarmee zet je haar uitleg uit. Met Begrepen klik je alleen haar tekst weg.",
+  ] },
   { v: "2.40", items: [
     "Het geluid als iemand nat gaat klinkt pas als de kaart op tafel ligt.",
     "Tineke heeft een knop Begrepen: die klikt alleen haar tekst weg, zodat je de tafel goed ziet. Overslaan stopt haar uitleg.",
