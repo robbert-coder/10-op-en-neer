@@ -465,7 +465,7 @@ function startNewGame(rules) {
     saveSettings();
     confirmDialog = {
       title: "Ken je 10 op en neer al?",
-      text: "Tineke kan je tijdens het eerste spel stap voor stap uitleggen hoe het werkt. Je kunt haar uitleg later altijd aan- of uitzetten bij Instellingen.",
+      text: "Tineke kan je tijdens het eerste spel stap voor stap uitleggen hoe het werkt. Je kunt haar uitleg later altijd aan- of uitzetten in het menu tijdens het spel of bij Instellingen.",
       yes: "Leg het me uit",
       no: "Ik ken het, overslaan",
       action: () => { settings.tinekeHelp = true; saveSettings(); startNewGame(rules); },

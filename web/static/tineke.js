@@ -133,7 +133,7 @@ export function help(event, st, level, describe, extra = {}) {
   switch (event) {
     case "welkom":
       return {
-        text: "Hallo, welkom bij 10 op en neer. Ik ben Tineke en ik ga je tijdens het spelen uitleggen wat je moet doen. Ken je het spel al? Tik dan op Overslaan.",
+        text: "Hallo, welkom bij 10 op en neer. Ik ben Tineke en ik ga je tijdens het spelen uitleggen wat je moet doen. Ken je het spel al? Tik dan op Uitleg stoppen. Met Begrepen klik je alleen mijn tekst weg.",
         wait: true,
       };
     case "voorspellen":
@@ -214,7 +214,7 @@ export function help(event, st, level, describe, extra = {}) {
       return { text: t, wait: false, say: [good ? SAY.scoreGood : score > 0 ? SAY.scoreSome : SAY.scoreNone, ...(level <= 3 ? [SAY.scoreList] : [])] };
     }
     case "hulp uit":
-      return { text: "Ik zal je niet meer helpen. Je kunt mijn uitleg altijd weer aanzetten bij Instellingen.", wait: false };
+      return { text: "Ik zal je niet meer helpen. Je kunt mijn uitleg altijd weer aanzetten in het menu tijdens het spel of bij Instellingen.", wait: false };
   }
   return null;
 }
