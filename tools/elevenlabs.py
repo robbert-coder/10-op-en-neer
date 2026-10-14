@@ -201,7 +201,12 @@ def account_voice(owner, voice, name):
     for v in get("/voices").get("voices", []):
         if v.get("name") == name or (v.get("sharing") or {}).get("original_voice_id") == voice:
             return v["voice_id"]
-    return post(f"/voices/add/{owner}/{voice}", {"new_name": name})["voice_id"]
+    try:
+        return post(f"/voices/add/{owner}/{voice}", {"new_name": name})["voice_id"]
+    except urllib.error.HTTPError as e:
+        # Zonder recht voices_write: de bibliotheekstem rechtstreeks proberen
+        print("toevoegen lukt niet:", e.code, e.read().decode(errors="replace")[:300])
+        return voice
 
 
 def proef(out, spec):
