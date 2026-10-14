@@ -11,8 +11,8 @@ android {
         applicationId = "nl.tienopenneer.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 39
-        versionName = "2.37"
+        versionCode = 40
+        versionName = "2.38"
     }
 
     // Vaste ondertekensleutel uit de GitHub-geheimen (SIGNING_KEY), zodat een nieuwe versie over de oude heen

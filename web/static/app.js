@@ -16,7 +16,7 @@ import { BOERENBRIDGE, TIEN_OP_EN_NEER, createGame, maxCardsFor, maxPlayersFor, 
 import { KINDS, addGame, addHighScore, loadHighScores, matchesVs, playersDetail, loadStats, mergeGames, starRating, starsHtml, statsForKind, statsSummary } from "./stats.js";
 import { flushHof, hofCache, hofId, queueHof, sha256Hex } from "./hof.js";
 import { cardSound, initSound, loadSound, playSound, soundReady, stopSound } from "./sound.js";
-import { OPENERS, PHRASES, PHRASE_GAP_MS, openerFile, phraseFile, tinekeFile } from "./speech.js";
+import { OPENERS, PHRASES, PHRASE_GAP_MS, RETURNERS, openerFile, phraseFile, returnFile, tinekeFile } from "./speech.js";
 import { celebrate, isCelebrating } from "./celebrate.js";
 import { askNotifications, clearTurnNotice, inBackground, iosBrowser, isIOS, notifyAlways, notifyPermission, notifyUnsupportedText, setAppVisible, turnNotice } from "./notify.js";
 import { cardHtml, sortHand, trumpMiniHtml } from "./cards.js";
@@ -276,12 +276,18 @@ initSound(() => {
   playOpener();
 }, !!nativeApp);
 
-/** Eén keer per keer openen roept een enthousiaste stem iets, zolang je nog op het startscherm staat. */
+/** Truus roept je toe: één keer bij het openen, zolang je nog op het startscherm staat. */
 let openerPlayed = false;
 function playOpener() {
   if (openerPlayed || screen !== "menu" || !settings.sound || settings.opener === false) return;
   openerPlayed = true;
   playSound(openerFile(Math.floor(Math.random() * OPENERS.length)));
+}
+/** Terug op het startscherm na een spel: Truus daagt je uit voor nog een potje. */
+function playReturn() {
+  if (!soundReady() || !settings.sound || settings.opener === false) return;
+  openerPlayed = true;
+  playSound(returnFile(Math.floor(Math.random() * RETURNERS.length)));
 }
 
 /** De stemmen van de computerspelers in het huidige spel alvast laden. */
@@ -1691,6 +1697,7 @@ function cardsInRound(r) {
 // ------------------------------------------------------------------------------------------
 
 function show(name) {
+  if (name === "menu" && screen === "game") playReturn();
   screen = name;
   $$(".screen").forEach((el) => el.classList.toggle("active", el.id === name));
   if (name === "menu") renderMenu();
@@ -1735,6 +1742,9 @@ function renderNewGame() {
   renderAvatarPick();
   $("#newgame h2").textContent = newOnline ? (newPublic ? "Openbare tafel openen" : "Privé tafel openen") : "Nieuw spel";
   $("#ng-public").hidden = !newOnline;
+  // Tineke helpt alleen tegen de computer
+  $("#ng-tineke-row").hidden = newOnline;
+  $("#ng-tineke").checked = settings.tinekeHelp;
   $$("#opt-public button").forEach((b) => b.classList.toggle("selected", (b.dataset.public === "1") === newPublic));
   $("#row-title").hidden = !newPublic;
   if ($("#opt-title").value !== newTitle) $("#opt-title").value = newTitle;
@@ -2886,6 +2896,19 @@ document.addEventListener("click", (e) => {
 
 $("#btn-resume").addEventListener("click", () => { show("game"); drive(); });
 $("#btn-play").addEventListener("click", () => show("play"));
+// Het spel delen: een QR-code naar de webapp (qr.svg), en een link sturen
+const APP_URL = "https://robbert-coder.github.io/10-op-en-neer/";
+$("#btn-share-app").addEventListener("click", () => { $("#qr-sheet").hidden = false; });
+$("#qr-close").addEventListener("click", () => { $("#qr-sheet").hidden = true; });
+$("#qr-sheet").addEventListener("click", (e) => { if (e.target.id === "qr-sheet") $("#qr-sheet").hidden = true; });
+$("#qr-share").addEventListener("click", async () => {
+  const text = "Speel je mee met 10 op en neer? Gratis, in je browser of als app.";
+  if (nativeApp) { nativeApp.share(`${text}\n${APP_URL}`); return; }
+  if (navigator.share) {
+    try { await navigator.share({ title: "10 op en neer", text, url: APP_URL }); return; } catch { /* geannuleerd */ }
+  }
+  try { await navigator.clipboard.writeText(APP_URL); $("#qr-share").textContent = "Link gekopieerd"; } catch { /* dan staat de link er nog */ }
+});
 $("#btn-new").addEventListener("click", () => { newOnline = false; show("newgame"); });
 
 $$(".variant").forEach((el) => el.addEventListener("click", () => {
@@ -3030,6 +3053,7 @@ function renderNotifyStatus() {
         ? (nativeApp ? "Meldingen staan uit voor deze app in de Android-instellingen." : "Meldingen zijn geblokkeerd voor deze website. Zet ze aan via het slotje naast het adres.")
         : state === "granted" ? "Meldingen staan aan." : "Nog geen toestemming gegeven. Zet de schakelaar uit en weer aan om het te vragen.");
 }
+$("#ng-tineke").addEventListener("change", (e) => { settings.tinekeHelp = e.target.checked; settings.tinekeAsked = true; helpLevel = 0; saveSettings(); });
 $("#set-help").addEventListener("change", (e) => { settings.tinekeHelp = e.target.checked; settings.tinekeAsked = true; helpLevel = 0; saveSettings(); });
 
 $("#bids").addEventListener("click", (e) => {

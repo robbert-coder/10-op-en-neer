@@ -37,6 +37,7 @@
           <button data-go="stats">Statistieken</button>
           <button data-go="settings">Instellingen</button>
         </div>
+        <button id="btn-share-app" class="share-app">Spel delen met QR-code</button>
       </div>
       <a id="update-banner" class="update-banner" hidden></a>
       <p id="cloud-down" class="cloud-down" hidden></p>
@@ -132,6 +133,12 @@
           </label>
         </div>
         </details>
+        <div class="group" id="ng-tineke-row">
+          <label class="switch-row">
+            <span><b>Uitleg van Tineke</b><small>Tineke legt tijdens het spelen stap voor stap uit wat je moet doen.</small></span>
+            <input type="checkbox" id="ng-tineke" class="switch">
+          </label>
+        </div>
         <p class="variant-name" id="variant-name"></p>
         <button class="primary wide" id="btn-start">Start</button>
       </div>
@@ -423,7 +430,7 @@
             <input type="checkbox" id="set-tineke-voice" class="switch">
           </label>
           <label class="switch-row" id="row-opener">
-            <span><b>Begroeting</b><small>Een enthousiaste stem bij het openen van het spel.</small></span>
+            <span><b>Begroeting</b><small>Truus roept je toe op het startscherm en daagt je uit voor nog een potje.</small></span>
             <input type="checkbox" id="set-opener" class="switch">
           </label>
         </div>
@@ -433,6 +440,15 @@
   </main>
 
   <div class="overlay" id="dialog" hidden><div class="dialog" id="dialog-box"></div></div>
+  <div class="overlay" id="qr-sheet" hidden>
+    <div class="dialog qr-box">
+      <h3>Spel delen</h3>
+      <p>Laat iemand deze code scannen met de camera van zijn telefoon. Dan opent het spel meteen.</p>
+      <img src="qr.svg" alt="QR-code naar het spel" class="qr-img" width="240" height="240">
+      <p class="qr-url">robbert-coder.github.io/10-op-en-neer</p>
+      <div class="actions"><button id="qr-close">Sluiten</button><button class="primary" id="qr-share">Link sturen</button></div>
+    </div>
+  </div>
   <div class="flyer-layer" id="flyers"></div>
   <div class="chat-panel" id="chat" hidden>
     <div class="chat-head"><b>Chat</b><button class="icon-btn" id="chat-close" aria-label="Chat sluiten">✕</button></div>

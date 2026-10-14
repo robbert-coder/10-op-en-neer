@@ -1,5 +1,10 @@
 // Wat er per versie nieuw is. Wie na een nieuwe versie terugkomt, ziet dit in het hoofdmenu.
 export const CHANGES = [
+  { v: "2.38", items: [
+    "Truus roept je toe als je het spel opent, en daagt je uit voor nog een potje als je na een spel terugkomt.",
+    "De uitleg van Tineke zet je nu ook aan of uit bij Nieuw spel.",
+    "Spel delen: op het startscherm staat een QR-code die anderen met hun camera scannen om meteen mee te spelen.",
+  ] },
   { v: "2.37", items: [
     "Nieuwe, echte stemmen voor alle computerspelers, met accent: Henk met een heel lage stem, Truus uit Rotterdam, Kees uit Twente, Ria uit Vlaanderen, Gerda uit Groningen, Sjef uit Limburg, Mo uit Amsterdam en Bram zonder accent.",
     "Tineke spreekt haar uitleg ook hardop (uit te zetten bij Instellingen).",

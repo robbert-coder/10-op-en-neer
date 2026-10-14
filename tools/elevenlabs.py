@@ -241,9 +241,8 @@ KEUZE = {
     "speler_vrouw": {"stem": "OlBRrVAItyi00MuGMbna"},  # Emma
     "speler_neutraal": {"stem": "yO6w2xlECAQRFP6pX7Hw"},  # Ruth
 }
-# Voor de extra's (web/static/speech.js): Tineke (Roos) en een enthousiaste omroeper (de lage stem van Henk)
-EXTRA = {"tineke": ("7qdUFMklKPaaAVMsBTBt", "eleven_multilingual_v2", ""),
-         "omroeper": ("nxXBLGMUMfo1A7EdM35R", "eleven_v3", "[excited] ")}
+# Voor de extra's (web/static/speech.js): Tineke (Roos)
+EXTRA = {"tineke": ("7qdUFMklKPaaAVMsBTBt", "eleven_multilingual_v2", "")}
 # Ontworpen stemmen komen uit eleven_ttv_v3 en horen bij eleven_v3; bibliotheekstemmen bij multilingual v2
 MODEL = {"ontwerp": "eleven_v3", "stem": "eleven_multilingual_v2"}
 
