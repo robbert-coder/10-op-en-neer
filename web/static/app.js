@@ -377,6 +377,9 @@ let previousTable = [0, 0, 0, 0, 0];
 let humanCardFrom = null; // plek van de kaart die de mens net speelde, voor de animatie
 let helpLevel = 0; // loopt op per slag, zodat Tineke steeds minder uitlegt
 let toldThisGame = new Set(); // uitleg die Tineke maar één keer per spel geeft (troef)
+let tinekeHistory = []; // uitleg van dit spel, om met Vorige terug te lezen
+let tinekeBrowse = -1; // welke oude uitleg nu in beeld is (-1: de gewone)
+let tinekeBrowseWasOpen = false; // stond er een uitleg open toen je op Vorige tikte?
 const ONCE_PER_GAME = new Set(["troef", "geen troef"]);
 let tinekeWaiting = null; // functie die het spel laat doorgaan na "Begrepen"
 let tinekeTimer = null;
@@ -487,6 +490,7 @@ function startNewGame(rules) {
   tinekeRelease();
   helpLevel = 0;
   toldThisGame = new Set();
+  tinekeHistory = [];
   lastTurnKey = "";
   currentCast = drawCast();
   const names = castNames(currentCast);
@@ -668,7 +672,17 @@ function reactToTip() {
 
 /** Een computerspeler haalt een slag: soms een klein gebaar, af en toe met een opmerking. */
 function reactToTrick(nr) {
-  if (!faceFor(nr) || !canReact() || Math.random() > 0.35) return;
+  if (!faceFor(nr) || !canReact()) return;
+  const p = st.players[nr - 1];
+  // Er een te veel: daar is hij niet blij mee (het nat-zinnetje volgt vanzelf)
+  if (p.bid >= 0 && p.tricks > p.bid) { gesture(nr, "sigh"); return; }
+  // Bod gehaald maar nog kaarten over: nu mag hij niets meer halen, dus bezorgd in plaats van blij
+  if (p.bid >= 0 && p.tricks === p.bid && p.cardCount > 0) {
+    if (Math.random() < 0.4) react(nr, "oei", 350, "sad");
+    else if (Math.random() < 0.6) gesture(nr, "sigh");
+    return;
+  }
+  if (Math.random() > 0.35) return;
   if (Math.random() < 0.35) react(nr, "slag", 350);
   else gesture(nr, "cheer");
 }
@@ -981,23 +995,57 @@ function tinekeSpeakOnce(key, lines) {
   tinekeSpeak(lines);
 }
 
-function tinekeSay(text, { wait = false, isHelp = false, say = null } = {}) {
+/** Het tekstvak van Tineke vullen (zonder te spreken). */
+function renderTinekePanel(text, { isHelp = false, card = 0, old = false } = {}) {
+  const panel = $("#tineke-panel");
+  panel.className = `tineke-panel ${isHelp ? "" : "comment"}`;
+  $("#tineke-text").textContent = text;
+  // Een kaart waar de uitleg over gaat (de troefkaart) staat erbij, want het tekstvak kan hem op tafel bedekken
+  if (card) $("#tineke-text").insertAdjacentHTML("afterbegin", `<span class="tineke-card">${cardHtml(card, "", "--w:44px")}</span>`);
+  $("#tineke-actions").hidden = !isHelp;
+  const shown = old ? tinekeBrowse : tinekeHistory.length - 1;
+  $("#tineke-prev").hidden = !isHelp || shown < 1;
+  $("#tineke-skip").hidden = old;
+  $("#tineke-ok").textContent = old ? t("Verder") : t("Begrepen");
+  panel.hidden = false;
+}
+
+/** Vorige: een eerdere uitleg van dit spel teruglezen. */
+function tinekePrevious() {
+  if (!tinekeHistory.length) return;
+  if (tinekeBrowse === -1) {
+    tinekeBrowseWasOpen = !$("#tineke-panel").hidden && !!tinekeShown?.isHelp;
+    tinekeBrowse = tinekeHistory.length - (tinekeBrowseWasOpen ? 2 : 1);
+  } else tinekeBrowse--;
+  if (tinekeBrowse < 0) { tinekeBrowse = 0; return; }
+  tinekeSilence();
+  clearTimeout(tinekeTimer);
+  renderTinekePanel(tinekeHistory[tinekeBrowse].text, { isHelp: true, card: tinekeHistory[tinekeBrowse].card, old: true });
+}
+
+/** Klaar met teruglezen: terug naar de uitleg van nu, of het tekstvak weer weg. */
+function tinekeEndBrowse() {
+  tinekeBrowse = -1;
+  if (tinekeBrowseWasOpen && tinekeShown) renderTinekePanel(tinekeShown.text, tinekeShown);
+  else $("#tineke-panel").hidden = true;
+}
+
+function tinekeSay(text, { wait = false, isHelp = false, say = null, card = 0 } = {}) {
   if (screen !== "game") return Promise.resolve();
   if (tinekeWaiting && !wait) {
     // Eerst de lopende uitleg afmaken
-    if (isHelp) tinekePending = { text, wait, isHelp, say };
+    if (isHelp) tinekePending = { text, wait, isHelp, say, card };
     return Promise.resolve();
   }
   if (wait && tinekeShown?.isHelp && !tinekeShown.wait) tinekePending = tinekeShown;
   clearTimeout(tinekeTimer);
-  tinekeShown = { text, wait, isHelp, say };
+  tinekeShown = { text, wait, isHelp, say, card };
   tinekeSpeak(say ?? [text]);
-  const panel = $("#tineke-panel");
-  panel.className = `tineke-panel ${isHelp ? "" : "comment"}`;
-  $("#tineke-text").textContent = text;
-  $("#tineke-actions").hidden = !isHelp;
+  tinekeBrowse = -1;
+  if (isHelp && tinekeHistory.at(-1)?.text !== text) tinekeHistory = [...tinekeHistory, { text, card }].slice(-30);
   // Begrepen: bij wachten verder met het spel, anders alleen de tekst weg zodat je de tafel ziet
-  panel.hidden = false;
+  renderTinekePanel(text, { isHelp, card });
+  const panel = $("#tineke-panel");
   panel.style.animation = "none";
   void panel.offsetWidth;
   panel.style.animation = "";
@@ -1047,12 +1095,12 @@ function tinekeHelp(event, extra = {}) {
   if (!settings.tinekeHelp || !st || online?.game) return Promise.resolve();
   // Alleen nieuwe tips (instelling): wat je al eens kreeg, slaat Tineke over
   const seen = (k) => (ONCE_PER_GAME.has(k) && toldThisGame.has(k)) || (settings.tinekeNew !== false && settings.tinekeSeen?.includes(k));
-  const h = tineke.help(event, st, helpLevel, cardName, { ...extra, seen });
+  const h = tineke.help(event, st, helpLevel, cardName, { ...extra, seen, wrongZero: currentRules.wrongScoresZero !== false });
   if (!h) return Promise.resolve();
   for (const k of h.keys) toldThisGame.add(k);
   const fresh = h.keys.filter((k) => !settings.tinekeSeen?.includes(k));
   if (fresh.length) { settings.tinekeSeen = [...(settings.tinekeSeen ?? []), ...fresh]; saveSettings(); }
-  return tinekeSay(h.text, { wait: h.wait, isHelp: true, say: h.say });
+  return tinekeSay(h.text, { wait: h.wait, isHelp: true, say: h.say, card: h.card });
 }
 
 function tinekeComment(event, always = false) {
@@ -1125,11 +1173,14 @@ function onTurn() {
 
 $("#tineke").innerHTML = `<div class="avatar">${faceSvg("tineke")}</div>`;
 $("#tineke").addEventListener("click", () => {
+  // Uitleg per ongeluk weggetikt? Een tik op Tineke laat de laatste weer zien
+  if ($("#tineke-panel").hidden && tinekeHistory.length && settings.tinekeHelp) { tinekePrevious(); return; }
   const texts = tineke.clickTexts();
   tinekeClick = tinekeClick % texts.length;
   tinekeSay(texts[tinekeClick++]);
 });
-$("#tineke-ok").addEventListener("click", tinekeContinue);
+$("#tineke-ok").addEventListener("click", () => (tinekeBrowse >= 0 ? tinekeEndBrowse() : tinekeContinue()));
+$("#tineke-prev").addEventListener("click", tinekePrevious);
 $("#tineke-skip").addEventListener("click", () => {
   settings.tinekeHelp = false;
   saveSettings();
@@ -1451,7 +1502,7 @@ function renderBidOrder() {
 }
 // Ook als alleen de tafel van maat verandert (de hand of de voorspelknoppen verschijnen), anders klopt de ovaal niet
 new ResizeObserver(() => { if (screen === "game" && st) { $("#bid-order").dataset.key = ""; renderBidOrder(); } }).observe($("#table"));
-window.addEventListener("resize", () => { if (screen === "game" && st) { $("#bid-order").dataset.key = ""; renderBidOrder(); } });
+window.addEventListener("resize", () => { if (screen === "game" && st) { $("#bid-order").dataset.key = ""; renderBidOrder(); renderSidebar(); } });
 
 function renderGame() {
   if (!st) return;
@@ -1689,7 +1740,8 @@ wideQuery.addEventListener?.("change", () => { if (screen === "game") { buildSea
 
 function renderSidebar() {
   const el = $("#sidebar");
-  if (!isWide()) { if (el.innerHTML) el.innerHTML = ""; return; }
+  // Smal (tablet rechtop): leeg, en de sleutel ook weg, zodat de lijst terugkomt als het scherm weer breed wordt
+  if (!isWide()) { if (el.innerHTML) { el.innerHTML = ""; el.dataset.key = ""; } return; }
   const html = `<h3>${t("Scorelijst")}</h3><div class="scroll">${sheetTableHtml()}</div>
     <p class="legend">${t("Klein doorgestreept getal: de voorspelling klopte niet.")}</p>`;
   if (el.dataset.key === html) return;

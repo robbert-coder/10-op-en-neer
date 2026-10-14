@@ -1,6 +1,19 @@
 // Wat er per versie nieuw is. Wie na een nieuwe versie terugkomt, ziet dit in het hoofdmenu.
 // items in het Nederlands, en dezelfde punten in het Engels (en), voor wie het spel in het Engels speelt.
 export const CHANGES = [
+  { v: "2.44", items: [
+    "Bij de uitleg over troef laat Tineke de troefkaart zelf zien, want haar tekstvak kan hem op tafel bedekken.",
+    "Tablet: na rechtop en weer liggend zetten blijft de scorelijst staan.",
+    "Haalt een computerspeler een slag terwijl hij zijn bod al heeft, dan kijkt hij bezorgd en zegt soms \"O jee\". Een slag te veel maakt hem ook niet blij.",
+    "Tineke heeft een knop Vorige om eerdere uitleg terug te lezen. Per ongeluk weggetikt? Tik op Tineke en de laatste uitleg komt terug.",
+    "Tineke zegt nu goed wat er gebeurt als je nat gaat: bij 10 op en neer krijg je die ronde geen punten (ook als je met minder kaarten speelt).",
+  ], en: [
+    "When explaining trumps, Tineke now shows the trump card itself, because her text box can cover it on the table.",
+    "Tablet: the score sheet stays after turning the tablet upright and back.",
+    "If a computer player wins a trick after already making their bid, they look worried and sometimes say \"Oh dear\". A trick too many doesn't make them happy either.",
+    "Tineke has a Previous button to reread earlier explanations. Dismissed one by accident? Tap Tineke and the last one comes back.",
+    "Tineke now explains correctly what happens when you miss your bid: in 10 op en neer you get no points that round (also when playing with fewer cards).",
+  ] },
   { v: "2.43", items: [
     "Android-app: bij de eerste start vraagt de app meteen of hij meldingen mag geven, zodat je hoort wanneer je aan de beurt bent.",
   ], en: [

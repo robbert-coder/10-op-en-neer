@@ -27,6 +27,17 @@ export function drawCast() {
 }
 
 export const REACTIONS = {
+  // Een computerspeler haalt een slag terwijl hij zijn bod al heeft: nu mag hij niets meer halen
+  oei: {
+    henk: ["O jee.", "Hm, dat was er een te veel bijna.", "Nu moet ik oppassen."],
+    truus: ["O nee, o nee!", "Help, die wilde ik niet!", "O jee, schatjes!"],
+    kees: ["Oeps.", "Die had ik niet nodig.", "Nu geen slag meer, hè."],
+    ria: ["O jee, lieverd.", "Och, nu moet ik oppassen.", "Die hoefde ik niet."],
+    bram: ["Oei, bro.", "Niet de bedoeling.", "Nu niks meer pakken."],
+    gerda: ["Dat was niet de bedoeling.", "Nu geen fouten meer.", "Hm. Opletten."],
+    sjef: ["O jee, jong.", "Die had ik laten liggen.", "Nu rustig aan."],
+    mo: ["O jee, o jee.", "Wie heeft die bij mij gelegd?", "Ik wil 'm terugbrengen."],
+  },
   // Een computerspeler haalt een slag
   slag: {
     henk: ["Die is voor mij.", "Netjes.", "Zo gaat dat.", "Kijk aan.", "Rustig binnengehaald.", "Dat had ik al gezien."],
@@ -97,6 +108,16 @@ export const REACTIONS = {
 
 /** Dezelfde reacties in het Engels (zelfde soorten, karakters en aantallen), als het spel in het Engels draait. */
 export const REACTIONS_EN = {
+  oei: {
+    henk: ["Oh dear.", "Hm, that's my lot now.", "Careful now."],
+    truus: ["Oh no, oh no!", "Help, I didn't want that one!", "Oh dear, darlings!"],
+    kees: ["Oops.", "Didn't need that one.", "No more tricks for me."],
+    ria: ["Oh dear, love.", "Oh, now I must be careful.", "I didn't need that one."],
+    bram: ["Yikes, bro.", "Not the plan.", "Gotta take nothing now."],
+    gerda: ["That was not the plan.", "No more mistakes now.", "Hm. Concentrate."],
+    sjef: ["Oh dear, mate.", "Should've let that one go.", "Easy does it now."],
+    mo: ["Oh dear, oh dear.", "Who put that one on me?", "Can I return it?"],
+  },
   slag: {
     henk: ["That one's mine.", "Neat.", "That's how it's done.", "Well, well.", "Calmly taken.", "Saw that coming."],
     truus: ["Gotcha!", "Woohoo!", "Look at that!", "Ooh, lovely!", "That's mine, darlings!", "Hooray!"],

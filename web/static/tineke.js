@@ -144,10 +144,10 @@ export function help(event, st, level, describe, extra = {}) {
 }
 
 /** Wat je met je voorspelling moet: precies halen, anders ben je nat (verschilt per spelsoort). */
-const exactText = (st) => (st.isTienOpEnNeer ? SAY.exact : SAY.exactBB);
+const exactText = (extra) => (extra.wrongZero !== false ? SAY.exact : SAY.exactBB);
 
 /** Nat gegaan door deze slag? Dan de reden, anders null. Telt de slag die nog op tafel ligt mee. */
-function wetReason(st, winner) {
+function wetReason(st, winner, wrongZero) {
   const me = st.players[0];
   if (me.bid < 0) return null;
   const before = me.tricks;
@@ -158,7 +158,8 @@ function wetReason(st, winner) {
   const n = me.cardCount;
   const left = t(n === 0 ? "er zijn geen kaarten meer over" : n === 1 ? "er is nog maar één kaart over" : "er zijn nog maar {n} kaarten over", { n });
   const vars = { bid: me.bid, tricks: after, left };
-  const tienOpEnNeer = st.isTienOpEnNeer;
+  // Fout voorspeld: bij 10 op en neer geen punten, bij Boerenbridge minder punten
+  const tienOpEnNeer = wrongZero !== false;
   if (after > me.bid) {
     return {
       key: "nat te veel",
@@ -188,8 +189,9 @@ function helpFor(event, st, level, describe, extra) {
       }
       return {
         key: "troef",
-        text: t("Bovenin zie je de troefkaart: {suit} is deze ronde troef. Een troefkaart is sterker dan alle kaarten van de andere kleuren, ook dan een aas. Heb je de kleur die is uitgekomen niet, dan mag je troeven: een troefkaart opleggen. Zo win je een slag, ook met een lage troef (tenzij een ander hoger troeft). Troefkaarten in je hand helpen dus om slagen te halen; tel ze mee als je voorspelt.", { suit: suitWord(trumpSuit) }),
+        text: t("Dit is de troefkaart: {suit} is deze ronde troef. Een troefkaart is sterker dan alle kaarten van de andere kleuren, ook dan een aas. Heb je de kleur die is uitgekomen niet, dan mag je troeven: een troefkaart opleggen. Zo win je een slag, ook met een lage troef (tenzij een ander hoger troeft). Troefkaarten in je hand helpen dus om slagen te halen; tel ze mee als je voorspelt.", { suit: suitWord(trumpSuit) }),
         say: [SAY.trump(SUIT_NAME[trumpSuit])],
+        card: st.trump,
         wait: true,
       };
     }
@@ -203,8 +205,8 @@ function helpFor(event, st, level, describe, extra) {
       return level <= 1
         ? { text: t(st.cards === 1
           ? "Je hebt één kaart gekregen. Je moet nu het aantal slagen voorspellen: hoeveel keer denk je deze ronde de hoogste kaart op tafel te hebben? Tik op een cijfer."
-          : "Je hebt {n} kaarten gekregen. Je moet nu het aantal slagen voorspellen: hoeveel keer denk je deze ronde de hoogste kaart op tafel te hebben? Tik op een cijfer.", { n: st.cards }) + ` ${t(exactText(st))}`,
-        key: "voorspellen", wait: false, say: [SAY.bidFirst, exactText(st)] }
+          : "Je hebt {n} kaarten gekregen. Je moet nu het aantal slagen voorspellen: hoeveel keer denk je deze ronde de hoogste kaart op tafel te hebben? Tik op een cijfer.", { n: st.cards }) + ` ${t(exactText(extra))}`,
+        key: "voorspellen", wait: false, say: [SAY.bidFirst, exactText(extra)] }
         : { text: t("Je moet nu het aantal slagen voorspellen. Tik op een cijfer.") + (extra.advice != null ? ` ${t("Mijn advies: kies {n}.", { n: extra.advice })}` : ""), wait: false,
           key: extra.advice != null ? null : "voorspellen kort",
           say: [SAY.bid, ...(extra.advice != null ? [adviceText(extra.advice)] : [])] };
@@ -252,7 +254,7 @@ function helpFor(event, st, level, describe, extra) {
       const leader = st.leader;
       const winner = st.trickWinner;
       // Ging je door deze slag nat, dan legt Tineke uit waarom (ook als ze de slag zelf niet meer uitlegt)
-      const wet = wetReason(st, winner);
+      const wet = wetReason(st, winner, extra.wrongZero);
       const showWet = wet && !extra.seen?.(wet.key);
       if (level > 10 && !showWet) return null;
       const lead = st.table[leader - 1];
@@ -345,7 +347,7 @@ const SAY = {
   trump: (suit) => `${suit[0].toUpperCase()}${suit.slice(1)} is deze ronde troef. Een troefkaart is sterker dan alle kaarten van de andere kleuren, ook dan een aas. Heb je de kleur die is uitgekomen niet, dan mag je troeven. Dan win je de slag, ook met een lage troef, tenzij een ander hoger troeft. Tel je troefkaarten dus mee als je voorspelt.`,
   noTrump: "Deze ronde is er geen troef. De hoogste kaart in de kleur die is uitgekomen wint altijd de slag.",
   exact: "Probeer precies zoveel slagen te halen als je voorspelt. Haal je er meer of minder, dan ben je nat en krijg je deze ronde geen punten.",
-  exactBB: "Probeer precies zoveel slagen te halen als je voorspelt. Haal je er meer of minder, dan ben je nat en gaan er punten af.",
+  exactBB: "Probeer precies zoveel slagen te halen als je voorspelt. Haal je er meer of minder, dan ben je nat en krijg je minder punten: 3 minder per slag verschil.",
   wetMany: "Je bent nat: je hebt meer slagen dan je voorspelde. Ook te veel slagen is fout, dus deze ronde krijg je geen punten.",
   wetFew: "Je bent nat: er zijn te weinig kaarten over om je voorspelling nog te halen. Deze ronde krijg je geen punten.",
   wetManyBB: "Je bent nat: je hebt meer slagen dan je voorspelde. Elke slag verschil kost punten, dus probeer er niet nog meer te halen.",
