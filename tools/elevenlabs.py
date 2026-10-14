@@ -320,15 +320,21 @@ def extra(out, only):
     print("klaar:", len(ms), "geluiden")
 
 
-# Kandidaten voor een uitbundigere begroeting: elke stem zegt elke zin, zo expressief mogelijk (v3, stabiliteit 0)
-BEGROETING_STEMMEN = {"henk": "nxXBLGMUMfo1A7EdM35R", "mo": "MEdY7ytKGFW1Hy0uQq2T", "truus": "6BJ0RYaLcd17tZ1QUvZW",
-                      "bram": "dLPO5AsXc3FZDbTh1IKa", "tineke": "7qdUFMklKPaaAVMsBTBt"}
+# Kandidaten voor de begroeting op het startscherm: een enthousiaste vrouw die je uitdaagt om te kaarten.
+# Eerst bij het openen, daarna als je na een spel terugkomt. Elke stem zegt elke zin (v3, stabiliteit 0).
+BEGROETING_STEMMEN = {"roos": "7qdUFMklKPaaAVMsBTBt", "melanie": "SXBL9NbvTrjsJQYay2kT",
+                      "emma": "OlBRrVAItyi00MuGMbna", "truus": "6BJ0RYaLcd17tZ1QUvZW"}
 BEGROETING = [
-    "[excited] [shouting] Tien op en neeeeer!",
-    "[excited] Jaaa! Daar zijn we weer! [shouting] Tien op en neeer!",
-    "[excited] Dames en heren... [shouting] tien op en neeeeer!",
-    "[excited] Welkom aan tafel! Schud die kaarten maar, [shouting] het feest gaat beginnen!",
-    "[excited] Hup hup hup, kaarten op tafel! [shouting] Tien op en neer!",
+    # bij het openen
+    "[excited] Hé, daar ben je! Zin in een potje? Kom op, laat maar eens zien wat je kunt!",
+    "[excited] Tien op en neeeer! Durf jij het tegen ons op te nemen?",
+    "[excited] Welkom aan tafel! Ik daag je uit: wie haalt vandaag de meeste slagen?",
+    "[excited] Hup, pak die kaarten! Vandaag ga jij winnen, dat voel ik gewoon!",
+    # als je terugkomt na een spel
+    "[excited] Zo, daar ben je weer! Durf je nog een potje aan?",
+    "[excited] Kom op, nog één potje! Deze keer voorspel jij ze allemaal goed!",
+    "[excited] Dat smaakt naar meer, toch? [laughs] Schud die kaarten maar!",
+    "[excited] Revanche? Ik weet zeker dat je het beter kunt. Bewijs het maar!",
 ]
 
 
