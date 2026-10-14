@@ -186,6 +186,15 @@ class MainActivity : ComponentActivity() {
         }
         setContentView(root)
 
+        // Meteen bij de eerste start om toestemming voor meldingen vragen (wens van Robbert); daarna niet meer uit zichzelf
+        if (Build.VERSION.SDK_INT >= 33 && savedInstanceState == null &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED &&
+            !getPreferences(MODE_PRIVATE).getBoolean(ASKED_NOTIFY, false)
+        ) {
+            getPreferences(MODE_PRIVATE).edit().putBoolean(ASKED_NOTIFY, true).apply()
+            askNotify.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 web.evaluateJavascript("window.tienBack ? window.tienBack() : false") { handled ->

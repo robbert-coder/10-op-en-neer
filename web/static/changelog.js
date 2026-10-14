@@ -1,6 +1,11 @@
 // Wat er per versie nieuw is. Wie na een nieuwe versie terugkomt, ziet dit in het hoofdmenu.
 // items in het Nederlands, en dezelfde punten in het Engels (en), voor wie het spel in het Engels speelt.
 export const CHANGES = [
+  { v: "2.43", items: [
+    "Android-app: bij de eerste start vraagt de app meteen of hij meldingen mag geven, zodat je hoort wanneer je aan de beurt bent.",
+  ], en: [
+    "Android app: on first start the app asks right away whether it may send notifications, so you know when it's your turn.",
+  ] },
   { v: "2.42", items: [
     "Het spel is er nu ook in het Engels. Het volgt de taal van je toestel; wisselen doe je met de vlaggetjes op het startscherm of bij Instellingen.",
     "Tineke legt uit wat troef is, dat je precies je voorspelling moet halen, en waarom je nat bent als dat gebeurt.",
