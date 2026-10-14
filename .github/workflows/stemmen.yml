@@ -1,0 +1,37 @@
+name: Stemmen
+
+# Met de hand te starten: stemmen van ElevenLabs zoeken of maken (tools/elevenlabs.py). De uitkomst komt als
+# zip bij de pre-release "stemmen" (geen gewone release, dus de APK-link en de updatecheck merken er niets van).
+on:
+  workflow_dispatch:
+    inputs:
+      stap:
+        description: "zoek (voorbeelden uit de bibliotheek)"
+        required: true
+        default: "zoek"
+
+permissions:
+  contents: write
+
+jobs:
+  stemmen:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: ElevenLabs
+        env:
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          STAP: ${{ inputs.stap }}
+        run: |
+          [ -n "$ELEVENLABS_API_KEY" ] || { echo "::error::Secret ELEVENLABS_API_KEY ontbreekt"; exit 1; }
+          python3 tools/elevenlabs.py "$STAP" uit
+          (cd uit && zip -qr "../stemmen-$STAP.zip" .)
+
+      - name: Bij de pre-release zetten
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STAP: ${{ inputs.stap }}
+        run: |
+          gh release view stemmen >/dev/null 2>&1 || gh release create stemmen --prerelease --title "Stemmen (werkbestanden)" --notes "Werkbestanden voor nieuwe stemmen; niet om te installeren."
+          gh release upload stemmen "stemmen-$STAP.zip" --clobber
