@@ -632,4 +632,8 @@ export default {
   "Probeer precies zoveel slagen te halen als je voorspelt. Haal je er meer of minder, dan ben je nat en krijg je minder punten: 3 minder per slag verschil.": "Try to win exactly as many tricks as you bid. Win more or fewer and you've missed your bid: you score fewer points, 3 less for every trick off.",
   "Vorige": "Previous",
   "Verder": "Continue",
+  "Geluid uit": "Sound off",
+  "Geluid aan": "Sound on",
+  "Je bent nat: je voorspelde 0, maar je hebt nu al een slag. Meer slagen dan je voorspelt is ook fout, dus deze ronde krijg je geen punten.": "You've missed your bid: you bid 0, but you already have a trick. Winning more tricks than you bid counts as a miss too, so you get no points this round.",
+  "Je bent nat: je voorspelde 0, maar je hebt nu al een slag. Meer slagen dan je voorspelt is ook fout. Elke slag verschil kost 3 punten, dus probeer er niet nog meer te halen.": "You've missed your bid: you bid 0, but you already have a trick. Winning more tricks than you bid counts as a miss too. Every trick off costs 3 points, so try not to win any more.",
 };

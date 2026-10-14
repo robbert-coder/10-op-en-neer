@@ -1,6 +1,13 @@
 // Wat er per versie nieuw is. Wie na een nieuwe versie terugkomt, ziet dit in het hoofdmenu.
 // items in het Nederlands, en dezelfde punten in het Engels (en), voor wie het spel in het Engels speelt.
 export const CHANGES = [
+  { v: "2.45", items: [
+    "Mute-knop: met het luidsprekertje op het startscherm en in het spel zet je al het geluid in één tik uit of aan (op een smalle telefoon staat hij in het spelmenu).",
+    "Er is nog maar één praatwolkje tegelijk, want je hoort ook maar één stem.",
+  ], en: [
+    "Mute button: the speaker on the home screen and in the game turns all sound off or on with one tap (on a narrow phone it is in the game menu).",
+    "Only one speech bubble at a time, because you only hear one voice.",
+  ] },
   { v: "2.44", items: [
     "Bij de uitleg over troef laat Tineke de troefkaart zelf zien, want haar tekstvak kan hem op tafel bedekken.",
     "Tablet: na rechtop en weer liggend zetten blijft de scorelijst staan.",

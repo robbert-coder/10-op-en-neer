@@ -163,9 +163,14 @@ function wetReason(st, winner, wrongZero) {
   if (after > me.bid) {
     return {
       key: "nat te veel",
-      text: t(tienOpEnNeer
-        ? "Je bent nat: je voorspelde {bid}, maar je hebt nu al {tricks} slagen. Meer slagen dan je voorspelt is ook fout, dus deze ronde krijg je geen punten."
-        : "Je bent nat: je voorspelde {bid}, maar je hebt nu al {tricks} slagen. Meer slagen dan je voorspelt is ook fout. Elke slag verschil kost 3 punten, dus probeer er niet nog meer te halen.", vars),
+      // Met één slag al nat kan alleen bij een bod van 0
+      text: after === 1
+        ? t(tienOpEnNeer
+          ? "Je bent nat: je voorspelde 0, maar je hebt nu al een slag. Meer slagen dan je voorspelt is ook fout, dus deze ronde krijg je geen punten."
+          : "Je bent nat: je voorspelde 0, maar je hebt nu al een slag. Meer slagen dan je voorspelt is ook fout. Elke slag verschil kost 3 punten, dus probeer er niet nog meer te halen.")
+        : t(tienOpEnNeer
+          ? "Je bent nat: je voorspelde {bid}, maar je hebt nu al {tricks} slagen. Meer slagen dan je voorspelt is ook fout, dus deze ronde krijg je geen punten."
+          : "Je bent nat: je voorspelde {bid}, maar je hebt nu al {tricks} slagen. Meer slagen dan je voorspelt is ook fout. Elke slag verschil kost 3 punten, dus probeer er niet nog meer te halen.", vars),
       say: tienOpEnNeer ? SAY.wetMany : SAY.wetManyBB,
     };
   }

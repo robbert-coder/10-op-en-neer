@@ -1040,6 +1040,13 @@ button.primary { background: linear-gradient(180deg, #F7C761, var(--gold)); box-
 
 /* ---------- Taal (vlaggetjes) ---------- */
 #menu { position: relative; }
+.mute-btn.corner-left { position: absolute; top: calc(10px + var(--sat)); left: calc(12px + var(--sal, 0px)); }
+.mute-btn .cross { display: none; }
+/* Smalle telefoon: geen plek in de bovenbalk van het spel; daar staat Geluid uit/aan in het menu */
+@media (max-width: 479px) { .game-top .mute-btn, #game .icon-btn.mute-btn { display: none; } }
+.mute-btn.muted .cross { display: inline; }
+.mute-btn.muted .waves { display: none; }
+.mute-btn.muted { opacity: .7; }
 .lang-pick.corner { position: absolute; top: calc(10px + var(--sat)); right: calc(12px + var(--sar)); display: flex; gap: 6px; margin: 0; }
 .lang-btn { padding: 5px; border-radius: 8px; line-height: 0; background: rgba(255, 255, 255, .06); opacity: .55; }
 .lang-btn.selected { opacity: 1; border-color: var(--gold); }

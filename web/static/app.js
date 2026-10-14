@@ -589,13 +589,15 @@ function announceBids(afterLanding = (fn) => fn()) {
     }
     if (!wetShown[nr] && isWet(p) && st.phase !== "BIDDING") {
       wetShown[nr] = true;
+      // Gaan er meer spelers tegelijk nat, dan krijgt alleen de eerste een wolkje (en stem); de anderen kijken sip
+      if (wetSpoken) continue;
+      wetSpoken = true;
       if (!faceFor(nr)) {
         afterLanding(() => showBubble(nr, esc(t("Nat…")), 2200, true));
       } else {
         const v = voiceFor(nr);
         const k = pickLine(`nat${nr}`, WET_LINES[v].length, false);
-        const say = settings.sound && settings.speakBids && !wetSpoken;
-        if (say) wetSpoken = true;
+        const say = settings.sound && settings.speakBids;
         afterLanding(() => {
           if (say) playSound(`nat_${v}_${k}`);
           showBubble(nr, esc(isEnglish ? WET_EN[k % WET_EN.length] : WET_LINES[v][k]), 2600, true);
@@ -629,6 +631,8 @@ function react(nr, kind, delay, mood = "") {
   const round = st.round;
   setTimeout(() => {
     if (!canReact() || st.round !== round) return;
+    // Praat er al iemand (wolkje in beeld), dan alleen een gebaar: niet door elkaar heen
+    if ($("#flyers .bubble")) { gesture(nr, mood === "sad" ? "sigh" : "react"); return; }
     const k = pickLine(`r-${kind}-${nr}`, lines.length, false);
     showBubble(nr, `<span>${esc(lines[k])}</span>`, 1900, mood);
     gesture(nr, mood === "sad" ? "sigh" : kind === "slag" ? "cheer" : "react");
@@ -1318,6 +1322,8 @@ function showBubble(nr, html, ms, sad = false) {
   const avatar = $(`#seat-${nr} .avatar`);
   if (!avatar) return;
   const layer = $("#flyers");
+  // Eén praatwolkje tegelijk: er klinkt ook maar één stem, dus een vorig wolkje gaat weg
+  layer.querySelectorAll(".bubble").forEach((old) => old.remove());
   const r = avatar.getBoundingClientRect();
   const b = document.createElement("div");
   b.className = `bubble ${sad === true ? "sad" : sad || ""}`;
@@ -3157,7 +3163,29 @@ $("#set-name").addEventListener("input", (e) => {
 });
 $("#set-speed").addEventListener("input", (e) => { settings.speed = Number(e.target.value); saveSettings(); });
 $("#set-desc").addEventListener("change", (e) => { settings.sortDescending = e.target.checked; saveSettings(); });
-$("#set-sound").addEventListener("change", (e) => { settings.sound = e.target.checked; saveSettings(); renderSettings(); });
+$("#set-sound").addEventListener("change", (e) => { settings.sound = e.target.checked; saveSettings(); renderSettings(); renderMuteButtons(); });
+
+/** De mute-knoppen (startscherm en spel) laten zien of het geluid aan of uit staat. */
+function renderMuteButtons() {
+  const label = settings.sound ? t("Geluid uit") : t("Geluid aan");
+  $$(".mute-btn").forEach((b) => {
+    b.classList.toggle("muted", !settings.sound);
+    b.setAttribute("aria-label", label);
+    b.title = label;
+  });
+  $("#btn-sound-ingame").textContent = label;
+}
+
+/** Mute-knop: al het geluid in één tik uit (of weer aan), zonder naar Instellingen te hoeven. */
+function toggleSound() {
+  settings.sound = !settings.sound;
+  saveSettings();
+  if (!settings.sound) { stopSound(); tinekeSilence(); }
+  renderMuteButtons();
+}
+$$(".mute-btn").forEach((b) => b.addEventListener("click", toggleSound));
+$("#btn-sound-ingame").addEventListener("click", () => { menuOpen = false; $("#gamemenu").hidden = true; toggleSound(); });
+renderMuteButtons();
 // Je stem kies je bij Instellingen, bij een nieuw spel en aan een tafel; overal dezelfde keuze
 const renderVoicePick = () => $$(".voice-pick button").forEach((b) => b.classList.toggle("selected", b.dataset.voice === myVoice()));
 document.addEventListener("click", (e) => {

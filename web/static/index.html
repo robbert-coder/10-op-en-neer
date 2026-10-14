@@ -25,6 +25,8 @@
         <div class="card-slot" data-card="314"></div>
       </div>
       <!-- Taal: Nederlands of Engels (i18n.js); de namen van de talen blijven in hun eigen taal -->
+      <!-- Geluid aan of uit, ook tijdens het spel (zie renderMuteButtons) -->
+      <button type="button" class="icon-btn mute-btn corner-left" aria-label="Geluid uit"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><path class="waves" d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path class="cross" d="M16 9l6 6M22 9l-6 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button>
       <div class="lang-pick corner" translate="no">
         <button type="button" class="lang-btn" data-lang="nl" aria-label="Nederlands" title="Nederlands"><svg class="flag" viewBox="0 0 9 6" aria-hidden="true"><rect width="9" height="6" fill="#21468B"/><rect width="9" height="4" fill="#FFFFFF"/><rect width="9" height="2" fill="#AE1C28"/></svg></button>
         <button type="button" class="lang-btn" data-lang="en" aria-label="English" title="English"><svg class="flag" viewBox="0 0 60 30" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><rect width="60" height="30" fill="#012169"/><path d="M0,0 60,30M60,0 0,30" stroke="#FFFFFF" stroke-width="6"/><path d="M0,0 60,30M60,0 0,30" stroke="#C8102E" stroke-width="2"/><path d="M30,0v30M0,15h60" stroke="#FFFFFF" stroke-width="10"/><path d="M30,0v30M0,15h60" stroke="#C8102E" stroke-width="6"/></svg></button>
@@ -249,11 +251,13 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/></svg>
           <span class="badge" id="chat-badge" hidden></span>
         </button>
+        <button type="button" class="icon-btn mute-btn" aria-label="Geluid uit"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><path class="waves" d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path class="cross" d="M16 9l6 6M22 9l-6 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button>
         <button class="icon-btn" id="btn-scores" aria-label="Scorelijst">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V10M12 20V4M19 20v-7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
         </button>
         <div class="dropdown" id="gamemenu" hidden>
           <button id="btn-lasttrick">Laatste slag tonen</button>
+          <button id="btn-sound-ingame">Geluid uit</button>
           <button id="btn-tineke-ingame">Uitleg van Tineke aanzetten</button>
           <button id="btn-rules-ingame">Spelregels</button>
           <button id="btn-tomenu">Naar het hoofdmenu</button>
