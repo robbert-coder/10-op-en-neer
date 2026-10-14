@@ -12,7 +12,7 @@
 #   python3 tools/elevenlabs.py extra[:tineke] <map>  Begroeting, snelle zinnen en Tineke (web/static/speech.js)
 #   python3 tools/elevenlabs.py proef:<eigenaar>/<stem>/<Naam> <map>  Bibliotheekstem aan het account toevoegen en
 #                                                    een paar spelzinnen laten inspreken (kost een paar honderd credits)
-import base64, json, os, re, sys, urllib.error, urllib.parse, urllib.request
+import base64, http.client, json, os, re, sys, urllib.error, urllib.parse, urllib.request
 
 API = "https://api.elevenlabs.io/v1"
 KEY = os.environ.get("ELEVENLABS_API_KEY", "")
@@ -241,7 +241,7 @@ KEUZE = {
     "speler_vrouw": {"stem": "OlBRrVAItyi00MuGMbna"},  # Emma
     "speler_neutraal": {"stem": "yO6w2xlECAQRFP6pX7Hw"},  # Ruth
 }
-# Voor de extra's (web/static/speech.js): Tineke (Roos)
+# Voor de extra's (web/static/speech.js): Tineke (met de stem van Truus)
 # Tineke spreekt met de stem van Truus (wens van Robbert), vriendelijk uitleggend
 EXTRA = {"tineke": ("6BJ0RYaLcd17tZ1QUvZW", "eleven_v3", "[warmly] ")}
 # Alles met eleven_v3: dat kent emotie-aanwijzingen. Met de multilingual v2-stemmen klonk het vlak.
@@ -280,6 +280,12 @@ def speak(voice_id, model, text, path, settings=None):
                 return
         except urllib.error.HTTPError as e:
             if e.code not in (429, 500, 502, 503) or attempt == 5:
+                raise
+            time.sleep(2 ** attempt)
+        except (OSError, http.client.HTTPException) as e:
+            # Time-out of afgebroken verbinding: gewoon nog eens
+            print("opnieuw na", type(e).__name__, e, flush=True)
+            if attempt == 5:
                 raise
             time.sleep(2 ** attempt)
 
@@ -419,4 +425,9 @@ if __name__ == "__main__":
     except urllib.error.HTTPError as e:
         # Als annotatie, zodat de reden ook zonder het volledige log te zien is
         print(f"::error::ElevenLabs {e.code} {e.url.split('?')[0]}: {e.read().decode(errors='replace')[:600]}")
+        sys.exit(1)
+    except Exception as e:
+        import traceback
+        last = traceback.extract_tb(e.__traceback__)[-1]
+        print(f"::error::{type(e).__name__}: {str(e)[:500]} (regel {last.lineno}, {last.name})")
         sys.exit(1)
