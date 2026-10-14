@@ -28,6 +28,8 @@ export const settings = Object.assign(
   store.get("instellingen", {}),
 );
 export const saveSettings = () => store.set("instellingen", settings);
+// Sterke computerspelers stonden vroeger standaard aan; wie ze nooit zelf koos, begint nu met gewone
+if (!settings.smartChosen) settings.smart = false;
 
 /** Je eigen plaatje (gezicht, emoji of foto), gecontroleerd zoals dat van een ander. */
 export const myAvatar = () => cleanAvatar(settings.avatar);

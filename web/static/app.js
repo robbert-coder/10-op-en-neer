@@ -1504,6 +1504,9 @@ function renderGame() {
   const lt = $("#btn-lasttrick");
   lt.disabled = st.lastTrickWinner === 0;
   lt.textContent = showLastTrick ? "Huidige slag tonen" : "Laatste slag tonen";
+  const tk = $("#btn-tineke-ingame");
+  tk.hidden = !!online?.game;
+  tk.textContent = settings.tinekeHelp ? "Uitleg van Tineke uitzetten" : "Uitleg van Tineke aanzetten";
 
   layout();
   renderSidebar();
@@ -2919,7 +2922,7 @@ $$(".variant").forEach((el) => el.addEventListener("click", () => {
   newMustTrump = newBase.mustTrump;
   renderNewGame();
 }));
-$("#opt-smart").addEventListener("change", (e) => { settings.smart = e.target.checked; saveSettings(); });
+$("#opt-smart").addEventListener("change", (e) => { settings.smart = e.target.checked; settings.smartChosen = true; saveSettings(); });
 $("#opt-rounding").addEventListener("change", (e) => { newRounding = e.target.checked; renderNewGame(); });
 $("#opt-players").addEventListener("click", (e) => {
   const b = e.target.closest("[data-players]");
@@ -3078,6 +3081,22 @@ $("#btn-lasttrick").addEventListener("click", () => {
   menuOpen = false;
   if (st.lastTrickWinner !== 0) showLastTrick = !showLastTrick;
   renderGame();
+});
+// Tineke tijdens het spel weer aan (of uit) zetten; aan begint ze opnieuw met uitgebreide uitleg
+$("#btn-tineke-ingame").addEventListener("click", () => {
+  menuOpen = false;
+  settings.tinekeHelp = !settings.tinekeHelp;
+  settings.tinekeAsked = true;
+  saveSettings();
+  if (settings.tinekeHelp) {
+    helpLevel = 0;
+    lastTurnKey = "";
+    renderGame();
+    onTurn();
+  } else {
+    tinekeContinue();
+    renderGame();
+  }
 });
 $("#btn-rules-ingame").addEventListener("click", () => {
   stopDriver();

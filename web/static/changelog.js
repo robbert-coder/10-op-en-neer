@@ -1,5 +1,11 @@
 // Wat er per versie nieuw is. Wie na een nieuwe versie terugkomt, ziet dit in het hoofdmenu.
 export const CHANGES = [
+  { v: "2.39", items: [
+    "Levendigere stemmen: alle computerspelers zijn opnieuw ingesproken, elk met een eigen toon. Ze klinken blij als het goed gaat en balen hoorbaar als het misgaat.",
+    "Tineke spreekt nu met de stem van Truus.",
+    "Tineke zet je tijdens het spel aan of uit via het spelmenu.",
+    "Sterke computerspelers staan standaard uit, ook als je eerder speelde.",
+  ] },
   { v: "2.38", items: [
     "Truus roept je toe als je het spel opent, en daagt je uit voor nog een potje als je na een spel terugkomt.",
     "De uitleg van Tineke zet je nu ook aan of uit bij Nieuw spel.",
