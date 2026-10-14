@@ -2,7 +2,10 @@
 # sleutel (secret ELEVENLABS_API_KEY) en is ElevenLabs bereikbaar.
 #   python3 tools/elevenlabs.py zoek <uitvoermap>   Nederlandse stemmen uit de bibliotheek per accent, met de
 #                                                    gratis voorbeeldjes (kost geen credits)
-import json, os, re, sys, urllib.parse, urllib.request
+#   python3 tools/elevenlabs.py ontwerp <uitvoermap> Stemmen laten ontwerpen voor accenten die de bibliotheek
+#                                                    niet heeft (Gronings, Rotterdams, Twents) en een heel lage
+#                                                    mannenstem; per omschrijving drie voorbeelden
+import base64, json, os, re, sys, urllib.parse, urllib.request
 
 API = "https://api.elevenlabs.io/v1"
 KEY = os.environ.get("ELEVENLABS_API_KEY", "")
@@ -26,6 +29,65 @@ GROUPS = [
     ("Amsterdams", ["amsterdam", "mokum"]),
 ]
 DEEP = ["deep", "low", "bass", "diep", "lage", "laag", "zware", "raspy", "gravel", "rauw"]
+
+
+def post(path, body):
+    req = urllib.request.Request(f"{API}{path}", data=json.dumps(body).encode(), method="POST",
+                                 headers={"xi-api-key": KEY, "Content-Type": "application/json", "Accept": "application/json"})
+    with urllib.request.urlopen(req, timeout=180) as r:
+        return json.load(r)
+
+
+# (naam, omschrijving voor ElevenLabs, voorbeeldtekst in het accent). De tekst helpt het accent te horen.
+DESIGNS = [
+    ("Gronings man", "An older man from Groningen in the north of the Netherlands. Native Dutch speaker with a strong, "
+     "broad Gronings regional accent. Warm, slow and dry-humoured, a bit gruff.",
+     "Moi! Nou, dat wordt een mooi potje kaarten, heur. Ik zeg maar zo: vijf slagen, en dan zien we wel wat der van komt. "
+     "Niks mis mit. Even rustig aan, wij hebben de tied."),
+    ("Groningse vrouw", "A middle-aged woman from Groningen in the north of the Netherlands. Native Dutch speaker with a clear "
+     "Gronings regional accent. Friendly, sober and down to earth.",
+     "Moi allemaal! Ik zeg drie slagen, heur. En as het nait gaat, den gaat het nait. Kom op, schud die kaarten maar, "
+     "wij hebben de hele middag."),
+    ("Rotterdamse man", "A man in his forties from Rotterdam, the Netherlands. Native Dutch speaker with a strong Rotterdam "
+     "accent, direct, loud and cheeky, working-class harbour vibe.",
+     "Nou jongen, effe dimmen. Ik ga voor vier slagen en dan hebben we het erover gehad. Geen woorden maar daden, toch? "
+     "Kom op, gooi die kaart d'r maar op."),
+    ("Rotterdamse vrouw", "A woman in her fifties from Rotterdam, the Netherlands. Native Dutch speaker with a broad Rotterdam "
+     "accent, outspoken, funny and warm.",
+     "Ach schat, wat een kaarten heb ik nou weer. Ik zeg twee, en daar blijf ik bij. Niet zeuren, gewoon spelen, "
+     "zo doen we dat hier in Rotterdam."),
+    ("Twentse man", "An older man from Twente in the east of the Netherlands. Native Dutch speaker with a strong Twents "
+     "regional accent, calm, modest and friendly, typical 'tukker'.",
+     "Jao, dat wordt wat. Ik zeg mer drie slagen. Nich lullen mer poetsen, zeg wiej hier in Twente. "
+     "Rustig an, dan komt het wal goed."),
+    ("Twentse vrouw", "A middle-aged woman from Twente in the east of the Netherlands. Native Dutch speaker with a clear Twents "
+     "regional accent, sober, kind and a little shy.",
+     "Och, ik weet het nich hoor. Doe mer twee slagen. Het is mer een spelletje, nich dan? "
+     "Wiej hebben in ieder geval gezellig."),
+    ("Heel lage mannenstem", "A man in his sixties from the Netherlands with a very deep, low, resonant bass voice. "
+     "Native Dutch speaker, standard accent, slow, calm and gravelly, like an old radio host.",
+     "Zo. Ik zeg vier. Rustig aan, we hebben de hele avond. Schuif die kaarten maar naar mij toe, "
+     "dan laat ik jullie eens zien hoe het moet."),
+]
+
+
+def ontwerp(out):
+    os.makedirs(f"{out}/mp3", exist_ok=True)
+    rows = []
+    for i, (name, desc, text) in enumerate(DESIGNS):
+        seed = 1000 + i  # zelfde seed en omschrijving geven later dezelfde stem terug
+        try:
+            data = post("/text-to-voice/design", {"voice_description": desc, "text": text, "model_id": "eleven_ttv_v3", "seed": seed})
+        except Exception as e:  # noqa: BLE001
+            print("ontwerpen mislukt", name, getattr(e, "read", lambda: b"")()[:300], e)
+            continue
+        for k, prev in enumerate(data.get("previews", [])[:3]):
+            fn = f"mp3/ontwerp-{i}-{k}.mp3"
+            open(f"{out}/{fn}", "wb").write(base64.b64decode(prev["audio_base_64"]))
+            rows.append({"groep": name, "name": f"{name} {k + 1}", "description": desc, "seed": seed, "nr": k,
+                         "generated_voice_id": prev.get("generated_voice_id"), "mp3": fn})
+    json.dump(rows, open(f"{out}/ontwerp.json", "w"), ensure_ascii=False, indent=1)
+    print(f"{len(rows)} ontworpen voorbeelden")
 
 
 def group_of(v):
@@ -86,4 +148,4 @@ def zoek(out):
 
 
 if __name__ == "__main__":
-    {"zoek": zoek}[sys.argv[1]](sys.argv[2])
+    {"zoek": zoek, "ontwerp": ontwerp}[sys.argv[1]](sys.argv[2])

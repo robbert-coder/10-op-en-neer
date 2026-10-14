@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       stap:
-        description: "zoek (voorbeelden uit de bibliotheek)"
+        description: "zoek (voorbeelden uit de bibliotheek) of ontwerp (accenten laten ontwerpen)"
         required: true
         default: "zoek"
 
