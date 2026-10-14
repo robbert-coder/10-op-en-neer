@@ -918,12 +918,16 @@ button.primary { background: linear-gradient(180deg, #F7C761, var(--gold)); box-
 .pub-table .info small { display: block; color: var(--muted); font-size: 12px; line-height: 1.35; }
 .pub-table .info .free { color: var(--gold); font-weight: 600; }
 .pub-table button { flex: none; padding: 8px 12px; }
-.pub-people-head { margin-top: 14px; font-size: 13px; color: var(--muted); }
+.pub-people-head { margin-top: 14px; padding: 6px 12px; font-size: 14px; border-radius: 999px; }
+.pub-people[hidden] { display: none; }
 .pub-people { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 8px; }
 .pub-person { display: flex; align-items: center; gap: 5px; padding: 3px 9px 3px 3px; border-radius: 99px; background: rgba(255,255,255,.06); font-size: 13px; }
 .pub-person .avatar { width: 22px; height: 22px; border-radius: 50%; overflow: hidden; }
 .pub-person.me { outline: 1px solid var(--gold); }
-.pub-chat { max-height: 180px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
+.pub-chat { max-height: 180px; overflow-y: scroll; display: flex; flex-direction: column; gap: 4px; font-size: 14px;
+  padding: 6px 8px; border-radius: 10px; background: rgba(0, 0, 0, .18); scrollbar-width: thin; scrollbar-color: var(--gold) transparent; }
+.pub-chat::-webkit-scrollbar { width: 8px; }
+.pub-chat::-webkit-scrollbar-thumb { background: var(--gold); border-radius: 4px; }
 .pub-chat:empty { display: none; }
 .pub-chat p { margin: 0; line-height: 1.35; overflow-wrap: anywhere; }
 .pub-chat p b { color: var(--gold); }

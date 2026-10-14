@@ -369,10 +369,10 @@ const previousTricks = [0, 0, 0, 0, 0];
 let previousTable = [0, 0, 0, 0, 0];
 let humanCardFrom = null; // plek van de kaart die de mens net speelde, voor de animatie
 let helpLevel = 0; // loopt op per slag, zodat Tineke steeds minder uitlegt
-let tinekeWaiting = null; // functie die het spel laat doorgaan na "Doorgaan"
+let tinekeWaiting = null; // functie die het spel laat doorgaan na "Begrepen"
 let tinekeTimer = null;
 let tinekeShown = null; // { text, wait, isHelp } wat Tineke nu zegt
-let tinekePending = null; // uitleg die na "Doorgaan" weer getoond moet worden
+let tinekePending = null; // uitleg die na "Begrepen" weer getoond moet worden
 let tinekeClick = 0;
 let tinekeOpinion = 0;
 let adviceBid = 0;
@@ -523,21 +523,25 @@ function refresh() {
   st = JSON.parse(game.state());
   if (online?.role === "host" && online.link && online.game) online.link.finished = st.phase === "GAME_OVER";
   const sounds = Array.from(game.takeSounds());
+  // Een kaart die net is opgelegd vliegt nog naar de tafel: geluiden en nat gaan pas als hij ligt
+  const flying = screen === "game" && !showLastTrick && !inBackground() && !reducedMotion &&
+    st.table.some((c, i) => c && c !== previousTable[i]);
+  const afterLanding = (fn) => (flying ? setTimeout(() => { if (screen === "game") fn(); }, animMs(360)) : fn());
   // Als de spelers praten, zegt een computerspeler zelf iets als hij nat gaat in plaats van het geluidje
   const voiceWet = settings.speakBids && sounds[sounds.length - 1] === "MEDESPELER_NAT";
-  if (settings.sound && sounds.length && !voiceWet) playSound(sounds[sounds.length - 1].toLowerCase());
-  if (sounds.includes("SLAG_TE_VEEL") && Math.random() < 1 / 3) tinekeComment("te veel");
-  else if (sounds.includes("SLAG_TE_WEINIG") && Math.random() < 1 / 3) tinekeComment("te weinig");
-  else if (sounds.includes("GOED_VOORSPELD") && Math.random() < 1 / 4) tinekeComment("goed");
+  if (settings.sound && sounds.length && !voiceWet) afterLanding(() => playSound(sounds[sounds.length - 1].toLowerCase()));
+  if (sounds.includes("SLAG_TE_VEEL") && Math.random() < 1 / 3) afterLanding(() => tinekeComment("te veel"));
+  else if (sounds.includes("SLAG_TE_WEINIG") && Math.random() < 1 / 3) afterLanding(() => tinekeComment("te weinig"));
+  else if (sounds.includes("GOED_VOORSPELD") && Math.random() < 1 / 4) afterLanding(() => tinekeComment("goed"));
   wetSpoken = false;
-  announceBids();
+  announceBids(afterLanding);
   if (screen === "game") renderGame();
   if (screen === "game") onTurn();
   if (st.phase === "GAME_OVER") handleGameOver();
 }
 
 /** Spreekt nieuwe voorspellingen uit, laat het gezicht praten en toont een tekstballon. */
-function announceBids() {
+function announceBids(afterLanding = (fn) => fn()) {
   if (announcedRound !== st.round) {
     // Nieuwe ronde: de kaarten worden geschud en gedeeld (niet bij het herstellen van een spel)
     if (announcedRound && screen === "game" && st.phase === "BIDDING") cardSound("shuffle");
@@ -571,15 +575,16 @@ function announceBids() {
     if (!wetShown[nr] && isWet(p) && st.phase !== "BIDDING") {
       wetShown[nr] = true;
       if (!faceFor(nr)) {
-        showBubble(nr, "Nat…", 2200, true);
+        afterLanding(() => showBubble(nr, "Nat…", 2200, true));
       } else {
         const v = voiceFor(nr);
         const k = pickLine(`nat${nr}`, WET_LINES[v].length, false);
-        if (settings.sound && settings.speakBids && !wetSpoken) {
-          wetSpoken = true;
-          playSound(`nat_${v}_${k}`);
-        }
-        showBubble(nr, esc(WET_LINES[v][k]), 2600, true);
+        const say = settings.sound && settings.speakBids && !wetSpoken;
+        if (say) wetSpoken = true;
+        afterLanding(() => {
+          if (say) playSound(`nat_${v}_${k}`);
+          showBubble(nr, esc(WET_LINES[v][k]), 2600, true);
+        });
       }
     }
   }
@@ -929,7 +934,7 @@ function leaveGame() {
 // Tineke
 // ------------------------------------------------------------------------------------------
 
-/** Laat Tineke iets zeggen. Bij wait=true pauzeert het spel tot je op Doorgaan tikt. */
+/** Laat Tineke iets zeggen. Bij wait=true pauzeert het spel tot je op Begrepen tikt. */
 /** Tineke zegt de zinnen hardop, na elkaar (opnames uit speech.js). Een nieuwe uitleg breekt de vorige af. */
 let tinekeVoiceToken = 0;
 let tinekeTalking = false;
@@ -973,7 +978,7 @@ function tinekeSay(text, { wait = false, isHelp = false, say = null } = {}) {
   panel.className = `tineke-panel ${isHelp ? "" : "comment"}`;
   $("#tineke-text").textContent = text;
   $("#tineke-actions").hidden = !isHelp;
-  $("#tineke-ok").hidden = !wait;
+  // Begrepen: bij wachten verder met het spel, anders alleen de tekst weg zodat je de tafel ziet
   panel.hidden = false;
   panel.style.animation = "none";
   void panel.offsetWidth;
@@ -986,7 +991,7 @@ function tinekeSay(text, { wait = false, isHelp = false, say = null } = {}) {
 }
 
 /**
- * Weg van het spel terwijl Tineke op "Doorgaan" wacht: het wachten opheffen. Anders blijft het spel
+ * Weg van het spel terwijl Tineke op "Begrepen" wacht: het wachten opheffen. Anders blijft het spel
  * (en elk volgend spel) stilstaan, omdat drive() wacht tot Tineke klaar is.
  */
 function tinekeRelease() {
@@ -2277,6 +2282,7 @@ $("#dock-form").addEventListener("submit", (e) => {
   if (sendChat(input.value)) input.value = "";
 });
 $(".dock-bar").addEventListener("click", () => setDock(settings.chatDock === false));
+$("#pub-people-head").addEventListener("click", () => { pubPeopleOpen = !pubPeopleOpen; renderPublicLobby(); });
 $("#btn-lobby-chat").addEventListener("click", () => openChat(!chatOpen));
 $("#chat-close").addEventListener("click", () => openChat(false));
 
@@ -2699,6 +2705,8 @@ function stopPublicLobby() {
   pubLobby = null;
 }
 
+let pubPeopleOpen = false; // de namen van de aanwezigen in de lobby tonen
+
 function renderPublicLobby(scrollChat = false) {
   if (!pubLobby) return;
   const tables = pubTables.map((t) => {
@@ -2716,7 +2724,12 @@ function renderPublicLobby(scrollChat = false) {
   $("#pub-status").textContent = pubStatus;
   $("#pub-status").hidden = !pubStatus;
   const n = pubPeople.length;
-  $("#pub-people-head").textContent = n ? `${n} ${n === 1 ? "persoon" : "personen"} in de lobby` : "";
+  // De namen pas na een tik op de knop, zodat een volle lobby het scherm niet vult
+  const head = $("#pub-people-head");
+  head.hidden = !n;
+  head.textContent = `👥 Aanwezigen (${n}) ${pubPeopleOpen ? "▴" : "▾"}`;
+  head.setAttribute("aria-expanded", String(pubPeopleOpen));
+  $("#pub-people").hidden = !pubPeopleOpen || !n;
   $("#pub-people").innerHTML = pubPeople.map((p) =>
     `<span class="pub-person${p.me ? " me" : ""}"><span class="avatar">${humanAvatarHtml(p.avatar, p.name)}</span>${esc(p.name)}${p.me ? " (jij)" : ""}</span>`).join("");
   const box = $("#pub-chat");

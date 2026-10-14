@@ -125,7 +125,7 @@ const cardName = (code, describe) => `${describe(code)}`;
 
 /**
  * Uitleg bij een stap in het spel (ZegHulp). Geeft { text, wait } of null als Tineke niets
- * hoeft te zeggen; bij wait=true wacht het spel tot je op Doorgaan tikt.
+ * hoeft te zeggen; bij wait=true wacht het spel tot je op Begrepen tikt.
  * [level] loopt op met elke gespeelde slag, zodat Tineke minder gaat uitleggen.
  */
 export function help(event, st, level, describe, extra = {}) {

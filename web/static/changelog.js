@@ -1,5 +1,10 @@
 // Wat er per versie nieuw is. Wie na een nieuwe versie terugkomt, ziet dit in het hoofdmenu.
 export const CHANGES = [
+  { v: "2.40", items: [
+    "Het geluid als iemand nat gaat klinkt pas als de kaart op tafel ligt.",
+    "Tineke heeft een knop Begrepen: die klikt alleen haar tekst weg, zodat je de tafel goed ziet. Overslaan stopt haar uitleg.",
+    "Lobby: de chat heeft een scrollbalk, en de namen van wie er is zie je met de knop Aanwezigen.",
+  ] },
   { v: "2.39", items: [
     "Levendigere stemmen: alle computerspelers zijn opnieuw ingesproken, elk met een eigen toon. Ze klinken blij als het goed gaat en balen hoorbaar als het misgaat.",
     "Tineke spreekt nu met de stem van Truus.",

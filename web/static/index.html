@@ -161,8 +161,8 @@
             <p class="note" id="pub-status">Verbinden met de lobby…</p>
             <div id="pub-tables"></div>
             <button class="primary wide" id="btn-host-public">Openbare tafel openen</button>
-            <div class="pub-people-head" id="pub-people-head"></div>
-            <div class="pub-people" id="pub-people"></div>
+            <button type="button" class="pub-people-head" id="pub-people-head" aria-expanded="false"></button>
+            <div class="pub-people" id="pub-people" hidden></div>
             <div class="pub-chat" id="pub-chat"></div>
             <form class="pub-chat-row" id="pub-chat-form">
               <input type="text" id="pub-chat-input" maxlength="200" placeholder="Zeg iets tegen de lobby" autocomplete="off">
@@ -264,7 +264,7 @@
           <p id="tineke-text"></p>
           <div class="tineke-actions" id="tineke-actions">
             <button class="text" id="tineke-skip">Overslaan</button>
-            <button class="primary" id="tineke-ok">Doorgaan</button>
+            <button class="primary" id="tineke-ok">Begrepen</button>
           </div>
         </div>
         <div class="idle-panel" id="idle-panel" hidden></div>
