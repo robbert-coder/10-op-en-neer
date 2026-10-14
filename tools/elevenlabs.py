@@ -242,9 +242,16 @@ KEUZE = {
     "speler_neutraal": {"stem": "yO6w2xlECAQRFP6pX7Hw"},  # Ruth
 }
 # Voor de extra's (web/static/speech.js): Tineke (Roos)
-EXTRA = {"tineke": ("7qdUFMklKPaaAVMsBTBt", "eleven_multilingual_v2", "")}
-# Ontworpen stemmen komen uit eleven_ttv_v3 en horen bij eleven_v3; bibliotheekstemmen bij multilingual v2
-MODEL = {"ontwerp": "eleven_v3", "stem": "eleven_multilingual_v2"}
+# Tineke spreekt met de stem van Truus (wens van Robbert), vriendelijk uitleggend
+EXTRA = {"tineke": ("6BJ0RYaLcd17tZ1QUvZW", "eleven_v3", "[warmly] ")}
+# Alles met eleven_v3: dat kent emotie-aanwijzingen. Met de multilingual v2-stemmen klonk het vlak.
+MODEL = {"ontwerp": "eleven_v3", "stem": "eleven_v3"}
+# Per personage een toon (v3-tags, worden niet uitgesproken) bij de voorspelling en bij nat gaan
+TOON = {"henk": ("[calm] [dry]", "[sighs] [disappointed]"), "truus": ("[excited]", "[dramatic] [shocked]"),
+        "kees": ("[confident] [cheeky]", "[annoyed]"), "ria": ("[warmly]", "[surprised] [sighs]"),
+        "bram": ("[casual] [excited]", "[frustrated]"), "gerda": ("[stern] [determined]", "[angry]"),
+        "sjef": ("[cheerful] [relaxed]", "[sighs] [laughs]"), "mo": ("[playful] [laughs]", "[laughs] [playful]")}
+EXPRESSIEF = {"stability": 0.0}  # v3: 0.0 = creatief (meeste emotie), 0.5 = natuurlijk
 
 
 def js_object(src, name):
@@ -307,7 +314,7 @@ def extra(out, only):
 
     def one(j):
         vid, model, prefix = voice(j["who"])
-        speak(vid, model, prefix + j["text"], f"{out}/ruw/{j['file']}.mp3")
+        speak(vid, model, prefix + j["text"], f"{out}/ruw/{j['file']}.mp3", {"stability": 0.5} if model == "eleven_v3" else None)
         return j["file"], polish(out, j["file"])
 
     print(len(jobs), "zinnen,", sum(len(j["text"]) for j in jobs), "tekens", flush=True)
@@ -368,14 +375,16 @@ def inspreken(out, only):
     for w in who:
         k = KEUZE[w]
         ids[w] = (saved_voice(k), MODEL["ontwerp"]) if "ontwerp" in k else (k["stem"], MODEL["stem"])
-        jobs += [(w, f"bod_{w}_{n}_{i}", t) for n, row in enumerate(bid[w]) for i, t in enumerate(row)]
-        jobs += [(w, f"nat_{w}_{i}", t) for i, t in enumerate(wet.get(w, []))]
+        toon = TOON.get(w, ("", ""))
+        tag = lambda t, x: f"{x} {t}" if x else t
+        jobs += [(w, f"bod_{w}_{n}_{i}", tag(t, toon[0])) for n, row in enumerate(bid[w]) for i, t in enumerate(row)]
+        jobs += [(w, f"nat_{w}_{i}", tag(t, toon[1])) for i, t in enumerate(wet.get(w, []))]
     print("stemmen:", ids, flush=True)
     print(len(jobs), "zinnen,", sum(len(t) for _, _, t in jobs), "tekens", flush=True)
 
     def one(job):
         w, name, text = job
-        speak(*ids[w], text, f"{out}/ruw/{name}.mp3")
+        speak(*ids[w], text, f"{out}/ruw/{name}.mp3", EXPRESSIEF if w in TOON else {"stability": 0.5})
         return name, polish(out, name)
 
     with ThreadPoolExecutor(4) as pool:
