@@ -298,8 +298,8 @@ def polish(out, name):
     subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", f"{out}/ruw/{name}.mp3", "-af", f, "-ac", "1", "-ar", "22050",
                     "-c:a", "libmp3lame", "-q:a", "6", f"{out}/mp3/{name}.mp3"], check=True)
     d = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", f"{out}/mp3/{name}.mp3"],
-                       capture_output=True, text=True).stdout
-    return round(float(d) * 1000)
+                       capture_output=True, text=True).stdout.strip()
+    return round(float(d) * 1000) if d else 0
 
 
 def extra(out, only):
@@ -390,8 +390,14 @@ def inspreken(out, only):
 
     def one(job):
         w, name, text = job
-        speak(*ids[w], text, f"{out}/ruw/{name}.mp3", EXPRESSIEF if w in TOON else {"stability": 0.5})
-        return name, polish(out, name)
+        # eleven_v3 geeft soms (bijna) niets of iets veel te lang terug: dan nog eens inspreken
+        for _ in range(4):
+            speak(*ids[w], text, f"{out}/ruw/{name}.mp3", EXPRESSIEF if w in TOON else {"stability": 0.5})
+            ms = polish(out, name)
+            if 250 <= ms <= 400 + 140 * len(text):
+                break
+            print("opnieuw", name, ms, "ms:", text, flush=True)
+        return name, ms
 
     with ThreadPoolExecutor(4) as pool:
         ms = dict(pool.map(one, jobs))
