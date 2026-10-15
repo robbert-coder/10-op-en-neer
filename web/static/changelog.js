@@ -1,6 +1,11 @@
 // Wat er per versie nieuw is. Wie na een nieuwe versie terugkomt, ziet dit in het hoofdmenu.
 // items in het Nederlands, en dezelfde punten in het Engels (en), voor wie het spel in het Engels speelt.
 export const CHANGES = [
+  { v: "2.47", items: [
+    "Aan het eind van een ronde praten de spelers eerst uit; daarna pas verschijnt de uitslag van de ronde.",
+  ], en: [
+    "At the end of a round the players finish speaking first; only then does the round result appear.",
+  ] },
   { v: "2.46", items: [
     "Tablet: bij voorspellen met 10 of meer kaarten staan de cijfers in één rij, zodat de tafel en de troefkaart niet meer klein worden.",
   ], en: [

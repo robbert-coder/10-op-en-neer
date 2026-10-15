@@ -6,6 +6,8 @@ import { settings } from "./storage.js";
 let audio = null;
 const buffers = new Map();
 let currentSource = null;
+let voiceEndsAt = 0; // performance.now() waarop de huidige stem klaar is
+let voicesLoading = 0; // stemmen die nog geladen worden en zo gaan klinken
 let onUnlock = () => {};
 
 /**
@@ -109,12 +111,27 @@ export function loadSound(name) {
 export function stopSound() {
   try { currentSource?.stop(); } catch { /* al gestopt */ }
   currentSource = null;
+  voiceEndsAt = 0;
+}
+
+/**
+ * Klinkt er nu een stem (of wordt er een geladen die zo gaat klinken)? Nodig om de uitslag van een ronde pas te
+ * tonen als iedereen uitgepraat is (zie pacing.js). Kaartgeluiden tellen niet mee.
+ */
+export function voicePlaying() {
+  return voicesLoading > 0 || performance.now() < voiceEndsAt;
 }
 
 /** Speelt een geluid; een nieuw geluid onderbreekt het vorige. Geeft de duur in ms. */
 export async function playSound(name) {
   if (!audio) return 0;
-  const buffer = await loadSound(name);
+  let buffer;
+  voicesLoading++;
+  try {
+    buffer = await loadSound(name);
+  } finally {
+    voicesLoading--;
+  }
   if (!buffer) return 0;
   if (currentSource) {
     try { currentSource.stop(); } catch { /* al gestopt */ }
@@ -124,5 +141,6 @@ export async function playSound(name) {
   src.connect(audio.destination);
   src.start();
   currentSource = src;
+  voiceEndsAt = performance.now() + buffer.duration * 1000;
   return buffer.duration * 1000;
 }

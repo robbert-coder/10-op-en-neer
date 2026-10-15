@@ -15,7 +15,8 @@ import { DEFAULT_NAMES, myAvatar, myVoice, saveSettings, settings, store } from 
 import { BOERENBRIDGE, TIEN_OP_EN_NEER, createGame, maxCardsFor, maxPlayersFor, variantKey, variantName } from "./rules.js";
 import { KINDS, addGame, addHighScore, loadHighScores, matchesVs, playersDetail, loadStats, mergeGames, starRating, starsHtml, statsForKind, statsSummary } from "./stats.js";
 import { flushHof, hofCache, hofId, queueHof, sha256Hex } from "./hof.js";
-import { cardSound, initSound, loadSound, playSound, soundReady, stopSound } from "./sound.js";
+import { cardSound, initSound, loadSound, playSound, soundReady, stopSound, voicePlaying } from "./sound.js";
+import { resultWait } from "./pacing.js";
 import { OPENERS, PHRASES, PHRASE_GAP_MS, QUICK, RETURNERS, TIP_CHAT, WIRE_TEXTS, openerFile, phraseFile, returnFile, tinekeFile } from "./speech.js";
 import { celebrate, isCelebrating } from "./celebrate.js";
 import { askNotifications, clearTurnNotice, inBackground, iosBrowser, isIOS, notifyAlways, notifyPermission, notifyUnsupportedText, setAppVisible, turnNotice } from "./notify.js";
@@ -370,6 +371,8 @@ let announcedRound = 0;
 const announced = [false, false, false, false, false];
 const wetShown = [false, false, false, false, false];
 let speechUntil = 0; // tot wanneer de laatste voorspelling nog uitgesproken wordt
+let roundDoneSince = 0; // wanneer de ronde klaar was, om de uitslag pas na het praten te tonen
+let resultTimer = null;
 let wetSpoken = false; // maar één nat-reactie tegelijk uitspreken
 const talkingUntil = [0, 0, 0, 0, 0];
 const previousTricks = [0, 0, 0, 0, 0];
@@ -1650,6 +1653,7 @@ function renderDialog() {
   const box = $("#dialog-box");
   let html = null;
   let cls = "dialog";
+  if (!st || st.phase !== "ROUND_COMPLETE") roundDoneSince = 0;
   if (playerCard && !confirmDialog) {
     cls = "dialog card-dialog";
     html = playerCardHtml();
@@ -1660,7 +1664,7 @@ function renderDialog() {
   } else if (screen === "game" && st && showScores) {
     cls = "dialog sheet";
     html = scoreSheetHtml();
-  } else if (screen === "game" && st && st.phase === "ROUND_COMPLETE" && !busy) {
+  } else if (screen === "game" && st && st.phase === "ROUND_COMPLETE" && !busy && roundResultReady()) {
     html = roundResultHtml();
   } else if (screen === "game" && st && st.phase === "GAME_OVER" && !isCelebrating()) {
     html = gameOverHtml();
@@ -1673,6 +1677,18 @@ function renderDialog() {
     box.className = cls;
     box.innerHTML = html;
   }
+}
+
+/**
+ * Of de uitslag van de ronde al in beeld mag. Nodig omdat de spelers aan het eind van een ronde nog praten
+ * (nat gaan, goed voorspeld): eerst uitpraten, dan het scorebord (zie pacing.js). Zo niet, dan opnieuw kijken.
+ */
+function roundResultReady() {
+  if (!roundDoneSince) roundDoneSince = Date.now();
+  if (inBackground()) return true;
+  const wait = resultWait(Date.now() - roundDoneSince, voicePlaying());
+  if (wait && !resultTimer) resultTimer = setTimeout(() => { resultTimer = null; renderDialog(); }, wait);
+  return wait === 0;
 }
 
 function roundResultHtml() {
