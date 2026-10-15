@@ -48,3 +48,14 @@ test("elke zin die Tineke hardop zegt, heeft een opname", () => {
     assert.ok(existsSync(new URL(`../static/sounds/${speechFile(line)}.mp3`, import.meta.url)), `geen opname voor: ${line}`);
   }
 });
+
+test("elke uitgesproken reactie van een personage heeft een opname", async () => {
+  const { existsSync } = await import("node:fs");
+  const { REACTIONS } = await import("../static/characters.js");
+  const { SPOKEN_REACTIONS, reactionFile } = await import("../static/speech.js");
+  for (const kind of Object.keys(SPOKEN_REACTIONS)) {
+    for (const [who, lines] of Object.entries(REACTIONS[kind])) {
+      lines.forEach((_, k) => assert.ok(existsSync(new URL(`../static/sounds/${reactionFile(kind, who, k)}.mp3`, import.meta.url)), reactionFile(kind, who, k)));
+    }
+  }
+});

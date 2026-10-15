@@ -1,6 +1,11 @@
 // Wat er per versie nieuw is. Wie na een nieuwe versie terugkomt, ziet dit in het hoofdmenu.
 // items in het Nederlands, en dezelfde punten in het Engels (en), voor wie het spel in het Engels speelt.
 export const CHANGES = [
+  { v: "2.49", items: [
+    "De opmerkingen als je de computers lang laat wachten en als iedereen nat is, zijn nu ingesproken, elk personage in zijn eigen stem.",
+  ], en: [
+    "The remarks when you keep the computers waiting and when everyone misses are now spoken, each character in their own voice (in Dutch).",
+  ] },
   { v: "2.48", items: [
     "Laat je de computers lang wachten, dan maakt er een een bijdehante opmerking, steeds een ander en nooit door elkaar.",
     "Is iedereen nat, dan zegt een computerspeler daar iets over op zijn eigen manier, voordat de uitslag komt.",

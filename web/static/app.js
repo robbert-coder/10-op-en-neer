@@ -3,7 +3,7 @@
 import { defaultNames } from "./tienopenneer.mjs";
 import { faceSvg, initialSvg, emojiSvg } from "./faces.js";
 import * as tineke from "./tineke.js";
-import { BID_LINES, WET_LINES, BID_MS } from "./voices.js";
+import { BID_LINES, WET_LINES, BID_MS, REACTION_MS } from "./voices.js";
 import { CHARACTERS, CHARACTER_IDS, CLASSIC_CAST, REACTIONS, REACTIONS_EN, drawCast, everyoneMissed, nextSpeaker } from "./characters.js";
 import { CHANGES } from "./changelog.js";
 import { cloudEnabled, makeCloudCode, normalizeCloudCode, formatCloudCode, validCloudCode, fetchStats, saveStats, fetchHallOfFame, onCloudHealth } from "./cloud.js";
@@ -17,7 +17,7 @@ import { KINDS, addGame, addHighScore, loadHighScores, matchesVs, playersDetail,
 import { flushHof, hofCache, hofId, queueHof, sha256Hex } from "./hof.js";
 import { cardSound, initSound, loadSound, playSound, soundReady, stopSound, voicePlaying } from "./sound.js";
 import { ALL_WET_REMARK_MS, MAX_WAITING_REMARKS, REMARK_SHOW_MS, WAITING_REMARK_MS, resultWait } from "./pacing.js";
-import { OPENERS, PHRASES, PHRASE_GAP_MS, QUICK, RETURNERS, TIP_CHAT, WIRE_TEXTS, openerFile, phraseFile, returnFile, tinekeFile } from "./speech.js";
+import { OPENERS, PHRASES, PHRASE_GAP_MS, QUICK, RETURNERS, TIP_CHAT, WIRE_TEXTS, openerFile, phraseFile, reactionFile, returnFile, SPOKEN_REACTIONS, tinekeFile } from "./speech.js";
 import { celebrate, isCelebrating } from "./celebrate.js";
 import { askNotifications, clearTurnNotice, inBackground, iosBrowser, isIOS, notifyAlways, notifyPermission, notifyUnsupportedText, setAppVisible, turnNotice } from "./notify.js";
 import { cardHtml, sortHand, trumpMiniHtml } from "./cards.js";
@@ -650,10 +650,16 @@ function react(nr, kind, delay, mood = "", interrupt = false) {
   const round = st.round;
   setTimeout(() => {
     if (!canReact() || st.round !== round) return;
-    // Praat er al iemand (wolkje in beeld), dan alleen een gebaar: niet door elkaar heen
-    if (!interrupt && $("#flyers .bubble")) { gesture(nr, mood === "sad" ? "sigh" : "react"); return; }
+    // Sommige reacties zijn ingesproken (Nederlandse opname, net als bij nat gaan); de stem kan uit
+    const spoken = kind in SPOKEN_REACTIONS && settings.sound && settings.speakBids;
+    // Praat er al iemand (wolkje in beeld of een stem), dan alleen een gebaar: niet door elkaar heen
+    if (!interrupt && ($("#flyers .bubble") || (spoken && voicePlaying()))) { gesture(nr, mood === "sad" ? "sigh" : "react"); return; }
     const k = pickLine(`r-${kind}-${nr}`, lines.length, false);
-    showBubble(nr, `<span>${esc(lines[k])}</span>`, 1900, mood);
+    // Een ingesproken zin blijft zo lang in beeld als de opname duurt
+    const file = reactionFile(kind, who, k);
+    const ms = spoken ? Math.max(1900, (REACTION_MS[file] ?? 0) + 400) : 1900;
+    showBubble(nr, `<span>${esc(lines[k])}</span>`, ms, mood);
+    if (spoken) playSound(file);
     gesture(nr, mood === "sad" ? "sigh" : kind === "slag" ? "cheer" : "react");
   }, delay);
 }
