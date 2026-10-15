@@ -1572,6 +1572,7 @@ function renderGame() {
     }
     if (st.forbiddenBid >= 0) html += `<p>${t("Rondmaken is niet toegestaan: je mag geen {n} zeggen.", { n: st.forbiddenBid })}</p>`;
     bids.innerHTML = html;
+    bids.classList.toggle("many", st.cards >= 9);
     bids.hidden = false;
   } else {
     bids.innerHTML = "";

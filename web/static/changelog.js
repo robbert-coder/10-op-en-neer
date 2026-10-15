@@ -1,6 +1,11 @@
 // Wat er per versie nieuw is. Wie na een nieuwe versie terugkomt, ziet dit in het hoofdmenu.
 // items in het Nederlands, en dezelfde punten in het Engels (en), voor wie het spel in het Engels speelt.
 export const CHANGES = [
+  { v: "2.46", items: [
+    "Tablet: bij voorspellen met 10 of meer kaarten staan de cijfers in één rij, zodat de tafel en de troefkaart niet meer klein worden.",
+  ], en: [
+    "Tablet: when bidding with 10 or more cards the numbers fit in one row, so the table and the trump card no longer shrink.",
+  ] },
   { v: "2.45", items: [
     "Mute-knop: met het luidsprekertje op het startscherm en in het spel zet je al het geluid in één tik uit of aan (op een smalle telefoon staat hij in het spelmenu).",
     "Er is nog maar één praatwolkje tegelijk, want je hoort ook maar één stem.",

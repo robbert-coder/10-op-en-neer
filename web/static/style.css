@@ -1052,3 +1052,8 @@ button.primary { background: linear-gradient(180deg, #F7C761, var(--gold)); box-
 .lang-btn.selected { opacity: 1; border-color: var(--gold); }
 .flag { width: 24px; height: 16px; border-radius: 2px; box-shadow: 0 0 0 1px rgba(0, 0, 0, .25); flex: none; }
 .seg.lang-pick button { display: flex; align-items: center; justify-content: center; gap: 8px; }
+/* Veel keuzes bij het voorspellen (10 kaarten of meer): smallere knoppen in één rij, zodat de tafel en de troef niet krimpen */
+@media (min-width: 600px) {
+  .game .bids.many { max-width: 920px; gap: 6px; }
+  .game .bids.many button { flex-basis: 50px; }
+}
