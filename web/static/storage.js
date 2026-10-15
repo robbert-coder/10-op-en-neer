@@ -1,6 +1,7 @@
 // Wat het spel op dit apparaat bewaart (localStorage) en je instellingen. Lukt opslaan niet (privémodus),
 // dan werkt alles gewoon, alleen zonder te onthouden.
 import { cleanAvatar, cleanVoice } from "./validate.js";
+import { randomFace } from "./avatarcode.js";
 import { isEnglish } from "./i18n.js";
 
 /** Naam zolang je zelf geen naam hebt gekozen, in beide talen. */
@@ -37,7 +38,13 @@ if (DEFAULT_NAMES.includes(settings.playerName)) settings.playerName = DEFAULT_N
 // Sterke computerspelers stonden vroeger standaard aan; wie ze nooit zelf koos, begint nu met gewone
 if (!settings.smartChosen) settings.smart = false;
 
-/** Je eigen plaatje (gezicht, emoji of foto), gecontroleerd zoals dat van een ander. */
+// Nieuwe speler (nog niets bewaard): een willekeurig poppetje, zodat niet iedereen er hetzelfde uitziet
+if (store.get("instellingen", null) === null) {
+  settings.avatar = randomFace();
+  saveSettings();
+}
+
+/** Je eigen plaatje (gezicht, poppetje, emoji of foto), gecontroleerd zoals dat van een ander. */
 export const myAvatar = () => cleanAvatar(settings.avatar);
 /** Je eigen stem bij het voorspellen: man, vrouw of neutraal. */
 export const myVoice = () => cleanVoice(settings.voice) ?? "neutraal";

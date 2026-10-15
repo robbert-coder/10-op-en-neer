@@ -67,9 +67,9 @@ function winnerStage(winners, mode = null) {
     ? (winners[0].me ? t("Jij wint!") : t("{name} wint!", { name: esc(winners[0].name) }))
     : t("{names} winnen!", { names: winners.map((w) => (w.me ? t("Jij") : esc(w.name))).join(", ").replace(/, ([^,]*)$/, ` ${t("en")} $1`) });
   const slices = Array.from({ length: 14 }, (_, i) => `<i style="--i:${i}"></i>`).join("");
-  stage.innerHTML = `<div class="winner-banner">${title}</div><div class="nl-waving" aria-hidden="true"><span class="pole"></span><span class="cloth">${slices}</span></div><div class="puppets">${winners.map(({ face, head }, i) => {
+  stage.innerHTML = `<div class="winner-banner">${title}</div><div class="nl-waving" aria-hidden="true"><span class="pole"></span><span class="cloth">${slices}</span></div><div class="puppets">${winners.map(({ face, head, body }, i) => {
     return `<div class="puppet" style="--d:${i * 0.15}s"><div class="pup-inner">
-      <div class="avatar happy pup-head" data-who="${face ?? "mens"}">${head}</div>${puppetBodySvg(face ?? "mens")}</div></div>`;
+      <div class="avatar happy pup-head" data-who="${face ?? "mens"}">${head}</div>${puppetBodySvg(body ?? face ?? "mens")}</div></div>`;
   }).join("")}</div>`;
   document.body.appendChild(stage);
   return stage;

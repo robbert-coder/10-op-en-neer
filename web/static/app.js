@@ -1,7 +1,8 @@
 // Webversie van "10 op en neer". De spelregels en computerspelers komen uit de Kotlin-code
 // van de Android-app (tienopenneer.mjs); dit bestand tekent alleen het scherm.
 import { defaultNames } from "./tienopenneer.mjs";
-import { faceSvg, initialSvg, emojiSvg } from "./faces.js";
+import { faceSvg, initialSvg, emojiSvg, customFaceSvg, lookOf } from "./faces.js";
+import { FACE_EXTRAS, FACE_PARTS, codeFromLook, decodeChoice, encodeFace, isFaceCode, randomFace } from "./avatarcode.js";
 import * as tineke from "./tineke.js";
 import { BID_LINES, WET_LINES, BID_MS, REACTION_MS } from "./voices.js";
 import { CHARACTERS, CHARACTER_IDS, CLASSIC_CAST, REACTIONS, REACTIONS_EN, drawCast, everyoneMissed, nextSpeaker } from "./characters.js";
@@ -896,7 +897,9 @@ function handleGameOver() {
 function celebrateWinners(mode = null, kind = undefined) {
   const winners = (st?.players ?? []).map((p, i) => ({ p, nr: i + 1 })).filter((x) => x.p.rank === 1).map(({ p, nr }) => {
     const face = faceFor(nr);
-    return { name: p.name, me: nr === 1 && p.human, face, head: face ? faceSvg(face) : humanAvatarHtml(customAvatar(nr), p.name) };
+    // Een gekozen of samengesteld gezicht krijgt ook een lijf in de eigen kleuren
+    const avatar = face ? null : customAvatar(nr);
+    return { name: p.name, me: nr === 1 && p.human, face, head: face ? faceSvg(face) : humanAvatarHtml(avatar, p.name), body: avatar };
   });
   return celebrate(winners, mode, kind);
 }
@@ -1263,6 +1266,7 @@ function customAvatar(nr) {
 function humanAvatarHtml(avatar, name) {
   if (avatar?.startsWith("data:image/")) return `<img class="face-img" src="${esc(avatar)}" alt="">`;
   if (avatar && AVATAR_FACES.includes(avatar)) return faceSvg(avatar);
+  if (isFaceCode(avatar)) return customFaceSvg(avatar);
   if (avatar && AVATAR_EMOJIS.includes(avatar)) return emojiSvg(avatar);
   return initialSvg(name);
 }
@@ -1979,7 +1983,7 @@ $$("#hs-scope button").forEach((b) => b.classList.toggle("selected", b.dataset.s
     ? `<p class="empty-note">${t("Geen scores met deze filters.")}</p>`
     : list.length === 0
     ? `<p class="empty-note">${t("Nog geen scores. Speel een spel uit om in de lijst te komen.")}</p>`
-    : list.map((h, i) => `<div class="hs-row"><span class="pos">${i + 1}</span><span class="name">${esc(h.name)}${h.detail ? `<small>${esc(detailText(h.detail))}</small>` : ""}</span><span class="date">${h.date}</span><span class="score">${h.score}</span></div>`).join("");
+    : list.map((h, i) => `<div class="hs-row hof"><span class="pos">${i + 1}</span>${hofFace({ avatar: myAvatar(), name: h.name })}<span class="name">${esc(h.name)}${h.detail ? `<small>${esc(detailText(h.detail))}</small>` : ""}</span><span class="date">${h.date}</span><span class="score">${h.score}</span></div>`).join("");
   $("#btn-hs-clear").hidden = list.length === 0;
 }
 
@@ -2038,6 +2042,9 @@ const CAMERA_SVG = `<svg class="face-svg" viewBox="0 0 100 100" aria-hidden="tru
   <path d="M30 40h9l5-7h12l5 7h9v28H30z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/>
   <circle cx="50" cy="54" r="8" fill="none" stroke="currentColor" stroke-width="4"/></svg>`;
 
+const PENCIL_SVG = `<svg class="face-svg" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="46" fill="rgba(255,255,255,.1)"/>
+  <path d="M33 67 L36 55 L60 31 L69 40 L45 64 Z M55 36 L64 45" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/></svg>`;
+
 function renderAvatarPick() {
   const cur = myAvatar() ?? "";
   const photo = cur.startsWith("data:image/");
@@ -2048,6 +2055,7 @@ function renderAvatarPick() {
   const html = () => [
     opt("", initialSvg(settings.playerName), !cur, t("Eerste letter van je naam")),
     ...AVATAR_FACES.map((f, i) => opt(f, faceSvg(f), cur === f, t("Gezicht {n}", { n: i + 1 }))),
+    opt("maak", isFaceCode(cur) ? customFaceSvg(cur) : PENCIL_SVG, isFaceCode(cur), t("Eigen poppetje maken")),
     opt("foto", photo ? humanAvatarHtml(cur, "") : CAMERA_SVG, photo, t("Eigen foto kiezen")),
   ].join("");
   $$(".avatar-pick").forEach((el) => { el.innerHTML = html(); });
@@ -2058,6 +2066,8 @@ function setAvatar(v) {
   saveSettings();
   online?.link?.setAvatar?.(settings.avatar);
   pubLobby?.setMe({ avatar: settings.avatar });
+  // Ook in de Hall of Fame meteen je nieuwe plaatje (bij al je scores)
+  if (settings.hof !== false) flushHof();
   renderAvatarPick();
   if (st && screen === "game") renderGame();
 }
@@ -2081,10 +2091,95 @@ function photoAvatar(file) {
   });
 }
 
+// ------------------------------------------------------------------------------------------
+// Eigen poppetje samenstellen (code in avatarcode.js)
+// ------------------------------------------------------------------------------------------
+
+/** De onderdelen in de editor, in deze volgorde; "face" toont kleine gezichtjes, "color" kleurvakjes. */
+const FACE_ROWS = [
+  { part: "hair", label: "Kapsel", kind: "face" },
+  { part: "hairColor", label: "Haarkleur", kind: "color" },
+  { part: "skin", label: "Huidskleur", kind: "color" },
+  { part: "eyes", label: "Ogen", kind: "color" },
+  { part: "glasses", label: "Bril", kind: "color" },
+  { part: "hat", label: "Hoofddeksel", kind: "face" },
+  { part: "beard", label: "Baard en snor", kind: "face" },
+  { part: "shirt", label: "Shirt", kind: "color" },
+  { part: "lips", label: "Lippen", kind: "color" },
+  { part: "nose", label: "Neus", kind: "face" },
+];
+const FACE_EXTRA_LABELS = { lashes: "Wimpers", freckles: "Sproeten", wrinkles: "Rimpels", earrings: "Oorbellen", thickBrows: "Dikke wenkbrauwen" };
+let faceDraft = null; // de keuzes in de editor, pas bij Opslaan je plaatje
+
+/**
+ * De editor openen, met je huidige poppetje als begin (of het gekozen gezicht omgezet, of een willekeurig).
+ * Nodig zodat je je poppetje zelf kunt samenstellen; opslaan gaat via setAvatar, net als een gekozen gezicht.
+ */
+function openFaceEditor() {
+  const cur = myAvatar();
+  const code = isFaceCode(cur) ? cur : AVATAR_FACES.includes(cur) ? codeFromLook(lookOf(cur)) : randomFace();
+  faceDraft = decodeChoice(code);
+  $("#face-editor").hidden = false;
+  faceEditorFrame();
+  renderFaceEditor();
+}
+
+/** Het kader van de editor (één keer per keer openen, zodat het niet bij elke keuze opnieuw invliegt). */
+function faceEditorFrame() {
+  $("#face-editor").innerHTML = `<div class="dialog fe-box"><h3>${t("Je poppetje")}</h3>
+    <div class="fe-preview"></div><div class="fe-rows"></div>
+    <div class="actions"><button type="button" data-fe="random">${t("Willekeurig")}</button>
+      <button type="button" data-fe="cancel">${t("Annuleren")}</button><button type="button" class="primary" data-fe="save">${t("Opslaan")}</button></div></div>`;
+}
+
+/** De editor bijwerken: groot voorbeeld, per onderdeel de keuzes en de extra's. */
+function renderFaceEditor() {
+  const rows = FACE_ROWS.map(({ part, label, kind }) => {
+    const opts = FACE_PARTS[part].map((value, i) => {
+      // Bij de kapsels zonder hoofddeksel, anders zie je het haar niet
+      const sample = { ...faceDraft, [part]: i, ...(part === "hair" ? { hat: 0 } : {}) };
+      // Kleuren komen uit de vaste lijst in avatarcode.js, nooit van buiten
+      const inner = kind === "face" ? customFaceSvg(encodeFace(sample))
+        : value ? `<span class="fe-swatch" style="background:${value}"></span>` : `<span class="fe-swatch none">✕</span>`;
+      return `<button type="button" class="fe-opt ${kind}${faceDraft[part] === i ? " sel" : ""}" data-part="${part}" data-i="${i}"
+        aria-label="${esc(t(label))} ${i + 1}">${inner}</button>`;
+    }).join("");
+    return `<div class="fe-row"><div class="fe-label">${t(label)}</div><div class="fe-opts">${opts}</div></div>`;
+  }).join("");
+  const extras = FACE_EXTRAS.map((name) => `<button type="button" class="fe-extra${faceDraft.extras.includes(name) ? " sel" : ""}"
+    data-extra="${name}">${t(FACE_EXTRA_LABELS[name])}</button>`).join("");
+  $("#face-editor .fe-preview").innerHTML = customFaceSvg(encodeFace(faceDraft));
+  $("#face-editor .fe-rows").innerHTML = `${rows}<div class="fe-row"><div class="fe-label">${t("Extra")}</div><div class="fe-extras">${extras}</div></div>`;
+}
+
+/** Klikken in de editor: een keuze, een extra aan of uit, willekeurig, annuleren of opslaan. */
+$("#face-editor").addEventListener("click", (e) => {
+  const opt = e.target.closest(".fe-opt");
+  const extra = e.target.closest(".fe-extra");
+  const action = e.target.closest("[data-fe]")?.dataset.fe;
+  if (opt && opt.dataset.part in FACE_PARTS) {
+    faceDraft[opt.dataset.part] = Number(opt.dataset.i);
+  } else if (extra && FACE_EXTRAS.includes(extra.dataset.extra)) {
+    const name = extra.dataset.extra;
+    faceDraft.extras = faceDraft.extras.includes(name) ? faceDraft.extras.filter((x) => x !== name) : [...faceDraft.extras, name];
+  } else if (action === "random") {
+    faceDraft = decodeChoice(randomFace());
+  } else if (action === "save" || action === "cancel" || e.target.id === "face-editor") {
+    if (action === "save") setAvatar(encodeFace(faceDraft));
+    $("#face-editor").hidden = true;
+    $("#face-editor").innerHTML = "";
+    return;
+  } else {
+    return;
+  }
+  renderFaceEditor();
+});
+
 document.addEventListener("click", (e) => {
   const b = e.target.closest(".av-opt");
   if (!b) return;
   if (b.dataset.av === "foto") $("#avatar-file").click();
+  else if (b.dataset.av === "maak") openFaceEditor();
   else setAvatar(b.dataset.av || null);
 });
 $("#avatar-file").addEventListener("change", async (e) => {

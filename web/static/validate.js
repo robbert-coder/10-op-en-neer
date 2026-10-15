@@ -2,6 +2,8 @@
 // Alles op één plek, zodat elke ingang dezelfde regels gebruikt. Wat niet klopt, wordt een veilige
 // standaardwaarde; zo kan een vreemd of kwaadwillig bericht het spel niet laten vastlopen.
 
+import { isFaceCode } from "./avatarcode.js";
+
 /** De getekende gezichten die je kunt kiezen (zie PERSONS in faces.js). */
 export const AVATAR_FACES = ["p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8", "p9", "p10", "p11", "p12"];
 
@@ -45,12 +47,12 @@ export const isObject = (v) => !!v && typeof v === "object" && !Array.isArray(v)
 export const cleanVoice = (v) => (["man", "vrouw", "neutraal", "geen"].includes(v) ? v : null);
 
 /**
- * Een plaatje van een ander alleen gebruiken als het een gezicht, een emoji (oudere versies) of een kleine
+ * Een plaatje van een ander alleen gebruiken als het een gezicht, een samengesteld poppetje, een emoji (oudere versies) of een kleine
  * foto is. Geen SVG: daarin kan code zitten.
  */
 export function cleanAvatar(v) {
   if (typeof v !== "string") return null;
-  if (AVATAR_FACES.includes(v) || AVATAR_EMOJIS.includes(v)) return v;
+  if (AVATAR_FACES.includes(v) || AVATAR_EMOJIS.includes(v) || isFaceCode(v)) return v;
   if (v.length <= MAX_PHOTO && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(v)) return v;
   return null;
 }

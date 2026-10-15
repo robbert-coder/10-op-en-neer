@@ -2,6 +2,8 @@
 // Elk gezicht kan praten (bij het voorspellen), blij kijken (goed voorspeld) en zielig kijken (nat);
 // dat regelt style.css met classes op de onderdelen (.mouth, .brow, .eyes, .tear, .head).
 
+import { faceLook } from "./avatarcode.js";
+
 let uid = 0;
 
 /** Kleur een tint lichter (f > 0) of donkerder (f < 0). */
@@ -85,9 +87,32 @@ const HAIR = {
     <circle cx="50" cy="21" r="3" fill="#FFD54F"/>`],
 };
 
+// Hoofddeksels over het haar heen: c = kleur (pet en hoed in de kleur van het shirt).
+const HATS = {
+  // Pet met de klep naar voren
+  cap: (c) => `
+    <path d="M20 40 C20 15 80 15 80 40 Z" fill="${c}"/>
+    <path d="M32 24 C38 20 46 19 52 19" fill="none" stroke="${shade(c, 0.3)}" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="50" cy="18" r="3" fill="${shade(c, -0.3)}"/>
+    <path d="M18 38 C30 34 70 34 82 38 C84 44 80 46 76 45 C64 41 36 41 24 45 C20 46 16 44 18 38 Z" fill="${shade(c, -0.22)}"/>`,
+  // Hoed met een rand en een lint
+  hat: (c) => `
+    <ellipse cx="50" cy="36" rx="40" ry="8" fill="${shade(c, -0.25)}"/>
+    <path d="M28 36 C27 18 32 8 50 8 C68 8 73 18 72 36 Z" fill="${c}"/>
+    <path d="M28.5 29 C40 32 60 32 71.5 29 L71.8 35 C60 38 40 38 28.2 35 Z" fill="${shade(c, -0.45)}"/>
+    <path d="M40 12 C46 10 56 10 62 13" fill="none" stroke="${shade(c, 0.3)}" stroke-width="2.5" stroke-linecap="round"/>`,
+  // Mijter van Sinterklaas: wit met goud en een rood kruis
+  mitre: () => `
+    <path d="M27 40 L29 14 C36 10 44 6 50 2 C56 6 64 10 71 14 L73 40 C60 37 40 37 27 40 Z" fill="#C62828"/>
+    <path d="M27 40 C40 37 60 37 73 40 L72.4 33 C60 30 40 30 27.6 33 Z" fill="#FFD54F"/>
+    <path d="M50 3 L50 33" stroke="#FFD54F" stroke-width="5"/>
+    <path d="M44 14 L56 14 M50 8 L50 22" stroke="#FFFFFF" stroke-width="3.4" stroke-linecap="round"/>`,
+};
+
 /**
  * Een gezicht uit een beschrijving.
- * p: {skin, hair, hairColor, eyes, brows, lips, lashes, glasses, beard, wrinkles, freckles, earrings, shirt, cap, nose}
+ * p: {skin, hair, hairColor, eyes, brows, lips, lashes, glasses, beard, wrinkles, freckles, earrings, shirt, cap, nose,
+ *     hat (cap/hat/mitre, met hatColor)}
  */
 function drawFace(p) {
   const id = `f${uid++}`;
@@ -175,6 +200,7 @@ function drawFace(p) {
     <g class="cheeks" fill="#E57373" opacity=".22"><ellipse cx="31" cy="65" rx="6" ry="4"/><ellipse cx="69" cy="65" rx="6" ry="4"/></g>
     ${beard}
     ${front}
+    ${HATS[p.hat]?.(p.hatColor ?? "#3E2C23") ?? ""}
     <g class="brows" stroke="${brow}" stroke-width="${p.thickBrows ? 3.4 : 2.2}" stroke-linecap="round" fill="none">
       <path class="brow l" d="M30 43 Q37 39.5 44 42"/><path class="brow r" d="M56 42 Q63 39.5 70 43"/>
     </g>
@@ -250,6 +276,15 @@ export function faceSvg(who) {
   return p ? drawFace(p) : initialSvg("?");
 }
 
+/** Je eigen samengestelde poppetje (code uit avatarcode.js); een ongeldige code geeft een vraagteken. */
+export function customFaceSvg(code) {
+  const look = faceLook(code);
+  return look ? drawFace(look) : initialSvg("?");
+}
+
+/** De beschrijving van een vast gezicht, om er een eigen poppetje van te maken (zie codeFromLook). */
+export const lookOf = (who) => PEOPLE[who] ?? PERSONS[who] ?? null;
+
 /** Avatar voor de mens: een cirkel met de eerste letter van de naam. */
 export function initialSvg(name) {
   const letter = (name.trim()[0] || "?").toUpperCase();
@@ -270,7 +305,7 @@ export function emojiSvg(emoji) {
 
 /** Lijf voor het juichende poppetje van de winnaar: armen omhoog, benen die meespringen. */
 export function puppetBodySvg(who) {
-  const p = PEOPLE[who] ?? PERSONS[who];
+  const p = PEOPLE[who] ?? PERSONS[who] ?? faceLook(who);
   const skin = p?.skin ?? "#F2C9A5";
   const shirt = p?.shirt ?? "#FFC94D";
   const pants = who === "truus" ? "#5E35B1" : who === "ria" ? "#6D4C41" : "#37474F";

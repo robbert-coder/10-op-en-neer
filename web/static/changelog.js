@@ -1,6 +1,15 @@
 // Wat er per versie nieuw is. Wie na een nieuwe versie terugkomt, ziet dit in het hoofdmenu.
 // items in het Nederlands, en dezelfde punten in het Engels (en), voor wie het spel in het Engels speelt.
 export const CHANGES = [
+  { v: "2.50", items: [
+    "Maak je eigen poppetje: kies kapsel, haarkleur, huidskleur, ogen, bril, pet, hoed of mijter, baard of snor, shirt en meer (bij Jouw plaatje, het potloodje).",
+    "Je poppetje zie je ook in de scorelijsten en de Hall of Fame, en het juicht mee als je wint.",
+    "Nieuwe spelers krijgen een willekeurig poppetje, zodat niet iedereen er hetzelfde uitziet.",
+  ], en: [
+    "Make your own character: choose hairstyle, hair colour, skin colour, eyes, glasses, cap, hat or mitre, beard or moustache, shirt and more (under Your picture, the pencil).",
+    "Your character also shows in the score lists and the Hall of Fame, and cheers when you win.",
+    "New players get a random character, so not everyone looks the same.",
+  ] },
   { v: "2.49", items: [
     "De opmerkingen als je de computers lang laat wachten en als iedereen nat is, zijn nu ingesproken, elk personage in zijn eigen stem.",
   ], en: [

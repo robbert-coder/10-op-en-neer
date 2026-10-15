@@ -1057,3 +1057,20 @@ button.primary { background: linear-gradient(180deg, #F7C761, var(--gold)); box-
   .game .bids.many { max-width: 920px; gap: 6px; }
   .game .bids.many button { flex-basis: 50px; }
 }
+
+/* Eigen poppetje samenstellen */
+#face-editor { z-index: 70; }
+.fe-box { max-width: 560px; }
+.fe-preview { width: 110px; height: 110px; margin: 0 auto 10px; flex: none; }
+.fe-preview svg { width: 100%; height: 100%; }
+.fe-rows { overflow-y: auto; min-height: 0; display: flex; flex-direction: column; gap: 10px; padding-right: 4px; scrollbar-width: thin; }
+.fe-label { font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+.fe-opts, .fe-extras { display: flex; flex-wrap: wrap; gap: 6px; }
+.fe-opt { padding: 0; border: 2px solid transparent; border-radius: 50%; background: none; width: 44px; height: 44px; flex: none; }
+.fe-opt.color { width: 34px; height: 34px; }
+.fe-opt.sel { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(255, 201, 77, .3); }
+.fe-opt svg { width: 100%; height: 100%; display: block; }
+.fe-swatch { display: block; width: 100%; height: 100%; border-radius: 50%; border: 1px solid rgba(255,255,255,.25); }
+.fe-swatch.none { display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 14px; background: rgba(255,255,255,.08); }
+.fe-extra { padding: 6px 10px; border-radius: 999px; font-size: 13px; }
+.fe-extra.sel { background: var(--gold); color: #3A2A00; }
