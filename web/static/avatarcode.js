@@ -9,8 +9,9 @@ export const FACE_PARTS = {
   hairColor: ["#1E1612", "#3A2A20", "#6B4426", "#8A5A2B", "#B5462A", "#D2552F", "#E3C16F", "#E8D9A8", "#BDBDBD", "#F0F0F0",
     "#B8ABD1", "#2F6FDB", "#E91E63"],
   eyes: ["#3B2416", "#6B4A2E", "#4F86C6", "#3F8A5A", "#5B7A8C", "#8E7CC3"],
-  glasses: [null, "#2E2E2E", "#C2185B", "#B23A48", "#2F6FDB", "#C9A227"],
-  beard: [null, "stubble", "moustache", "full"],
+  // Bril: een kleur is een gewone bril, "sun:" een zonnebril met dat montuur
+  glasses: [null, "#2E2E2E", "#C2185B", "#B23A48", "#2F6FDB", "#C9A227", "sun:#111111", "sun:#C2185B", "sun:#C9A227", "sun:#F5F5F5"],
+  beard: [null, "stubble", "moustache", "full", "fullMoustache", "goatee"],
   hat: [null, "cap", "hat", "mitre"],
   shirt: ["#3F6FB5", "#E07A5F", "#2A9D8F", "#F4A261", "#6D4C41", "#8E7CC3", "#43A047", "#E53935", "#455A64", "#5C6BC0",
     "#26A69A", "#FFB300", "#EC8FB0", "#212121"],
@@ -59,6 +60,7 @@ export function faceLook(code) {
     if (v) look[part] = v;
   }
   if (look.beard) look.beardColor = look.hairColor;
+  if (look.glasses?.startsWith("sun:")) { look.glasses = look.glasses.slice(4); look.sunglasses = true; }
   if (look.hat) look.hatColor = look.shirt;
   for (const extra of c.extras) look[extra] = extra === "earrings" ? "#FFD54F" : true;
   return look;
@@ -98,7 +100,9 @@ export function codeFromLook(look) {
     if (!value) return Math.max(0, list.indexOf(null));
     if (typeof value === "string" && value.startsWith("#") && list.some((x) => x?.startsWith?.("#"))) {
       let best = -1;
-      list.forEach((x, i) => { if (x && (best < 0 || colorDistance(x, value) < colorDistance(list[best], value))) best = i; });
+      list.forEach((x, i) => {
+        if (x?.startsWith("#") && (best < 0 || colorDistance(x, value) < colorDistance(list[best], value))) best = i;
+      });
       return best;
     }
     return Math.max(0, list.indexOf(value));

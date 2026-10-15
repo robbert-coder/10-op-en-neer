@@ -259,6 +259,10 @@
           <button id="btn-lasttrick">Laatste slag tonen</button>
           <button id="btn-sound-ingame">Geluid uit</button>
           <button id="btn-tineke-ingame">Uitleg van Tineke aanzetten</button>
+          <label class="menu-speed">Spelsnelheid
+            <input type="range" id="game-speed" class="speed-range" min="1" max="5" step="1">
+            <span class="range-labels"><small>Langzaam</small><small>Snel</small></span>
+          </label>
           <button id="btn-rules-ingame">Spelregels</button>
           <button id="btn-tomenu">Naar het hoofdmenu</button>
         </div>
@@ -395,8 +399,8 @@
         <div class="group">
           <label class="field">Jouw naam<input type="text" id="set-name" maxlength="16" autocomplete="off"></label>
           <div class="field">Jouw plaatje<div class="avatar-pick"></div></div>
-          <label class="field">Spelsnelheid
-            <input type="range" id="set-speed" min="1" max="5" step="1">
+          <label class="field">Spelsnelheid<small class="field-note">Hoe snel de computerspelers voorspellen en hun kaarten leggen, en hoe lang een slag op tafel blijft liggen. Ook in het spel aan te passen via het menu.</small>
+            <input type="range" id="set-speed" class="speed-range" min="1" max="5" step="1">
             <span class="range-labels"><small>Langzaam</small><small>Snel</small></span>
           </label>
         </div>

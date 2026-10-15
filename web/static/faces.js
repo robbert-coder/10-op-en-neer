@@ -94,13 +94,13 @@ const HATS = {
     <path d="M20 40 C20 15 80 15 80 40 Z" fill="${c}"/>
     <path d="M32 24 C38 20 46 19 52 19" fill="none" stroke="${shade(c, 0.3)}" stroke-width="3" stroke-linecap="round"/>
     <circle cx="50" cy="18" r="3" fill="${shade(c, -0.3)}"/>
-    <path d="M18 38 C30 34 70 34 82 38 C84 44 80 46 76 45 C64 41 36 41 24 45 C20 46 16 44 18 38 Z" fill="${shade(c, -0.22)}"/>`,
+    <path d="M18 36 C30 32 70 32 82 36 C84 41 80 43 76 42 C64 38 36 38 24 42 C20 43 16 41 18 36 Z" fill="${shade(c, -0.22)}"/>`,
   // Hoed met een rand en een lint
   hat: (c) => `
-    <ellipse cx="50" cy="36" rx="40" ry="8" fill="${shade(c, -0.25)}"/>
-    <path d="M28 36 C27 18 32 8 50 8 C68 8 73 18 72 36 Z" fill="${c}"/>
-    <path d="M28.5 29 C40 32 60 32 71.5 29 L71.8 35 C60 38 40 38 28.2 35 Z" fill="${shade(c, -0.45)}"/>
-    <path d="M40 12 C46 10 56 10 62 13" fill="none" stroke="${shade(c, 0.3)}" stroke-width="2.5" stroke-linecap="round"/>`,
+    <ellipse cx="50" cy="34" rx="40" ry="7" fill="${shade(c, -0.25)}"/>
+    <path d="M28 34 C27 16 32 6 50 6 C68 6 73 16 72 34 Z" fill="${c}"/>
+    <path d="M28.5 27 C40 30 60 30 71.5 27 L71.8 33 C60 36 40 36 28.2 33 Z" fill="${shade(c, -0.45)}"/>
+    <path d="M40 10 C46 8 56 8 62 11" fill="none" stroke="${shade(c, 0.3)}" stroke-width="2.5" stroke-linecap="round"/>`,
   // Mijter van Sinterklaas: wit met goud en een rood kruis
   mitre: () => `
     <path d="M27 40 L29 14 C36 10 44 6 50 2 C56 6 64 10 71 14 L73 40 C60 37 40 37 27 40 Z" fill="#C62828"/>
@@ -137,13 +137,21 @@ function drawFace(p) {
       <path d="M${cx - 6} 48.3 C${cx - 3} 45.6 ${cx + 3} 45.6 ${cx + 6} 48.3" fill="none" stroke="${darker}" stroke-width=".7" opacity=".6" stroke-linecap="round"/>
       <path d="M${cx - 5.5} 54.4 C${cx - 2} 56 ${cx + 2} 56 ${cx + 5.5} 54.4" fill="none" stroke="${darker}" stroke-width=".6" opacity=".45" stroke-linecap="round"/>`;
   const glasses = p.glasses ? `
-    <g class="glasses" fill="#FFFFFF" fill-opacity=".12" stroke="${p.glasses}" stroke-width="2">
+    <g class="glasses" fill="${p.sunglasses ? "#141414" : "#FFFFFF"}" fill-opacity="${p.sunglasses ? ".92" : ".12"}" stroke="${p.glasses}" stroke-width="${p.sunglasses ? 2.6 : 2}">
       <rect x="28" y="45" width="19" height="14" rx="6"/><rect x="53" y="45" width="19" height="14" rx="6"/>
       <path d="M47 50 C49 48.5 51 48.5 53 50" fill="none"/><path d="M28 50 L21 48 M72 50 L79 48" fill="none"/>
+      ${p.sunglasses ? `<path d="M31 48 L37 47 M56 48 L62 47" stroke="#FFFFFF" stroke-opacity=".45" stroke-width="1.6" stroke-linecap="round"/>` : ""}
     </g>` : "";
   const beard = p.beard === "full" ? `
     <path d="M23 60 C24 82 38 94 50 94 C62 94 76 82 77 60 C72 72 66 76 60 74 C56 72 44 72 40 74 C34 76 28 72 23 60 Z" fill="${p.beardColor ?? hair}"/>
     <path d="M38 70 C44 66 56 66 62 70 C58 69 54 70 50 71 C46 70 42 69 38 70 Z" fill="${shade(p.beardColor ?? hair, -0.15)}"/>`
+    : p.beard === "fullMoustache" ? `
+    <path d="M23 60 C24 82 38 94 50 94 C62 94 76 82 77 60 C72 72 66 76 60 74 C56 72 44 72 40 74 C34 76 28 72 23 60 Z" fill="${p.beardColor ?? hair}"/>
+    <path d="M38 70 C44 66 56 66 62 70 C58 69 54 70 50 71 C46 70 42 69 38 70 Z" fill="${shade(p.beardColor ?? hair, -0.15)}"/>
+    <path class="moustache" d="M33 71 C37 65 45 65 50 69 C55 65 63 65 67 71 C68 74 64 75 62 73 C58 70 54 71 50 72 C46 71 42 70 38 73 C36 75 32 74 33 71 Z" fill="${shade(p.beardColor ?? hair, -0.08)}"/>`
+    : p.beard === "goatee" ? `
+    <path class="moustache" d="M36 71 C40 67 46 67 50 70 C54 67 60 67 64 71 C62 72 58 71 50 72 C42 71 38 72 36 71 Z" fill="${p.beardColor ?? hair}"/>
+    <path d="M43 81 C44 88 47 92 50 92 C53 92 56 88 57 81 C54 83 46 83 43 81 Z" fill="${p.beardColor ?? hair}"/>`
     : p.beard === "moustache" ? `
     <path class="moustache" d="M33 71 C37 65 45 65 50 69 C55 65 63 65 67 71 C68 74 64 75 62 73 C58 70 54 71 50 72 C46 71 42 70 38 73 C36 75 32 74 33 71 Z" fill="${p.beardColor ?? hair}"/>`
     : p.beard === "stubble" ? `
@@ -200,13 +208,13 @@ function drawFace(p) {
     <g class="cheeks" fill="#E57373" opacity=".22"><ellipse cx="31" cy="65" rx="6" ry="4"/><ellipse cx="69" cy="65" rx="6" ry="4"/></g>
     ${beard}
     ${front}
-    ${HATS[p.hat]?.(p.hatColor ?? "#3E2C23") ?? ""}
     <g class="brows" stroke="${brow}" stroke-width="${p.thickBrows ? 3.4 : 2.2}" stroke-linecap="round" fill="none">
       <path class="brow l" d="M30 43 Q37 39.5 44 42"/><path class="brow r" d="M56 42 Q63 39.5 70 43"/>
     </g>
     <g class="eyes">${eye(37)}${eye(63)}${lash}</g>
     ${nose}
     ${glasses}${earrings}
+    ${HATS[p.hat]?.(p.hatColor ?? "#3E2C23") ?? ""}
     <g class="mouth smile">
       <path d="M40 75.2 C43 73.4 46.5 73 50 74.2 C53.5 73 57 73.4 60 75.2 C56 76.2 44 76.2 40 75.2 Z" fill="${shade(lips, -0.12)}"/>
       <path d="M40.5 75.4 C44 76.4 56 76.4 59.5 75.4 C57 79.6 43 79.6 40.5 75.4 Z" fill="url(#${id}l)"/>

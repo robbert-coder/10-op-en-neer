@@ -1,6 +1,15 @@
 // Wat er per versie nieuw is. Wie na een nieuwe versie terugkomt, ziet dit in het hoofdmenu.
 // items in het Nederlands, en dezelfde punten in het Engels (en), voor wie het spel in het Engels speelt.
 export const CHANGES = [
+  { v: "2.51", items: [
+    "Poppetje: baard met snor en een sik, zonnebrillen in vier kleuren, en de bril zit nu onder de pet, hoed of mijter.",
+    "Heb je een eigen poppetje, dan staat er een potloodje op: tik erop om het aan te passen.",
+    "Spelsnelheid heeft uitleg gekregen en is ook tijdens het spel aan te passen via het menu.",
+  ], en: [
+    "Character: beard with moustache and a goatee, sunglasses in four colours, and glasses now sit under the cap, hat or mitre.",
+    "Once you have your own character it shows a pencil: tap it to edit.",
+    "Game speed now has an explanation and can also be changed during a game from the menu.",
+  ] },
   { v: "2.50", items: [
     "Maak je eigen poppetje: kies kapsel, haarkleur, huidskleur, ogen, bril, pet, hoed of mijter, baard of snor, shirt en meer (bij Jouw plaatje, het potloodje).",
     "Je poppetje zie je ook in de scorelijsten en de Hall of Fame, en het juicht mee als je wint.",

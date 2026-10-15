@@ -2055,7 +2055,9 @@ function renderAvatarPick() {
   const html = () => [
     opt("", initialSvg(settings.playerName), !cur, t("Eerste letter van je naam")),
     ...AVATAR_FACES.map((f, i) => opt(f, faceSvg(f), cur === f, t("Gezicht {n}", { n: i + 1 }))),
-    opt("maak", isFaceCode(cur) ? customFaceSvg(cur) : PENCIL_SVG, isFaceCode(cur), t("Eigen poppetje maken")),
+    // Een eigen poppetje krijgt een potloodje: tik erop om het aan te passen
+    opt("maak", isFaceCode(cur) ? `${customFaceSvg(cur)}<span class="av-edit" aria-hidden="true">✏️</span>` : PENCIL_SVG, isFaceCode(cur),
+      t(isFaceCode(cur) ? "Je poppetje aanpassen" : "Eigen poppetje maken")),
     opt("foto", photo ? humanAvatarHtml(cur, "") : CAMERA_SVG, photo, t("Eigen foto kiezen")),
   ].join("");
   $$(".avatar-pick").forEach((el) => { el.innerHTML = html(); });
@@ -2140,6 +2142,7 @@ function renderFaceEditor() {
       const sample = { ...faceDraft, [part]: i, ...(part === "hair" ? { hat: 0 } : {}) };
       // Kleuren komen uit de vaste lijst in avatarcode.js, nooit van buiten
       const inner = kind === "face" ? customFaceSvg(encodeFace(sample))
+        : value?.startsWith("sun:") ? `<span class="fe-swatch sun" style="border-color:${value.slice(4)}"></span>`
         : value ? `<span class="fe-swatch" style="background:${value}"></span>` : `<span class="fe-swatch none">✕</span>`;
       return `<button type="button" class="fe-opt ${kind}${faceDraft[part] === i ? " sel" : ""}" data-part="${part}" data-i="${i}"
         aria-label="${esc(t(label))} ${i + 1}">${inner}</button>`;
@@ -3326,7 +3329,17 @@ $("#set-name").addEventListener("input", (e) => {
     saveGame();
   }
 });
-$("#set-speed").addEventListener("input", (e) => { settings.speed = Number(e.target.value); saveSettings(); });
+/**
+ * De spelsnelheid (1 langzaam tot 5 snel) instellen, vanuit de instellingen of het menu in het spel. Nodig zodat
+ * je tijdens een spel kunt vertragen om mee te kijken; beide schuifjes laten dezelfde waarde zien.
+ */
+function setSpeed(value) {
+  const speed = Math.min(5, Math.max(1, Math.round(Number(value)) || 3));
+  settings.speed = speed;
+  saveSettings();
+  $$(".speed-range").forEach((el) => { el.value = String(speed); });
+}
+$$(".speed-range").forEach((el) => el.addEventListener("input", (e) => setSpeed(e.target.value)));
 $("#set-desc").addEventListener("change", (e) => { settings.sortDescending = e.target.checked; saveSettings(); });
 $("#set-sound").addEventListener("change", (e) => { settings.sound = e.target.checked; saveSettings(); renderSettings(); renderMuteButtons(); });
 
@@ -3411,7 +3424,12 @@ $("#hand").addEventListener("click", (e) => {
 $("#table").addEventListener("click", onTableTap);
 $("#btn-tip").addEventListener("click", onTip);
 $("#btn-scores").addEventListener("click", () => { showScores = true; renderDialog(); });
-$("#btn-gamemenu").addEventListener("click", (e) => { e.stopPropagation(); menuOpen = !menuOpen; $("#gamemenu").hidden = !menuOpen; });
+$("#btn-gamemenu").addEventListener("click", (e) => {
+  e.stopPropagation();
+  menuOpen = !menuOpen;
+  $("#gamemenu").hidden = !menuOpen;
+  $("#game-speed").value = String(settings.speed);
+});
 document.addEventListener("click", (e) => {
   if (menuOpen && !e.target.closest("#gamemenu") && !e.target.closest("#btn-gamemenu")) {
     menuOpen = false;
