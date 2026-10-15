@@ -1,6 +1,13 @@
 // Wat er per versie nieuw is. Wie na een nieuwe versie terugkomt, ziet dit in het hoofdmenu.
 // items in het Nederlands, en dezelfde punten in het Engels (en), voor wie het spel in het Engels speelt.
 export const CHANGES = [
+  { v: "2.48", items: [
+    "Laat je de computers lang wachten, dan maakt er een een bijdehante opmerking, steeds een ander en nooit door elkaar.",
+    "Is iedereen nat, dan zegt een computerspeler daar iets over op zijn eigen manier, voordat de uitslag komt.",
+  ], en: [
+    "Keep the computers waiting too long and one of them makes a cheeky remark, a different one each time and never at once.",
+    "If everyone misses their bid, a computer player comments on it in their own way before the result appears.",
+  ] },
   { v: "2.47", items: [
     "Aan het eind van een ronde praten de spelers eerst uit; daarna pas verschijnt de uitslag van de ronde.",
   ], en: [

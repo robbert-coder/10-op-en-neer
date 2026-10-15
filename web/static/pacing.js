@@ -16,3 +16,12 @@ export function resultWait(waitedMs, voiceBusy) {
   if (waited < RESULT_MIN_WAIT_MS) return RESULT_MIN_WAIT_MS - waited;
   return voiceBusy ? 200 : 0;
 }
+
+/** Na zoveel ms jouw beurt maakt een computerspeler een bijdehante opmerking dat hij op je wacht. */
+export const WAITING_REMARK_MS = 30000;
+/** Hooguit zoveel van die opmerkingen per beurt, zodat het grappig blijft en niet gaat zeuren. */
+export const MAX_WAITING_REMARKS = 2;
+/** Zo lang na de laatste slag zegt iemand iets als iedereen nat is (eerst het nat-zinnetje laten uitklinken). */
+export const ALL_WET_REMARK_MS = 1200;
+/** Zo lang staat zo'n opmerking in beeld; de uitslag van de ronde wacht daarop. */
+export const REMARK_SHOW_MS = 2200;

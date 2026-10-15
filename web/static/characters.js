@@ -27,6 +27,28 @@ export function drawCast() {
 }
 
 export const REACTIONS = {
+  // Je laat de computers lang wachten: een bijdehante opmerking
+  wacht: {
+    henk: ["Neem gerust de tijd. Ik word toch al oud.", "Ik ga zo even een krantje halen.", "Hm. Denk je nog, of slaap je?"],
+    truus: ["Schatje, wij worden hier grijs!", "Hallo? Is daar iemand?", "Ik heb intussen mijn nagels gelakt!"],
+    kees: ["Kom op, het is geen schaken.", "Vandaag nog?", "Zal ik anders een kaart voor je kiezen?"],
+    ria: ["Rustig aan, lieverd, ik zet wel koffie.", "Ik heb intussen een sjaal gebreid.", "Neem de tijd, hoor. Ik heb tot de kerst."],
+    bram: ["Bro, ben je AFK?", "Ik check intussen even mijn telefoon.", "Loading... loading..."],
+    gerda: ["Wij hebben niet de hele dag.", "Ik tel de seconden.", "Niet kiezen is ook een keuze."],
+    sjef: ["Ik haal intussen nog een rondje.", "Geen haast, jong. Nou ja, een beetje.", "Zal ik de kaarten warm houden?"],
+    mo: ["Ik ben intussen een jaar ouder geworden.", "Zullen we pauze nemen? O, dat doen we al.", "Spannend hoor, deze film."],
+  },
+  // Iedereen is deze ronde nat gegaan
+  allenat: {
+    henk: ["Zo. Allemaal nat. Gezellig.", "Dat hebben we samen mooi verprutst.", "Niemand een punt. Ook een uitslag."],
+    truus: ["Iedereen nat! Wat een drama!", "Nou schatjes, we zwemmen allemaal!", "Allemaal nat, haal de handdoeken!"],
+    kees: ["Knap hoor, allemaal nat.", "Nou, lekker bezig, iedereen.", "Niemand? Echt niemand?"],
+    ria: ["Och, we zijn allemaal nat geregend.", "Iedereen nat, dan maar een kopje thee.", "Gezellig, samen nat."],
+    bram: ["Iedereen nat, epic fail.", "Bro, wij allemaal? Respect.", "Collectieve fail, lekker."],
+    gerda: ["Onvoldoende. Voor iedereen.", "Dit is een schande.", "Allemaal nat. Dat noteer ik."],
+    sjef: ["Allemaal nat, dan maar een rondje van de zaak!", "Proost, op het natte pak!", "Hèhè, iedereen doornat."],
+    mo: ["Iedereen nat? Ik haal de paraplu.", "Synchroonzwemmen, mensen!", "Dit was zo gepland. Echt."],
+  },
   // Een computerspeler haalt een slag terwijl hij zijn bod al heeft: nu mag hij niets meer halen
   oei: {
     henk: ["O jee.", "Hm, dat was er een te veel bijna.", "Nu moet ik oppassen."],
@@ -108,6 +130,26 @@ export const REACTIONS = {
 
 /** Dezelfde reacties in het Engels (zelfde soorten, karakters en aantallen), als het spel in het Engels draait. */
 export const REACTIONS_EN = {
+  wacht: {
+    henk: ["Take your time. I'm getting old anyway.", "I'll just go and fetch a newspaper.", "Hm. Still thinking, or asleep?"],
+    truus: ["Darling, we're going grey here!", "Hello? Anybody there?", "I've done my nails in the meantime!"],
+    kees: ["Come on, it's not chess.", "Today, maybe?", "Shall I pick a card for you?"],
+    ria: ["Easy, dear, I'll put the kettle on.", "I've knitted a scarf in the meantime.", "Take your time. I've got till Christmas."],
+    bram: ["Bro, are you AFK?", "I'll just check my phone then.", "Loading... loading..."],
+    gerda: ["We don't have all day.", "I'm counting the seconds.", "Not choosing is a choice too."],
+    sjef: ["I'll get another round in.", "No rush, lad. Well, a bit.", "Shall I keep the cards warm?"],
+    mo: ["I've aged a year in the meantime.", "Shall we take a break? Oh, we already are.", "Thrilling film, this."],
+  },
+  allenat: {
+    henk: ["Well. Everyone missed. Lovely.", "We've botched that together nicely.", "Nobody scores. That's a result too."],
+    truus: ["Everybody missed! What a drama!", "Well darlings, we're all sunk!", "All of us! Fetch the tissues!"],
+    kees: ["Impressive, all of us missed.", "Well done, everyone.", "Nobody? Really nobody?"],
+    ria: ["Oh, we all came a cropper.", "Everyone missed, time for a cup of tea.", "How cosy, missing together."],
+    bram: ["Everyone missed, epic fail.", "Bro, all of us? Respect.", "Group fail, nice."],
+    gerda: ["Unsatisfactory. For everyone.", "This is a disgrace.", "Everyone missed. I'm noting that."],
+    sjef: ["All missed, drinks on the house!", "Cheers, to a round of nothing!", "Heh, everyone sunk."],
+    mo: ["Everyone missed? I'll get the umbrella.", "Synchronised failing, people!", "That was the plan. Honestly."],
+  },
   oei: {
     henk: ["Oh dear.", "Hm, that's my lot now.", "Careful now."],
     truus: ["Oh no, oh no!", "Help, I didn't want that one!", "Oh dear, darlings!"],
@@ -179,3 +221,21 @@ export const REACTIONS_EN = {
     mo: ["A tip? Can I have one too?", "Peeking! I won't tell.", "Lifeline activated!", "Phone a friend!", "A tip? Here's mine: nothing.", "I didn't see a thing. Honestly."],
   },
 };
+
+/**
+ * Of iedereen deze (afgelopen) ronde nat ging. Nodig voor de opmerking van een computerspeler als niemand zijn
+ * bod haalde; alleen bij twee of meer spelers die allemaal voorspeld hebben.
+ */
+export function everyoneMissed(players) {
+  if (!Array.isArray(players) || players.length < 2) return false;
+  return players.every((p) => Number.isInteger(p?.bid) && p.bid >= 0 && Number.isInteger(p.tricks) && p.tricks !== p.bid);
+}
+
+/**
+ * Wie de volgende opmerking maakt, op de beurt rond: de eerste stoel na [last] in [seats], of de eerste.
+ * Nodig zodat niet steeds dezelfde computerspeler moppert als ze op je wachten.
+ */
+export function nextSpeaker(seats, last) {
+  if (!Array.isArray(seats) || !seats.length) return 0;
+  return seats.find((nr) => nr > last) ?? seats[0];
+}

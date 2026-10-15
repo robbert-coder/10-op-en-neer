@@ -4,7 +4,7 @@ import { defaultNames } from "./tienopenneer.mjs";
 import { faceSvg, initialSvg, emojiSvg } from "./faces.js";
 import * as tineke from "./tineke.js";
 import { BID_LINES, WET_LINES, BID_MS } from "./voices.js";
-import { CHARACTERS, CHARACTER_IDS, CLASSIC_CAST, REACTIONS, REACTIONS_EN, drawCast } from "./characters.js";
+import { CHARACTERS, CHARACTER_IDS, CLASSIC_CAST, REACTIONS, REACTIONS_EN, drawCast, everyoneMissed, nextSpeaker } from "./characters.js";
 import { CHANGES } from "./changelog.js";
 import { cloudEnabled, makeCloudCode, normalizeCloudCode, formatCloudCode, validCloudCode, fetchStats, saveStats, fetchHallOfFame, onCloudHealth } from "./cloud.js";
 import { Host, Guest, PublicLobby, makeCode, normalizeCode, useIdentity, AVATAR_EMOJIS, AVATAR_FACES, cleanAvatar, cleanStats, cleanVoice } from "./net.js";
@@ -16,7 +16,7 @@ import { BOERENBRIDGE, TIEN_OP_EN_NEER, createGame, maxCardsFor, maxPlayersFor, 
 import { KINDS, addGame, addHighScore, loadHighScores, matchesVs, playersDetail, loadStats, mergeGames, starRating, starsHtml, statsForKind, statsSummary } from "./stats.js";
 import { flushHof, hofCache, hofId, queueHof, sha256Hex } from "./hof.js";
 import { cardSound, initSound, loadSound, playSound, soundReady, stopSound, voicePlaying } from "./sound.js";
-import { resultWait } from "./pacing.js";
+import { ALL_WET_REMARK_MS, MAX_WAITING_REMARKS, REMARK_SHOW_MS, WAITING_REMARK_MS, resultWait } from "./pacing.js";
 import { OPENERS, PHRASES, PHRASE_GAP_MS, QUICK, RETURNERS, TIP_CHAT, WIRE_TEXTS, openerFile, phraseFile, returnFile, tinekeFile } from "./speech.js";
 import { celebrate, isCelebrating } from "./celebrate.js";
 import { askNotifications, clearTurnNotice, inBackground, iosBrowser, isIOS, notifyAlways, notifyPermission, notifyUnsupportedText, setAppVisible, turnNotice } from "./notify.js";
@@ -373,6 +373,10 @@ const wetShown = [false, false, false, false, false];
 let speechUntil = 0; // tot wanneer de laatste voorspelling nog uitgesproken wordt
 let roundDoneSince = 0; // wanneer de ronde klaar was, om de uitslag pas na het praten te tonen
 let resultTimer = null;
+let chatterUntil = 0; // tot wanneer er nog een opmerking in beeld staat waar de uitslag op wacht
+let waitingTimer = null; // voor de opmerking als de computers lang op jou wachten
+let lastGrumbler = 0; // wie het laatst mopperde, zodat de volgende keer een ander het zegt
+let previousPhase = ""; // om te zien dat een ronde net klaar is (niet bij een hersteld spel)
 let wetSpoken = false; // maar één nat-reactie tegelijk uitspreken
 const talkingUntil = [0, 0, 0, 0, 0];
 const previousTricks = [0, 0, 0, 0, 0];
@@ -552,6 +556,8 @@ function refresh() {
   else if (sounds.includes("GOED_VOORSPELD") && Math.random() < 1 / 4) afterLanding(() => tinekeComment("goed"));
   wetSpoken = false;
   announceBids(afterLanding);
+  if (st.phase === "ROUND_COMPLETE" && previousPhase && previousPhase !== "ROUND_COMPLETE" && everyoneMissed(st.players)) remarkAllWet();
+  previousPhase = st.phase;
   if (screen === "game") renderGame();
   if (screen === "game") onTurn();
   if (st.phase === "GAME_OVER") handleGameOver();
@@ -622,12 +628,22 @@ const canReact = () => screen === "game" && !inBackground();
 
 /** Een computerspeler (niet nr) die op een gebeurtenis reageert, of 0. */
 function otherComputer(nr) {
-  const list = [];
-  for (let i = 1; i <= st.players.length; i++) if (i !== nr && faceFor(i)) list.push(i);
+  const list = computerSeats(nr);
   return list.length ? list[Math.floor(Math.random() * list.length)] : 0;
 }
 
-function react(nr, kind, delay, mood = "") {
+/** De stoelen van de computerspelers (behalve nr), op volgorde. */
+function computerSeats(nr) {
+  const list = [];
+  for (let i = 1; i <= st.players.length; i++) if (i !== nr && faceFor(i)) list.push(i);
+  return list;
+}
+
+/**
+ * Een computerspeler zegt iets (tekstballon) bij een gebeurtenis. [interrupt]: ook als er al iemand praat, voor
+ * een opmerking die er echt bij hoort (iedereen nat); anders alleen een gebaar, zodat ze niet door elkaar praten.
+ */
+function react(nr, kind, delay, mood = "", interrupt = false) {
   const who = faceFor(nr);
   const lines = (isEnglish ? REACTIONS_EN : REACTIONS)[kind]?.[who];
   if (!lines || !canReact()) return;
@@ -635,7 +651,7 @@ function react(nr, kind, delay, mood = "") {
   setTimeout(() => {
     if (!canReact() || st.round !== round) return;
     // Praat er al iemand (wolkje in beeld), dan alleen een gebaar: niet door elkaar heen
-    if ($("#flyers .bubble")) { gesture(nr, mood === "sad" ? "sigh" : "react"); return; }
+    if (!interrupt && $("#flyers .bubble")) { gesture(nr, mood === "sad" ? "sigh" : "react"); return; }
     const k = pickLine(`r-${kind}-${nr}`, lines.length, false);
     showBubble(nr, `<span>${esc(lines[k])}</span>`, 1900, mood);
     gesture(nr, mood === "sad" ? "sigh" : kind === "slag" ? "cheer" : "react");
@@ -669,6 +685,36 @@ function reactToBid(nr, ms) {
   }
   const fair = st.cards / st.players.length;
   if (p.bid >= 3 && p.bid >= fair + 2 && Math.random() < 0.4) react(other, "hoog", delay);
+}
+
+/**
+ * Iedereen is nat gegaan: een computerspeler zegt er iets van. Nodig omdat zo'n ronde opvalt en een reactie het
+ * gezellig maakt; de uitslag van de ronde wacht tot de opmerking gelezen is (chatterUntil).
+ */
+function remarkAllWet() {
+  const nr = otherComputer(0);
+  if (!nr || !canReact()) return;
+  chatterUntil = Date.now() + ALL_WET_REMARK_MS + REMARK_SHOW_MS;
+  react(nr, "allenat", ALL_WET_REMARK_MS, "sad", true);
+}
+
+/**
+ * Laten de computers lang op jou wachten, dan zegt er een iets bijdehants (hooguit een paar keer per beurt).
+ * Nodig voor de sfeer aan tafel; niet terwijl Tineke iets uitlegt, want dan ben je aan het lezen.
+ */
+function scheduleWaitingRemark(turnKey, count = 0) {
+  clearTimeout(waitingTimer);
+  waitingTimer = null;
+  if (count >= MAX_WAITING_REMARKS || !(humanBidding() || humanPlaying())) return;
+  waitingTimer = setTimeout(() => {
+    waitingTimer = null;
+    if (lastTurnKey !== turnKey || !st || !(humanBidding() || humanPlaying())) return;
+    if (tinekeWaiting || !$("#tineke-panel").hidden) { scheduleWaitingRemark(turnKey, count); return; }
+    // Om de beurt een ander, en nooit door een andere praatwolk heen (react geeft dan alleen een gebaar)
+    const nr = nextSpeaker(computerSeats(1), lastGrumbler);
+    if (nr) { lastGrumbler = nr; react(nr, "wacht", 0); }
+    scheduleWaitingRemark(turnKey, count + 1);
+  }, WAITING_REMARK_MS);
 }
 
 /** Je vraagt om een tip: een computerspeler heeft het gezien. */
@@ -1162,6 +1208,7 @@ function onTurn() {
   const key = `${st.round}|${st.phase}|${st.active}|${st.players.map((p) => p.cardCount).join("")}|${st.trickWinner}`;
   if (key === lastTurnKey) return;
   lastTurnKey = key;
+  scheduleWaitingRemark(key);
   if (online?.game) {
     if (humanBidding()) turnNotice(t("Je bent aan de beurt: hoeveel slagen denk je te halen? (ronde {n})", { n: st.round }));
     else if (humanPlaying()) turnNotice(t("Je bent aan de beurt: leg een kaart op."));
@@ -1686,7 +1733,7 @@ function renderDialog() {
 function roundResultReady() {
   if (!roundDoneSince) roundDoneSince = Date.now();
   if (inBackground()) return true;
-  const wait = resultWait(Date.now() - roundDoneSince, voicePlaying());
+  const wait = resultWait(Date.now() - roundDoneSince, voicePlaying() || Date.now() < chatterUntil);
   if (wait && !resultTimer) resultTimer = setTimeout(() => { resultTimer = null; renderDialog(); }, wait);
   return wait === 0;
 }

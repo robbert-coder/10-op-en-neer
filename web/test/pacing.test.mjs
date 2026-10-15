@@ -18,3 +18,20 @@ test("nooit langer dan het maximum, ook bij rare invoer", () => {
   assert.equal(resultWait(NaN, true), 0);
   assert.equal(resultWait(-50, false), RESULT_MIN_WAIT_MS);
 });
+
+test("iedereen nat: alleen als alle spelers voorspeld en gemist hebben", async () => {
+  const { everyoneMissed } = await import("../static/characters.js");
+  assert.equal(everyoneMissed([{ bid: 1, tricks: 0 }, { bid: 0, tricks: 1 }]), true);
+  assert.equal(everyoneMissed([{ bid: 1, tricks: 1 }, { bid: 0, tricks: 1 }]), false);
+  assert.equal(everyoneMissed([{ bid: -1, tricks: 0 }, { bid: 0, tricks: 1 }]), false);
+  assert.equal(everyoneMissed([{ bid: 1, tricks: 0 }]), false);
+  assert.equal(everyoneMissed(null), false);
+});
+
+test("mopperen gaat om de beurt", async () => {
+  const { nextSpeaker } = await import("../static/characters.js");
+  assert.equal(nextSpeaker([2, 3, 4], 0), 2);
+  assert.equal(nextSpeaker([2, 3, 4], 2), 3);
+  assert.equal(nextSpeaker([2, 3, 4], 4), 2);
+  assert.equal(nextSpeaker([], 2), 0);
+});
