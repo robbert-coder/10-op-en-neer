@@ -225,12 +225,15 @@ export class Host {
   announce() {
     if (!this.pub || !this.relays) return;
     const open = !this.started && !this.closed;
+    // Een lopend spel staat er ook in, als "bezig" (zonder vrije plaatsen, zodat oudere versies er niet aan schuiven)
+    const playing = !!this.started && !this.finished && !this.closed;
     const me = this.players.find((x) => x.id === "host");
-    const info = open ? {
+    const info = open || playing ? {
       v: 1, code: this.code, host: me?.name ?? "", avatar: me?.avatar && me.avatar.length <= 16 ? me.avatar : null,
       title: this.pub.title ?? "", variant: this.pub.variant, rounds: this.pub.rounds, seats: this.seats,
       players: this.players.slice().sort((a, b) => a.seat - b.seat).map((p) => p.name),
-      free: Math.max(0, this.seats - this.players.length), time: Date.now(),
+      free: open ? Math.max(0, this.seats - this.players.length) : 0, time: Date.now(),
+      ...(playing ? { playing: true, round: this.round ?? 0 } : {}),
     } : null;
     for (const r of this.relays) {
       // Echt dicht (gestart of gesloten): eerst laten weten dat de tafel weg is, dan het bewaarde bericht wissen.
@@ -586,6 +589,12 @@ export class Guest {
       // Geen antwoord: misschien zit de gastheer op een andere doorgeefserver
       this.tries++;
       this.waitStart = Date.now();
+      // Nooit binnengekomen en op elke server geprobeerd: de tafel is er niet (meer), niet eindeloos blijven wachten
+      if (!this.everWelcomed && this.tries >= Math.max(2, this.relay.urls.length)) {
+        this.close();
+        this.events.onClosed?.(t("Tafel {code} reageert niet. Waarschijnlijk is de tafel gesloten of is de gastheer niet meer online. Vraag de gastheer om een nieuwe uitnodiging.", { code: this.code }));
+        return;
+      }
       this.events.onStatus?.(this.everWelcomed
         ? t("De tafel reageert niet. Opnieuw proberen…")
         : t("Nog geen antwoord van tafel {code}. Staat de tafel open bij de gastheer? Opnieuw proberen…", { code: this.code }));
@@ -782,6 +791,7 @@ export class PublicLobby {
         free: Math.max(0, Math.min(seats, Math.round(Number(msg.free)) || 0)),
         title: cleanText(msg.title, 40), variant: cleanText(msg.variant, 40), rounds: Math.max(0, Math.min(30, Math.round(Number(msg.rounds)) || 0)),
         time: msg.time, seen: Date.now(), via: via(this.tables.get(code)), away: false, hostId: from,
+        playing: msg.playing === true, round: Math.max(0, Math.min(30, Math.round(Number(msg.round)) || 0)),
       });
       this.emitTables();
     } else if (t.startsWith(`${PUBLIC}/lobby/`)) {

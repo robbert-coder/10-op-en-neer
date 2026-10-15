@@ -543,12 +543,19 @@ function refresh() {
     return;
   }
   st = JSON.parse(game.state());
-  if (online?.role === "host" && online.link && online.game) online.link.finished = st.phase === "GAME_OVER";
+  if (online?.role === "host" && online.link && online.game) {
+    // Ronde en einde meteen doorgeven aan het overzicht van lopende spellen in de openbare lobby
+    const finished = st.phase === "GAME_OVER";
+    const changed = online.link.round !== st.round || online.link.finished !== finished;
+    online.link.finished = finished;
+    online.link.round = st.round;
+    if (changed) online.link.announce?.();
+  }
   const sounds = Array.from(game.takeSounds());
   // Een kaart die net is opgelegd vliegt nog naar de tafel: geluiden en nat gaan pas als hij ligt
   const flying = screen === "game" && !showLastTrick && !inBackground() && !reducedMotion &&
     st.table.some((c, i) => c && c !== previousTable[i]);
-  const afterLanding = (fn) => (flying ? setTimeout(() => { if (screen === "game") fn(); }, animMs(360)) : fn());
+  const afterLanding = (fn) => (flying ? whenLanded(() => { if (screen === "game") fn(); }) : fn());
   // Als de spelers praten, zegt een computerspeler zelf iets als hij nat gaat in plaats van het geluidje
   const voiceWet = settings.speakBids && sounds[sounds.length - 1] === "MEDESPELER_NAT";
   if (settings.sound && sounds.length && !voiceWet) afterLanding(() => playSound(sounds[sounds.length - 1].toLowerCase()));
@@ -562,6 +569,20 @@ function refresh() {
   if (screen === "game") renderGame();
   if (screen === "game") onTurn();
   if (st.phase === "GAME_OVER") handleGameOver();
+}
+
+/**
+ * [fn] uitvoeren als de kaarten die nu naar tafel vliegen echt liggen. Nodig omdat een vaste wachttijd te vroeg
+ * kan zijn: de vlucht begint pas bij het tekenen, en op een trager apparaat later. Eerst het tekenen afwachten,
+ * dan de vluchten zelf, en dan nog een klein moment zodat je de kaart ziet liggen.
+ */
+function whenLanded(fn) {
+  setTimeout(() => {
+    const flights = $$("#table .tcard .card").flatMap((c) => c.getAnimations().filter((a) => !("animationName" in a)));
+    const landed = Promise.all(flights.map((a) => a.finished.catch(() => {})));
+    // Nooit langer dan een seconde wachten, ook niet als een animatie blijft hangen
+    Promise.race([landed, new Promise((r) => setTimeout(r, 1000))]).then(() => setTimeout(fn, 80));
+  }, 0);
 }
 
 /** Spreekt nieuwe voorspellingen uit, laat het gezicht praten en toont een tekstballon. */
@@ -1320,6 +1341,29 @@ function buildSeats() {
   $("#seat-1").dataset.key = seatsKey();
 }
 
+/** Wapperende vlag die na afloop van het spel bij de winnaar op tafel staat (zelfde vlag als bij het feestje). */
+const WIN_FLAG = `<span class="nl-waving win-flag" aria-hidden="true"><span class="pole"></span><span class="cloth">${
+  Array.from({ length: 8 }, (_, i) => `<i style="--i:${i}"></i>`).join("")}</span></span>`;
+
+/**
+ * Spel afgelopen: een vlag op het speelbord op de plek van de winnaar (waar zijn kaart zou liggen), bij gelijkspel
+ * bij elke winnaar. Nodig zodat je na het feestje nog ziet wie er won.
+ */
+function placeWinFlags() {
+  const box = $("#win-flags");
+  const winners = st.phase === "GAME_OVER" ? st.players.map((p, i) => (p.rank === 1 ? i + 1 : 0)).filter(Boolean) : [];
+  const key = winners.join(",");
+  if (box.dataset.key === key && box.childElementCount === winners.length) return;
+  box.dataset.key = key;
+  const felt = $("#table").getBoundingClientRect();
+  box.innerHTML = winners.map((nr) => {
+    const r = $(`#table .tcard.s${nr}`).getBoundingClientRect();
+    const x = ((r.left + r.width / 2 - felt.left) / felt.width) * 100;
+    const y = ((r.top + r.height / 2 - felt.top) / felt.height) * 100;
+    return `<span class="win-flag-spot" style="left:${x.toFixed(1)}%;top:${y.toFixed(1)}%">${WIN_FLAG}</span>`;
+  }).join("");
+}
+
 /** Heeft deze speler al voorspeld (tijdens het voorspellen) of al een kaart opgelegd (tijdens de slag)? */
 function hasHadTurn(nr) {
   if (st.active === nr || talkingUntil[nr] > Date.now()) return false;
@@ -1342,6 +1386,7 @@ function moodFor(nr) {
 function updateSeats() {
   if (!st) return;
   if ($("#seat-1").dataset.key !== seatsKey() || !$("#seat-1 .avatar")) buildSeats();
+  placeWinFlags();
   for (let nr = 1; nr <= st.players.length; nr++) {
     const p = st.players[nr - 1];
     const el = $(`#seat-${nr}`);
@@ -2045,6 +2090,8 @@ const CAMERA_SVG = `<svg class="face-svg" viewBox="0 0 100 100" aria-hidden="tru
 const PENCIL_SVG = `<svg class="face-svg" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="46" fill="rgba(255,255,255,.1)"/>
   <path d="M33 67 L36 55 L60 31 L69 40 L45 64 Z M55 36 L64 45" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/></svg>`;
 
+const EDIT_BADGE = `<span class="av-edit" aria-hidden="true">✏️</span>`;
+
 function renderAvatarPick() {
   const cur = myAvatar() ?? "";
   const photo = cur.startsWith("data:image/");
@@ -2054,9 +2101,10 @@ function renderAvatarPick() {
   // laten het gezicht op een andere plek (bijvoorbeeld bij samen spelen) kaal en vreemd gekleurd zien
   const html = () => [
     opt("", initialSvg(settings.playerName), !cur, t("Eerste letter van je naam")),
-    ...AVATAR_FACES.map((f, i) => opt(f, faceSvg(f), cur === f, t("Gezicht {n}", { n: i + 1 }))),
-    // Een eigen poppetje krijgt een potloodje: tik erop om het aan te passen
-    opt("maak", isFaceCode(cur) ? `${customFaceSvg(cur)}<span class="av-edit" aria-hidden="true">✏️</span>` : PENCIL_SVG, isFaceCode(cur),
+    // Het gekozen gezicht krijgt een potloodje: nog een tik en je past het aan (het wordt dan je eigen poppetje)
+    ...AVATAR_FACES.map((f, i) => opt(f, cur === f ? `${faceSvg(f)}${EDIT_BADGE}` : faceSvg(f), cur === f,
+      t(cur === f ? "Je poppetje aanpassen" : "Gezicht {n}", { n: i + 1 }))),
+    opt("maak", isFaceCode(cur) ? `${customFaceSvg(cur)}${EDIT_BADGE}` : PENCIL_SVG, isFaceCode(cur),
       t(isFaceCode(cur) ? "Je poppetje aanpassen" : "Eigen poppetje maken")),
     opt("foto", photo ? humanAvatarHtml(cur, "") : CAMERA_SVG, photo, t("Eigen foto kiezen")),
   ].join("");
@@ -2183,6 +2231,8 @@ document.addEventListener("click", (e) => {
   if (!b) return;
   if (b.dataset.av === "foto") $("#avatar-file").click();
   else if (b.dataset.av === "maak") openFaceEditor();
+  // Nog eens op het gekozen gezicht tikken: aanpassen
+  else if (b.classList.contains("sel") && AVATAR_FACES.includes(b.dataset.av)) openFaceEditor();
   else setAvatar(b.dataset.av || null);
 });
 $("#avatar-file").addEventListener("change", async (e) => {
@@ -2342,6 +2392,14 @@ function netEvents() {
     onVotes: (v) => onVotes(v),
     onClosed: (text) => {
       const wasPlaying = !!online?.game;
+      // Nooit aan tafel gekomen (al begonnen, vol, gesloten): duidelijk zeggen en terug naar het begin
+      if (online?.role === "guest" && !wasPlaying && !online.link?.everWelcomed) {
+        closeOnline();
+        if (screen === "online") renderOnline(); else show("online");
+        confirmDialog = { title: t("Meedoen lukt niet"), text: esc(text), yes: t("Oké"), action: () => {} };
+        renderDialog();
+        return;
+      }
       online.error = text;
       online.link = null;
       store.remove("online-gast");
@@ -2974,7 +3032,7 @@ let pubPeopleOpen = false; // de namen van de aanwezigen in de lobby tonen
 
 function renderPublicLobby(scrollChat = false) {
   if (!pubLobby) return;
-  const tables = pubTables.map((tb) => {
+  const tables = pubTables.filter((tb) => !tb.playing).map((tb) => {
     const taken = tb.seats - tb.free;
     const title = tb.title || t("Tafel van {name}", { name: tb.host });
     return `<div class="pub-table"><div class="avatar">${humanAvatarHtml(tb.avatar, tb.host)}</div>
@@ -2985,7 +3043,18 @@ function renderPublicLobby(scrollChat = false) {
         ${tb.away ? `<small class="away">${t("{name} is even weg. Schuif gerust aan: je komt binnen zodra {name} terug is.", { name: esc(tb.host) })}</small>` : ""}</div>
       <button class="${tb.free ? "primary" : ""}" data-pub-join="${esc(tb.code)}" ${tb.free ? "" : "disabled"}>${tb.free ? t("Aanschuiven") : t("Vol")}</button></div>`;
   }).join("");
-  $("#pub-tables").innerHTML = tables || `<p class="empty-note">${t("Er staat nu geen openbare tafel open. Open er zelf een!")}</p>`;
+  // Spellen die al bezig zijn: alleen ter info (meedoen kan niet meer)
+  const playing = pubTables.filter((tb) => tb.playing).map((tb) => {
+    const title = tb.title || t("Tafel van {name}", { name: tb.host });
+    const round = tb.round && tb.rounds ? t("ronde {r} van {n}", { r: tb.round, n: tb.rounds }) : t("bezig");
+    return `<div class="pub-table playing"><div class="avatar">${humanAvatarHtml(tb.avatar, tb.host)}</div>
+      <div class="info"><b>${esc(title)}</b>
+        <small>${esc(variantText(tb.variant))} · ${round}</small>
+        <small>${tb.players.map(esc).join(", ")}</small></div>
+      <span class="pub-busy">${t("Bezig")}</span></div>`;
+  }).join("");
+  $("#pub-tables").innerHTML = (tables || `<p class="empty-note">${t("Er staat nu geen openbare tafel open. Open er zelf een!")}</p>`)
+    + (playing ? `<h4 class="pub-head">${t("Spellen die bezig zijn")}</h4>${playing}` : "");
   $("#pub-status").textContent = pubStatus;
   $("#pub-status").hidden = !pubStatus;
   const n = pubPeople.length;

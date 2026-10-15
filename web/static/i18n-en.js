@@ -658,4 +658,11 @@ export default {
   "Opslaan": "Save",
   "Je poppetje aanpassen": "Edit your character",
   "Hoe snel de computerspelers voorspellen en hun kaarten leggen, en hoe lang een slag op tafel blijft liggen. Ook in het spel aan te passen via het menu.": "How fast the computer players bid and play their cards, and how long a trick stays on the table. You can also change it during a game from the menu.",
+  "Tafel {code} reageert niet. Waarschijnlijk is de tafel gesloten of is de gastheer niet meer online. Vraag de gastheer om een nieuwe uitnodiging.": "Table {code} is not responding. The table has probably been closed or the host is no longer online. Ask the host for a new invitation.",
+  "Meedoen lukt niet": "Can't join",
+  "Oké": "OK",
+  "ronde {r} van {n}": "round {r} of {n}",
+  "bezig": "in progress",
+  "Bezig": "Playing",
+  "Spellen die bezig zijn": "Games in progress",
 };

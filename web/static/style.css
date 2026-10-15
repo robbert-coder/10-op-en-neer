@@ -1076,8 +1076,16 @@ button.primary { background: linear-gradient(180deg, #F7C761, var(--gold)); box-
 .fe-extra.sel { background: var(--gold); color: #3A2A00; }
 .fe-swatch.sun { background: radial-gradient(circle at 35% 35%, #555 0 18%, #141414 22%); border: 4px solid; }
 .av-opt { position: relative; }
-.av-edit { position: absolute; right: -4px; bottom: -4px; width: 20px; height: 20px; border-radius: 50%; background: var(--gold);
+.av-edit { position: absolute; right: -4px; bottom: -4px; width: 20px; height: 20px; border-radius: 50%; background: var(--gold); border: 1.5px solid #000;
   display: flex; align-items: center; justify-content: center; font-size: 11px; box-shadow: 0 1px 4px rgba(0,0,0,.4); }
 .menu-speed { display: flex; flex-direction: column; gap: 6px; padding: 12px 18px 14px; border-top: 1px solid var(--line); font-size: 15px; }
 .menu-speed input { width: 100%; accent-color: var(--gold); }
 .menu-speed .range-labels { font-size: 12px; }
+/* Na afloop: de vlag bij de winnaar aan tafel */
+.win-flags { position: absolute; inset: 0; pointer-events: none; }
+.win-flag-spot { position: absolute; width: 0; height: 0; }
+.win-flag-spot .nl-waving.win-flag { left: -4px; bottom: -14px; width: 48px; height: 96px; }
+/* Openbare lobby: spellen die al bezig zijn */
+.pub-head { margin: 14px 2px 6px; font-size: 14px; color: var(--muted); font-weight: 700; }
+.pub-table.playing { opacity: .85; }
+.pub-busy { font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: rgba(255,255,255,.08); color: var(--muted); white-space: nowrap; }

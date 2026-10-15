@@ -1,6 +1,19 @@
 // Wat er per versie nieuw is. Wie na een nieuwe versie terugkomt, ziet dit in het hoofdmenu.
 // items in het Nederlands, en dezelfde punten in het Engels (en), voor wie het spel in het Engels speelt.
 export const CHANGES = [
+  { v: "2.52", items: [
+    "Samen spelen: wil je aanschuiven bij een tafel die al begonnen, vol of gesloten is, dan zegt het spel dat nu duidelijk.",
+    "Op de openbare pagina zie je ook welke openbare spellen bezig zijn, met de spelers en de ronde.",
+    "Het geluid en de zin bij nat gaan wachten nu echt tot de kaart op tafel ligt.",
+    "Ook een standaardgezicht kun je aanpassen: tik nog eens op het gekozen gezicht (met het potloodje, nu met een zwart randje).",
+    "Na afloop staat de vlag op het speelbord bij de winnaar.",
+  ], en: [
+    "Playing together: if you try to join a table that has started, is full or was closed, the game now says so clearly.",
+    "The public page also shows which public games are in progress, with the players and the round.",
+    "The sound and line for a missed bid now really wait until the card is on the table.",
+    "You can also edit a standard face: tap the chosen face again (it has the pencil, now with a black outline).",
+    "After the game the flag stands on the board at the winner.",
+  ] },
   { v: "2.51", items: [
     "Poppetje: baard met snor en een sik, zonnebrillen in vier kleuren, en de bril zit nu onder de pet, hoed of mijter.",
     "Heb je een eigen poppetje, dan staat er een potloodje op: tik erop om het aan te passen.",
