@@ -313,15 +313,30 @@ def extra(out, only):
     os.makedirs(f"{out}/ruw", exist_ok=True)
     os.makedirs(f"{out}/mp3", exist_ok=True)
 
-    def voice(who):
+    ids = {}
+    for who in {j["who"] for j in jobs}:
+        k = KEUZE.get(who)
         if who in EXTRA:
-            return EXTRA[who]
-        return KEUZE[who]["stem"], MODEL["stem"], ""
+            ids[who] = EXTRA[who]
+        elif "ontwerp" in k:
+            ids[who] = (saved_voice(k), MODEL["ontwerp"], "")
+        else:
+            ids[who] = (k["stem"], MODEL["stem"], "")
 
     def one(j):
-        vid, model, prefix = voice(j["who"])
-        speak(vid, model, prefix + j["text"], f"{out}/ruw/{j['file']}.mp3", {"stability": 0.5} if model == "eleven_v3" else None)
-        return j["file"], polish(out, j["file"])
+        vid, model, prefix = ids[j["who"]]
+        # Reacties van de personages (met "tone") in hun eigen toon en zo expressief als hun voorspellingen
+        if "tone" in j and j["who"] in TOON:
+            prefix, settings = TOON[j["who"]][j["tone"]] + " ", EXPRESSIEF
+        else:
+            settings = {"stability": 0.5} if model == "eleven_v3" else None
+        for _ in range(4):
+            speak(vid, model, prefix + j["text"], f"{out}/ruw/{j['file']}.mp3", settings)
+            ms = polish(out, j["file"])
+            if 250 <= ms <= 400 + 140 * len(j["text"]):
+                break
+            print("opnieuw", j["file"], ms, "ms:", j["text"], flush=True)
+        return j["file"], ms
 
     print(len(jobs), "zinnen,", sum(len(j["text"]) for j in jobs), "tekens", flush=True)
     with ThreadPoolExecutor(4) as pool:

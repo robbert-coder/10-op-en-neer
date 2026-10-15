@@ -2,6 +2,7 @@
 // bij samen spelen hardop kunt laten zeggen, en de uitleg van Tineke (tineke.js). Opnames: sounds/<naam>.mp3,
 // gemaakt met tools/elevenlabs.py (stap "extra"), dat speechJobs() via node uitleest.
 import { spokenLines, speechFile } from "./tineke.js";
+import { REACTIONS } from "./characters.js";
 
 // Truus roept je toe op het startscherm (gekozen door Robbert). De opnames maakt de stap "begroeting" van
 // tools/elevenlabs.py; deze teksten staan hier alleen ter informatie.
@@ -48,6 +49,13 @@ export const PHRASE_GAP_MS = 30000;
 export const openerFile = (k) => `open_${k}`;
 export const returnFile = (k) => `terug_${k}`;
 export const phraseFile = (voice, k) => `zin_${voice}_${k}`;
+/**
+ * Reacties van de computerspelers die ook uitgesproken worden (de andere zijn alleen een tekstballon), met de
+ * toon: 0 = hun gewone toon, 1 = de toon waarmee ze nat gaan (zie TOON in tools/elevenlabs.py).
+ */
+export const SPOKEN_REACTIONS = { wacht: 0, allenat: 1 };
+/** Bestandsnaam (sounds/<naam>.mp3) van een uitgesproken reactie: soort, personage en nummer van de zin. */
+export const reactionFile = (kind, who, k) => `reactie_${kind}_${who}_${k}`;
 export { speechFile as tinekeFile };
 
 /** Wat de stap "extra" inspreekt: { file, text, who }, met who = tineke of speler_<stem>. */
@@ -55,5 +63,7 @@ export function speechJobs() {
   return [
     ...spokenLines().map((text) => ({ file: speechFile(text), text, who: "tineke" })),
     ...PHRASE_VOICES.flatMap((v) => PHRASES.map((text, k) => ({ file: phraseFile(v, k), text, who: `speler_${v}` }))),
+    ...Object.entries(SPOKEN_REACTIONS).flatMap(([kind, tone]) => Object.entries(REACTIONS[kind]).flatMap(([who, lines]) =>
+      lines.map((text, k) => ({ file: reactionFile(kind, who, k), text, who, tone })))),
   ];
 }
