@@ -1,6 +1,11 @@
 // Wat er per versie nieuw is. Wie na een nieuwe versie terugkomt, ziet dit in het hoofdmenu.
 // items in het Nederlands, en dezelfde punten in het Engels (en), voor wie het spel in het Engels speelt.
 export const CHANGES = [
+  { v: "2.56", items: [
+    "Het keuzemenu van de praatknop valt niet meer achter je kaarten.",
+  ], en: [
+    "The speak button's menu no longer hides behind your cards.",
+  ] },
   { v: "2.55", items: [
     "Samen spelen: wat je met de praatknop laat zeggen, horen de anderen in jouw stem. Het komt niet meer in de chat te staan.",
   ], en: [
