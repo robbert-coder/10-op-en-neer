@@ -18,7 +18,7 @@ import { KINDS, addGame, addHighScore, highScoreWindow, loadHighScores, matchesV
 import { flushHof, hofCache, hofId, queueHof, sha256Hex } from "./hof.js";
 import { cardSound, initSound, loadSound, playSound, soundReady, stopSound, voicePlaying } from "./sound.js";
 import { ALL_WET_REMARK_MS, MAX_WAITING_REMARKS, REMARK_SHOW_MS, WAITING_REMARK_MS, resultWait } from "./pacing.js";
-import { OPENERS, PHRASES, PHRASE_GAP_MS, QUICK, RETURNERS, TIP_CHAT, WIRE_TEXTS, openerFile, phraseFile, reactionFile, returnFile, SPOKEN_REACTIONS, tinekeFile } from "./speech.js";
+import { OPENERS, PHRASES, PHRASE_GAP_MS, sayWire, spokenPhrase, QUICK, RETURNERS, TIP_CHAT, WIRE_TEXTS, openerFile, phraseFile, reactionFile, returnFile, SPOKEN_REACTIONS, tinekeFile } from "./speech.js";
 import { celebrate, isCelebrating } from "./celebrate.js";
 import { askNotifications, clearTurnNotice, inBackground, iosBrowser, isIOS, notifyAlways, notifyPermission, notifyUnsupportedText, setAppVisible, turnNotice } from "./notify.js";
 import { cardHtml, sortHand, trumpMiniHtml } from "./cards.js";
@@ -2425,7 +2425,7 @@ function netEvents() {
       return turn === 0 || turn === seat ? undefined : false;
     },
     onChat: (m, own) => onChatMessage(m, own),
-    onChatLog: (list) => { online.chat = list.slice(-100); renderChat(); },
+    onChatLog: (list) => { online.chat = chatOnly(list).slice(-100); renderChat(); },
     onAction: (a) => onNetAction(a),
     // Hoeveel handelingen dit apparaat al heeft (ook die nog in de wachtrij staan)
     actionCount: () => {
@@ -2469,13 +2469,23 @@ let chatOpen = false;
 // vertaald. Alles wat mensen zelf typen blijft zoals het is.
 const chatText = (text) => (WIRE_TEXTS.has(text) ? t(text) : text);
 
+/** Alleen de echte chatberichten: snelle zinnen worden uitgesproken en horen niet in de lijst (zie spokenPhrase). */
+const chatOnly = (list) => list.filter((m) => spokenPhrase(m.text) < 0);
+
 /** Plaats op het scherm (1 = onderaan) van een stoel in het spel. */
 const tableSize = () => online?.game?.rules?.players ?? online?.rules?.players ?? online?.seats ?? 4;
 const viewOfSeat = (seat) => (seat - online.seat + tableSize()) % tableSize() + 1;
 
 function onChatMessage(m, own) {
   if (!online) return;
-  if (!own) hearPhrase(m);
+  // Een snelle zin hoor je (en zie je kort in een wolkje), maar komt niet in de chat
+  if (spokenPhrase(m.text) >= 0) {
+    if (!own) {
+      hearPhrase(m);
+      if (screen === "game" && online.game && online.seat) showBubble(viewOfSeat(m.seat), `<span>${esc(t(PHRASES[spokenPhrase(m.text)]))}</span>`, 2500 + m.text.length * 40, "chat");
+    }
+    return;
+  }
   online.chat.push(m);
   if (online.chat.length > 100) online.chat.shift();
   if (!own && !chatOpen && !(dockShown() && settings.chatDock !== false)) online.unread++;
@@ -2593,8 +2603,8 @@ function openChat(open) {
   if (open && !window.matchMedia("(pointer: coarse)").matches) $("#chat-input").focus();
 }
 
-// Snelle zinnen (speech.js): je laat ze in je eigen stem zeggen, hoogstens één per 30 seconden. Ze gaan als gewoon
-// chatbericht, dus wie een oudere versie heeft, ziet alleen de tekst.
+// Snelle zinnen (speech.js): je laat ze in je eigen stem zeggen, hoogstens één per 30 seconden. Ze gaan als
+// chatbericht over de lijn, maar komen niet in de chat: de anderen horen ze in jouw stem (zie onChatMessage).
 let lastSaid = 0;
 const heardAt = new Map();
 const sayWait = () => Math.max(0, lastSaid + PHRASE_GAP_MS - Date.now());
@@ -2615,7 +2625,7 @@ $("#say-menu").addEventListener("click", (e) => {
   const b = e.target.closest("[data-say]");
   if (!b || sayWait()) return;
   const k = Number(b.dataset.say);
-  if (!sendChat(PHRASES[k])) return;
+  if (!sendChat(sayWire(k))) return;
   lastSaid = Date.now();
   $("#say-menu").hidden = true;
   // De opnames zijn Nederlands: in het Engels zie je alleen de tekst
@@ -2626,7 +2636,7 @@ setInterval(() => { if (!$("#say-menu").hidden) renderSayMenu(); }, 1000);
 
 /** Een snelle zin van een medespeler hardop, in zijn stem (en niet vaker dan de afzender mag). */
 function hearPhrase(m) {
-  const k = PHRASES.indexOf(m.text);
+  const k = spokenPhrase(m.text);
   if (k < 0 || isEnglish || !settings.sound || settings.speakHumans === false || !soundReady()) return;
   if (Date.now() - (heardAt.get(m.seat) ?? 0) < PHRASE_GAP_MS - 5000) return;
   heardAt.set(m.seat, Date.now());
@@ -2720,7 +2730,7 @@ function startHostGame(fill) {
     online.link.compact();
     online.players = online.link.players.map(({ name, seat, online: on, avatar, voice }) => ({ name, seat, online: on, avatar, voice }));
     online.rules = { ...online.rules, players: online.players.length };
-    online.chat = online.link.chat.slice(-100);
+    online.chat = chatOnly(online.link.chat).slice(-100);
     renderChat();
   }
   const cast = drawCast();
@@ -3026,7 +3036,7 @@ function resumeOnline() {
       online = {
         role: "host", code: saved.code, seat: 1, players: saved.players, queue: new Map(), game: null,
         rules: saved.started.rules, smart: saved.started.smart, status: "", error: "",
-        chat: saved.chat ?? [], unread: 0,
+        chat: chatOnly(saved.chat ?? []), unread: 0,
       };
       online.link = new Host(saved.code, settings.playerName, netEvents(), saved, myAvatar(), saved.started.rules.players ?? 4);
       online.link.setVoice(myVoice());

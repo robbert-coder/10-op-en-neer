@@ -1,6 +1,11 @@
 // Wat er per versie nieuw is. Wie na een nieuwe versie terugkomt, ziet dit in het hoofdmenu.
 // items in het Nederlands, en dezelfde punten in het Engels (en), voor wie het spel in het Engels speelt.
 export const CHANGES = [
+  { v: "2.55", items: [
+    "Samen spelen: wat je met de praatknop laat zeggen, horen de anderen in jouw stem. Het komt niet meer in de chat te staan.",
+  ], en: [
+    "Playing together: what you say with the speak button is heard by the others in your voice. It no longer appears in the chat.",
+  ] },
   { v: "2.54", items: [
     "Samen spelen op een groot scherm: veel chatberichten drukken de tafel niet meer plat, en het chatvenster is groter.",
     "De sterren onder een hoofd staan niet meer over de naam heen.",

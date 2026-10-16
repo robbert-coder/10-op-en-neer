@@ -33,6 +33,21 @@ export const PHRASES = [
   "Dat was op het nippertje!",
   "Nog een potje?",
 ];
+
+/** Teken voor een uitgesproken zin over de lijn, zodat "Goed gespeeld!" uit de chat er niet mee verward wordt. */
+export const SAY_MARK = "🗣️ ";
+/** Het chatbericht voor snelle zin [k]; oudere versies zien het als gewone tekst. */
+export const sayWire = (k) => SAY_MARK + PHRASES[k];
+
+/**
+ * Welke snelle zin dit bericht uitspreekt (0..), of -1 voor een gewoon chatbericht. Nodig omdat zo'n zin niet in
+ * de chat hoort: de anderen moeten hem horen, niet lezen.
+ */
+export function spokenPhrase(text) {
+  if (typeof text !== "string" || !text.startsWith(SAY_MARK)) return -1;
+  return PHRASES.indexOf(text.slice(SAY_MARK.length));
+}
+
 export const PHRASE_VOICES = ["man", "vrouw", "neutraal"];
 
 /** Snelle berichten onder de chat (zonder stem). */

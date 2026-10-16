@@ -59,3 +59,11 @@ test("elke uitgesproken reactie van een personage heeft een opname", async () =>
     }
   }
 });
+
+test("spokenPhrase: alleen gemarkeerde snelle zinnen worden uitgesproken in plaats van in de chat gezet", async () => {
+  const { PHRASES, sayWire, spokenPhrase } = await import("../static/speech.js");
+  PHRASES.forEach((p, k) => assert.equal(spokenPhrase(sayWire(k)), k));
+  assert.equal(spokenPhrase("Goed gespeeld!"), -1); // dezelfde tekst uit de chatknoppen blijft gewoon chat
+  assert.equal(spokenPhrase("🗣️ iets anders"), -1);
+  assert.equal(spokenPhrase(undefined), -1);
+});
