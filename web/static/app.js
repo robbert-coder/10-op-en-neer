@@ -14,7 +14,7 @@ import { loadIdentity } from "./ident.js";
 import { $, $$, esc, nativeApp, reducedMotion, wait } from "./dom.js";
 import { DEFAULT_NAMES, myAvatar, myVoice, saveSettings, settings, store } from "./storage.js";
 import { BOERENBRIDGE, TIEN_OP_EN_NEER, createGame, maxCardsFor, maxPlayersFor, variantKey, variantName } from "./rules.js";
-import { KINDS, addGame, addHighScore, loadHighScores, matchesVs, playersDetail, loadStats, mergeGames, starRating, starsHtml, statsForKind, statsSummary } from "./stats.js";
+import { KINDS, addGame, addHighScore, highScoreWindow, loadHighScores, matchesVs, playersDetail, loadStats, mergeGames, starRating, starsHtml, statsForKind, statsSummary } from "./stats.js";
 import { flushHof, hofCache, hofId, queueHof, sha256Hex } from "./hof.js";
 import { cardSound, initSound, loadSound, playSound, soundReady, stopSound, voicePlaying } from "./sound.js";
 import { ALL_WET_REMARK_MS, MAX_WAITING_REMARKS, REMARK_SHOW_MS, WAITING_REMARK_MS, resultWait } from "./pacing.js";
@@ -357,6 +357,8 @@ let driver = null;
 let busy = false; // een slag wordt binnengehaald
 let gameOverHandled = false;
 let highScorePlace = 0;
+/** De highscorelijst waar het laatste spel in kwam, om hem in het eindscherm te laten zien. */
+let highScoreList = "";
 let message = null;
 let hintCard = 0;
 let hintBid = -1;
@@ -892,11 +894,14 @@ function handleGameOver() {
   const humans = st.players.filter((p) => p.human).length;
   const mix = playersDetail(st.players.length, humans, currentSmart);
   const gameId = `${game.seed}|${game.actionCount()}|${st.variant}`;
+  highScoreList = "";
   if (tipUsed()) highScorePlace = 0; // met tips telt het spel niet mee
   else if (!short && st.players.length >= 3) {
+    highScoreList = st.variantKey;
     highScorePlace = addHighScore(st.variantKey, me.name, me.total, mix);
     queueHof({ game: gameId, list: st.variantKey, score: me.total, detail: mix });
   } else if (short) {
+    highScoreList = `${st.variantKey}.kort`;
     highScorePlace = addHighScore(`${st.variantKey}.kort`, me.name, me.total, `${upTo} · ${mix}`);
     queueHof({ game: gameId, list: `${st.variantKey}.kort`, score: me.total, detail: `${upTo} · ${mix}` });
   }
@@ -1030,6 +1035,8 @@ async function onTableTap() {
 
 function continueAfterRound() {
   if (st.phase !== "ROUND_COMPLETE") return;
+  // De uitleg over de score hoort bij deze ronde
+  if (!tinekeWaiting && tinekeShown) { tinekeSilence(); tinekeHide(); }
   game.advance();
   refresh();
   saveGame();
@@ -1336,7 +1343,7 @@ function buildSeats() {
       </div>
 `;
     el.querySelector(".avatar").insertAdjacentHTML("beforeend",
-      `<span class="order" hidden></span><span class="lead" hidden>${t("uit")}</span><span class="mini-stars"></span><svg class="turn-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12H6m0 0 6-6m-6 6 6 6"/></svg>`);
+      `<span class="order" hidden></span><span class="lead" hidden>${t("uit")}</span><span class="round-pts" hidden></span><span class="mini-stars"></span><svg class="turn-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12H6m0 0 6-6m-6 6 6 6"/></svg>`);
   }
   $("#seat-1").dataset.key = seatsKey();
 }
@@ -1679,9 +1686,11 @@ function renderGame() {
     bids.innerHTML = html;
     bids.classList.toggle("many", st.cards >= 9);
     bids.hidden = false;
-  } else {
+    bids.dataset.key = "";
+  } else if (st.phase !== "ROUND_COMPLETE") {
     bids.innerHTML = "";
     bids.hidden = true;
+    bids.dataset.key = "";
   }
 
   // Hand
@@ -1703,6 +1712,7 @@ function renderGame() {
   layout();
   renderSidebar();
   renderDialog();
+  renderRoundEnd();
 }
 
 /** Kaartgroottes aanpassen aan het scherm. */
@@ -1766,8 +1776,6 @@ function renderDialog() {
   } else if (screen === "game" && st && showScores) {
     cls = "dialog sheet";
     html = scoreSheetHtml();
-  } else if (screen === "game" && st && st.phase === "ROUND_COMPLETE" && !busy && roundResultReady()) {
-    html = roundResultHtml();
   } else if (screen === "game" && st && st.phase === "GAME_OVER" && !isCelebrating()) {
     html = gameOverHtml();
   }
@@ -1789,25 +1797,50 @@ function roundResultReady() {
   if (!roundDoneSince) roundDoneSince = Date.now();
   if (inBackground()) return true;
   const wait = resultWait(Date.now() - roundDoneSince, voicePlaying() || Date.now() < chatterUntil);
-  if (wait && !resultTimer) resultTimer = setTimeout(() => { resultTimer = null; renderDialog(); }, wait);
+  if (wait && !resultTimer) resultTimer = setTimeout(() => { resultTimer = null; renderRoundEnd(); }, wait);
   return wait === 0;
 }
 
-function roundResultHtml() {
+/** Wat je er deze ronde bij krijgt: "+10" als je bod uitkwam, anders je slagen of "0" (doorgestreept). */
+function roundPoints(p, r) {
+  const [, , score, crossed] = p.rounds[r];
+  return crossed ? "0" : `+${score}`;
+}
+
+/**
+ * Einde van de ronde: de tafel blijft in beeld, met bij elk hoofd de punten die erbij komen, en onderaan de
+ * knoppen voor de scorelijst en de volgende ronde. Pas als iedereen uitgepraat is (roundResultReady), zodat
+ * het niet door de stemmen heen komt. Nodig omdat een apart venster dezelfde gegevens op een andere plek liet zien.
+ */
+function renderRoundEnd() {
+  if (screen !== "game" || !st) return;
+  const ended = st.phase === "ROUND_COMPLETE";
+  const show = ended && !busy && roundResultReady();
   const r = st.round - 1;
-  const rows = st.players.map((p, i) => {
-    const [bid, tricks, score, crossed, good] = p.rounds[r];
-    const pts = good ? `+${score}` : crossed ? "0" : `+${score}`;
-    const mood = good ? "happy" : "sad";
-    return `<div class="result-row ${i === 0 ? "me" : ""}">${avatarHtml(i + 1, p.name, mood)}
-      <div class="name">${esc(p.name)}<small>${t(tricks === 1 ? "bod {bid} · 1 slag behaald" : "bod {bid} · {n} slagen behaald", { bid, n: tricks })}</small></div>
-      <div class="pts ${good ? "good" : "bad"}">${pts}</div><div class="tot">${p.total}</div></div>`;
-  }).join("");
-  const h = settings.tinekeHelp ? tineke.help("score", st, helpLevel, cardName) : null;
-  if (h) tinekeSpeakOnce(`score${game.seed}|${st.round}`, h.say);
-  return `<h3>${t("Ronde {n} is afgelopen", { n: st.round })}</h3>${h ? tinekeLine(h.text) : ""}<div class="result-rows">${rows}</div>
-    <div class="actions"><button data-action="scores">${t("Scorelijst")}</button>
-    <button class="primary" data-action="next-round">${st.round === st.rounds ? t("Uitslag") : t("Volgende ronde")}</button></div>`;
+  st.players.forEach((p, i) => {
+    const badge = $(`#seat-${i + 1} .round-pts`);
+    if (!badge) return;
+    const good = show && p.rounds[r][4];
+    const text = show ? roundPoints(p, r) : "";
+    if (badge.textContent !== text) badge.textContent = text;
+    badge.classList.toggle("good", !!good);
+    badge.classList.toggle("bad", show && !good);
+    badge.hidden = !show;
+  });
+  if (!ended) return;
+  const bids = $("#bids");
+  const html = show ? `<div class="round-actions"><button data-action="scores">${t("Scorelijst")}</button>
+    <button class="primary" data-action="next-round">${st.round === st.rounds ? t("Uitslag") : t("Volgende ronde")}</button></div>` : "";
+  if (bids.dataset.key !== html) { bids.dataset.key = html; bids.innerHTML = html; }
+  bids.classList.remove("many");
+  bids.hidden = !show;
+  if (!show) return;
+  const key = `score${game.seed}|${st.round}`;
+  if (settings.tinekeHelp && tinekeSpokenKey !== key) {
+    tinekeSpokenKey = key;
+    const h = tineke.help("score", st, helpLevel, cardName);
+    if (h) tinekeSay(h.text, { isHelp: true, say: h.say });
+  }
 }
 
 /** Klein Nederlands vlaggetje bij de winnaar in de eindstand. */
@@ -1826,11 +1859,13 @@ function gameOverHtml() {
   const hs = tipUsed() ? `<p class="over-note">${t("Je gebruikte tips, dus dit spel telt niet mee voor de highscores, de Hall of Fame en je sterren.")}</p>`
     : highScorePlace > 0
     ? `<p class="gold">${t(highScoreShort ? "Je staat op plaats {n} in de highscore van korte spellen {kind}." : "Je staat op plaats {n} in de highscore van {kind}.", {
-      n: highScorePlace, kind: esc(variantText(st.variant.replace(/ tot \d+$/, ""))) })}</p>` : "";
+      n: highScorePlace, kind: esc(variantText(st.variant.replace(/ tot \d+$/, ""))) })}</p>`
+    : highScoreList ? `<p class="over-note">${t("Je haalde de highscore deze keer niet.")}</p>` : "";
+  const hsList = tipUsed() ? "" : endHighScoresHtml();
   const say = settings.tinekeHelp ? endComment ??= tineke.comment("afgelopen", st) : null;
   if (say && !online?.game) tinekeSpeakOnce(`einde${game.seed}`, [say]);
   if (!online?.game) {
-    return `<h3>${title}</h3>${say ? tinekeLine(say) : ""}<div class="result-rows">${rows}</div>${hs}
+    return `<h3>${title}</h3>${say ? tinekeLine(say) : ""}<div class="result-rows">${rows}</div>${hs}${hsList}
     <div class="actions"><button data-action="scores">${t("Scorelijst")}</button>
     <button data-action="menu">${t("Menu")}</button>
     <button class="primary" data-action="new-game">${t("Nieuw spel")}</button></div>`;
@@ -1842,12 +1877,27 @@ function gameOverHtml() {
   const note = !open ? t("De gastheer heeft de tafel gesloten.")
     : host ? t("Blijf gerust nog even kletsen. Wil je nog een keer? Start een nieuw potje met dezelfde spelers.")
       : t("Blijf gerust nog even kletsen. De gastheer kan een nieuw potje met dezelfde spelers starten.");
-  return `<h3>${title}</h3>${say ? tinekeLine(say) : ""}<div class="result-rows">${rows}</div>${hs}
+  return `<h3>${title}</h3>${say ? tinekeLine(say) : ""}<div class="result-rows">${rows}</div>${hs}${hsList}
     <p class="over-note">${note}</p>
     <div class="actions wrap"><button data-action="scores">${t("Scorelijst")}</button>
     ${open ? `<button data-action="online-chat">${t("Chat")}${unread ? ` <span class="badge inline">${unread > 9 ? "9+" : unread}</span>` : ""}</button>` : ""}
     <button ${host && open ? "" : `class="primary"`} data-action="online-exit">${online.pub ? t("Terug naar de lobby") : t("Terug naar het hoofdmenu")}</button>
     ${host && open ? `<button class="primary" data-action="new-online">${t("Nieuw potje met dezelfde spelers")}</button>` : ""}</div>`;
+}
+
+/**
+ * De highscorelijst van dit soort spel in het eindscherm, met jouw nieuwe score gemarkeerd. Nodig omdat
+ * "plaats 3" pas iets zegt als je ziet wie (of welke eerdere score van jou) erboven en eronder staat.
+ */
+function endHighScoresHtml() {
+  const list = highScoreList ? loadHighScores(highScoreList) : [];
+  if (list.length === 0) return "";
+  const row = (pos) => {
+    if (pos === 0) return `<div class="hs-row gap">…</div>`;
+    const h = list[pos - 1];
+    return `<div class="hs-row hof${pos === highScorePlace ? " me" : ""}"><span class="pos">${pos}</span>${hofFace({ avatar: myAvatar(), name: h.name })}<span class="name">${esc(String(h.name ?? ""))}</span><span class="date">${esc(String(h.date ?? ""))}</span><span class="score">${Number(h.score) || 0}</span></div>`;
+  };
+  return `<div class="end-hs">${highScoreWindow(list.length, highScorePlace).map(row).join("")}</div>`;
 }
 
 let endComment = null;
@@ -2008,6 +2058,10 @@ function renderHsFilters() {
   $$("#hs-vs button").forEach((b) => b.classList.toggle("selected", b.dataset.vs === hsVs));
 }
 
+/** Uitleg van het verschil tussen de twee lijsten, want "highscore" en "Hall of Fame" lijken op elkaar. */
+const HS_VS_HOF_LOCAL = t("Dit zijn je eigen tien beste spellen op dit apparaat; je kunt er vaker in staan. In de Hall of Fame staat iedereen online één keer, met zijn beste score.");
+const HS_VS_HOF_ONLINE = t("In de Hall of Fame staan alle spelers online. Je eigen tien beste spellen, ook als die niet je allerbeste zijn, zie je bij \"Op dit apparaat\".");
+
 function renderHighScores() {
   $("#hs-scope").hidden = !cloudEnabled();
   if (!cloudEnabled()) hsScope = "local";
@@ -2022,7 +2076,7 @@ $$("#hs-scope button").forEach((b) => b.classList.toggle("selected", b.dataset.s
   $("#hs-note").textContent = hsShort
     ? t("Spellen die niet tot het hoogste aantal kaarten gaan. Erbij staat tot hoeveel kaarten en met hoeveel mensen en computers.")
     : t("Spellen die helemaal tot het hoogste aantal kaarten gaan, met drie of meer spelers. Erbij staat met hoeveel mensen en computers.");
-  $("#hs-note").textContent += vsNote();
+  $("#hs-note").textContent += vsNote() + (cloudEnabled() ? ` ${HS_VS_HOF_LOCAL}` : "");
   const list = loadHighScores(hsKey()).filter(matchesHsFilter);
   $("#hs-list").innerHTML = list.length === 0 && hsFiltered()
     ? `<p class="empty-note">${t("Geen scores met deze filters.")}</p>`
@@ -2043,7 +2097,7 @@ async function renderHallOfFame() {
   $("#hs-note").textContent = (hsShort
     ? t("De beste korte spellen van alle spelers, met erbij tot hoeveel kaarten en met hoeveel spelers.")
     : t("De beste volledige spellen (vanaf drie spelers) van iedereen. Iedereen staat er één keer in, met zijn beste score."))
-    + vsNote() + (settings.hof === false ? ` ${t("Je doet zelf niet mee; dat zet je aan bij Instellingen.")}` : "");
+    + vsNote() + ` ${HS_VS_HOF_ONLINE}` + (settings.hof === false ? ` ${t("Je doet zelf niet mee; dat zet je aan bij Instellingen.")}` : "");
   const cached = hofCache.get(key);
   if (!cached) { $("#hs-list").innerHTML = `<p class="empty-note">${t("Hall of Fame laden…")}</p>`; $("#hof-players").innerHTML = ""; }
   let data = cached?.data;
@@ -3485,6 +3539,9 @@ $("#set-tineke-reset").addEventListener("click", () => {
 $("#bids").addEventListener("click", (e) => {
   const b = e.target.closest("[data-bid]");
   if (b && !b.disabled) onBid(Number(b.dataset.bid));
+  const action = e.target.closest("[data-action]")?.dataset.action;
+  if (action === "scores") { showScores = true; renderDialog(); }
+  if (action === "next-round") continueAfterRound();
 });
 $("#hand").addEventListener("click", (e) => {
   const c = e.target.closest("[data-code]");

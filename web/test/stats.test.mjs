@@ -108,3 +108,14 @@ test("tegen wie: mensen, sterke of gewone computers", () => {
   // Oude score zonder sterkte: alleen bij iedereen
   assert.deepEqual(["", "sterk", "gewoon"].map((vs) => matchesVs("4 spelers: 1 mens, 3 computers", vs)), [true, false, false]);
 });
+
+test("highScoreWindow: top vijf, of top drie plus je eigen plaats met buren", async () => {
+  const { highScoreWindow } = await import("../static/stats.js");
+  assert.deepEqual(highScoreWindow(0, 0), []);
+  assert.deepEqual(highScoreWindow(3, 2), [1, 2, 3]);
+  assert.deepEqual(highScoreWindow(10, 0), [1, 2, 3, 4, 5]);
+  assert.deepEqual(highScoreWindow(10, 5), [1, 2, 3, 4, 5]);
+  assert.deepEqual(highScoreWindow(10, 6), [1, 2, 3, 0, 5, 6, 7]);
+  assert.deepEqual(highScoreWindow(10, 10), [1, 2, 3, 0, 9, 10]);
+  assert.deepEqual(highScoreWindow(6, 6), [1, 2, 3, 0, 5, 6]);
+});

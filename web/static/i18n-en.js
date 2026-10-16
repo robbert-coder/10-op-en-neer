@@ -665,4 +665,7 @@ export default {
   "bezig": "in progress",
   "Bezig": "Playing",
   "Spellen die bezig zijn": "Games in progress",
+  "Je haalde de highscore deze keer niet.": "You didn't make the high scores this time.",
+  "Dit zijn je eigen tien beste spellen op dit apparaat; je kunt er vaker in staan. In de Hall of Fame staat iedereen online één keer, met zijn beste score.": "These are your own ten best games on this device; you can appear more than once. In the Hall of Fame everyone online appears once, with their best score.",
+  "In de Hall of Fame staan alle spelers online. Je eigen tien beste spellen, ook als die niet je allerbeste zijn, zie je bij \"Op dit apparaat\".": "The Hall of Fame shows all players online. Your own ten best games, even those that aren't your very best, are under \"On this device\".",
 };

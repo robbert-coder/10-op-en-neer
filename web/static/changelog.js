@@ -1,6 +1,17 @@
 // Wat er per versie nieuw is. Wie na een nieuwe versie terugkomt, ziet dit in het hoofdmenu.
 // items in het Nederlands, en dezelfde punten in het Engels (en), voor wie het spel in het Engels speelt.
 export const CHANGES = [
+  { v: "2.53", items: [
+    "Na een ronde blijft de tafel in beeld: bij elk hoofd zie je hoeveel punten erbij komen, met de knoppen eronder.",
+    "Bij het voorspellen staan de knoppen onder je eigen hoofd, zodat je niet meer van tafel wordt geduwd.",
+    "Na het spel zie je de highscorelijst zelf, met je nieuwe score gemarkeerd.",
+    "Bij de highscores staat uitgelegd wat het verschil is met de Hall of Fame.",
+  ], en: [
+    "After a round the table stays in view: each head shows the points gained, with the buttons below.",
+    "When bidding, the buttons sit under your own head, so you are no longer pushed away from the table.",
+    "After the game you see the high score list itself, with your new score highlighted.",
+    "The high scores now explain how they differ from the Hall of Fame.",
+  ] },
   { v: "2.52", items: [
     "Samen spelen: wil je aanschuiven bij een tafel die al begonnen, vol of gesloten is, dan zegt het spel dat nu duidelijk.",
     "Op de openbare pagina zie je ook welke openbare spellen bezig zijn, met de spelers en de ronde.",

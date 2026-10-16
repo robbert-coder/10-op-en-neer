@@ -133,6 +133,19 @@ export function matchesVs(detail, vs) {
 /** De highscores van één lijst (bijvoorbeeld "10openneer" of "boerenbridge.kort"). */
 export const loadHighScores = (key) => store.get("highscore." + key, []);
 
+/**
+ * Welke regels van een highscorelijst je na een spel ziet: de top [size], en als je eigen plaats daar buiten
+ * valt de top drie en je eigen plaats met de buren. Nodig zodat de lijst kort blijft in het eindscherm.
+ * Geeft plaatsnummers (1..length) terug, met 0 waar een stippellijn hoort.
+ */
+export function highScoreWindow(length, place, size = 5) {
+  const n = Math.max(0, Math.floor(Number(length) || 0));
+  const top = Array.from({ length: Math.min(n, size) }, (_, i) => i + 1);
+  if (!(place > size) || place > n) return top;
+  const near = [place - 1, place, place + 1].filter((x) => x > 3 && x <= n);
+  return [1, 2, 3, ...(near[0] > 4 ? [0] : []), ...near];
+}
+
 /** Voegt een score toe en geeft de plaats (1..10), of 0 als de score de lijst niet haalt. */
 export function addHighScore(key, name, score, detail = "", d = new Date()) {
   const list = loadHighScores(key);
