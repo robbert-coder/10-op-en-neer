@@ -1,6 +1,13 @@
 // Wat er per versie nieuw is. Wie na een nieuwe versie terugkomt, ziet dit in het hoofdmenu.
 // items in het Nederlands, en dezelfde punten in het Engels (en), voor wie het spel in het Engels speelt.
 export const CHANGES = [
+  { v: "2.54", items: [
+    "Samen spelen op een groot scherm: veel chatberichten drukken de tafel niet meer plat, en het chatvenster is groter.",
+    "De sterren onder een hoofd staan niet meer over de naam heen.",
+  ], en: [
+    "Playing together on a large screen: many chat messages no longer squash the table, and the chat window is larger.",
+    "The stars under a head no longer overlap the name.",
+  ] },
   { v: "2.53", items: [
     "Na een ronde blijft de tafel in beeld: bij elk hoofd zie je hoeveel punten erbij komen, met de knoppen eronder.",
     "Bij het voorspellen staan de knoppen onder je eigen hoofd, zodat je niet meer van tafel wordt geduwd.",
