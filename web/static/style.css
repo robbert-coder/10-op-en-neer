@@ -478,7 +478,7 @@ h1 { font-size: 38px; margin: 18px 0 0; letter-spacing: -.5px; text-wrap: balanc
 /* ---------- Groot scherm (desktop) ---------- */
 .sidebar { display: none; }
 @media (min-width: 1000px) and (min-height: 640px) {
-  #game.active { display: grid; grid-template-columns: minmax(0, 1fr) clamp(300px, 24vw, 380px); grid-template-rows: auto minmax(0, 1fr) auto auto auto auto; }
+  #game.active { --side-w: clamp(300px, 24vw, 380px); display: grid; grid-template-columns: minmax(0, 1fr) var(--side-w); grid-template-rows: auto minmax(0, 1fr) auto auto auto auto; }
   #game > *:not(.sidebar) { grid-column: 1; }
   .sidebar {
     display: flex; flex-direction: column; grid-column: 2; grid-row: 1 / -1; min-height: 0;
@@ -672,11 +672,14 @@ h1 { font-size: 38px; margin: 18px 0 0; letter-spacing: -.5px; text-wrap: balanc
   /* Op een groot scherm staat de chat rechts onder de scorelijst */
   /* De chat ligt los over de rechterkolom (absoluut), zodat veel berichten de rijen van de tafel niet oprekken
      en de tafel plat drukken. Open neemt hij bijna de helft van de hoogte, dicht alleen zijn balk. */
-  #game.has-dock { --dock-h: calc(var(--app-h, 100dvh) * .48); }
+  #game.has-dock { --dock-h: calc(var(--app-h, 100dvh) * .5); }
+  /* Ruim scherm: een bredere rechterkolom en een hogere chat */
+  @media (min-width: 1500px) { #game.active { --side-w: clamp(380px, 25vw, 480px); } }
+  @media (min-height: 900px) { #game.has-dock { --dock-h: calc(var(--app-h, 100dvh) * .58); } }
   #game.has-dock:has(> .chat-dock.closed) { --dock-h: 58px; }
   #game.has-dock .sidebar { grid-row: 1 / -1; margin-bottom: calc(var(--dock-h) + 22px); }
   #game.has-dock .sidebar.sheet { max-height: calc(100% - var(--dock-h) - 36px); }
-  #game > .chat-dock { position: absolute; right: 14px; bottom: 14px; width: calc(clamp(300px, 24vw, 380px) - 14px); height: var(--dock-h); min-height: 0; margin: 0; border: 1px solid var(--line); border-radius: 22px; overflow: hidden; background: rgba(0, 0, 0, .22); }
+  #game > .chat-dock { position: absolute; right: 14px; bottom: 14px; width: calc(var(--side-w) - 14px); height: var(--dock-h); min-height: 0; margin: 0; border: 1px solid var(--line); border-radius: 22px; overflow: hidden; background: rgba(0, 0, 0, .22); }
   .chat-dock:not(.closed) .dock-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   .dock-list { flex: 1; max-height: none; min-height: 60px; }
   .dock-quick { flex-wrap: wrap; }
@@ -1118,3 +1121,20 @@ button.primary { background: linear-gradient(180deg, #F7C761, var(--gold)); box-
 .bids .round-actions { display: flex; gap: 10px; justify-content: center; flex-basis: 100%; }
 .bids .round-actions button { flex: 0 1 auto; height: 46px; padding: 0 18px; font-size: 16px; font-weight: 700; }
 .bids .round-actions button.primary { background: var(--gold); color: var(--gold-ink); }
+
+/* Sorteerknop naast Tip */
+.sort-btn { white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* Beurtsignaal: een bord over de tafel en wippende kaarten of bodknoppen */
+.turn-banner { position: absolute; left: 50%; top: 50%; z-index: 8; transform: translate(-50%, -50%); pointer-events: none;
+  padding: 10px 22px; border-radius: 18px; background: var(--gold); color: var(--gold-ink); font-weight: 900; font-size: 20px;
+  text-align: center; white-space: nowrap; box-shadow: 0 10px 30px rgba(0,0,0,.5); opacity: 0; }
+.turn-banner[hidden] { display: none; }
+.turn-banner.show { animation: turn-banner 1.9s ease-out both; }
+@keyframes turn-banner { 0% { opacity: 0; transform: translate(-50%, -50%) scale(.6); } 12% { opacity: 1; transform: translate(-50%, -50%) scale(1.06); }
+  20% { transform: translate(-50%, -50%) scale(1); } 80% { opacity: 1; } 100% { opacity: 0; } }
+@media (min-width: 1000px) and (min-height: 640px) { .turn-banner { font-size: 28px; padding: 14px 32px; } }
+@media (max-width: 420px) { .turn-banner { font-size: 16px; padding: 8px 14px; white-space: normal; width: 80%; } }
+.hand.nudge .card.up, .bids.nudge button:not(:disabled) { animation: turn-nudge .55s ease-in-out 2; }
+@keyframes turn-nudge { 0%, 100% { translate: 0 0; } 50% { translate: 0 -14px; } }
+@media (prefers-reduced-motion: reduce) { .turn-banner.show { animation: none; opacity: 1; } .hand.nudge .card.up, .bids.nudge button { animation: none; } }

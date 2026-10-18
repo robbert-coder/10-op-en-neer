@@ -16,7 +16,7 @@ import { DEFAULT_NAMES, myAvatar, myVoice, saveSettings, settings, store } from 
 import { BOERENBRIDGE, TIEN_OP_EN_NEER, createGame, maxCardsFor, maxPlayersFor, variantKey, variantName } from "./rules.js";
 import { KINDS, addGame, addHighScore, highScoreWindow, loadHighScores, matchesVs, playersDetail, loadStats, mergeGames, starRating, starsHtml, statsForKind, statsSummary } from "./stats.js";
 import { flushHof, hofCache, hofId, queueHof, sha256Hex } from "./hof.js";
-import { cardSound, initSound, loadSound, playSound, soundReady, stopSound, voicePlaying } from "./sound.js";
+import { cardSound, initSound, loadSound, playSound, soundReady, stopSound, turnChime, voicePlaying } from "./sound.js";
 import { ALL_WET_REMARK_MS, MAX_WAITING_REMARKS, REMARK_SHOW_MS, WAITING_REMARK_MS, resultWait } from "./pacing.js";
 import { OPENERS, PHRASES, PHRASE_GAP_MS, sayWire, spokenPhrase, QUICK, RETURNERS, TIP_CHAT, WIRE_TEXTS, openerFile, phraseFile, reactionFile, returnFile, SPOKEN_REACTIONS, tinekeFile } from "./speech.js";
 import { celebrate, isCelebrating } from "./celebrate.js";
@@ -1250,6 +1250,7 @@ function onTurn() {
     if (humanBidding()) turnNotice(t("Je bent aan de beurt: hoeveel slagen denk je te halen? (ronde {n})", { n: st.round }));
     else if (humanPlaying()) turnNotice(t("Je bent aan de beurt: leg een kaart op."));
   }
+  if (humanBidding() || humanPlaying()) signalTurn();
   if (humanBidding()) {
     // Het advies van Tineke is ook een tip: alleen in het begin van de uitleg, of als je al een tip gebruikte
     adviceBid = helpLevel <= 1 || tipUsed() ? game.hintBid() : null;
@@ -1260,6 +1261,33 @@ function onTurn() {
   } else if (st.phase === "TRICK_COMPLETE") {
     tinekeHelp("slag naar hoogste").then(() => drive());
   }
+}
+
+/**
+ * Jij bent aan de beurt: even een bord over de tafel, je kaarten of bodknoppen wippen op, een belletje en (op een
+ * telefoon of tablet) kort trillen. Nodig omdat de gouden rand en de statusregel voor sommige spelers niet genoeg
+ * opvallen. Belletje en trillen staan bij Instellingen (Beurtsignaal).
+ */
+let turnBannerTimer = null;
+function signalTurn() {
+  if (screen !== "game" || inBackground()) return;
+  const banner = $("#turn-banner");
+  banner.textContent = humanBidding() ? t("Jij bent aan de beurt: voorspel!") : t("Jij bent aan de beurt!");
+  banner.hidden = false;
+  banner.classList.remove("show");
+  void banner.offsetWidth;
+  banner.classList.add("show");
+  clearTimeout(turnBannerTimer);
+  turnBannerTimer = setTimeout(() => { banner.hidden = true; banner.classList.remove("show"); }, 1900);
+  for (const el of [$("#hand"), $("#bids")]) {
+    el.classList.remove("nudge");
+    void el.offsetWidth;
+    el.classList.add("nudge");
+    setTimeout(() => el.classList.remove("nudge"), 1300);
+  }
+  if (settings.turnSignal === false) return;
+  turnChime();
+  try { navigator.vibrate?.(120); } catch { /* geen trilfunctie */ }
 }
 
 $("#tineke").innerHTML = `<div class="avatar">${faceSvg("tineke")}</div>`;
@@ -1692,6 +1720,13 @@ function renderGame() {
     bids.hidden = true;
     bids.dataset.key = "";
   }
+
+  // Sorteerknop: laat zien hoe je kaarten nu liggen; een tik draait het om (en dat blijft je instelling)
+  const sortBtn = $("#btn-sort");
+  sortBtn.hidden = st.hand.length < 2;
+  sortBtn.textContent = settings.sortDescending ? "⇅ A…2" : "⇅ 2…A";
+  sortBtn.setAttribute("aria-label", settings.sortDescending ? t("Kaarten van hoog naar laag; tik voor laag naar hoog") : t("Kaarten van laag naar hoog; tik voor hoog naar laag"));
+  sortBtn.title = sortBtn.getAttribute("aria-label");
 
   // Hand
   const hand = sortHand(st.hand, settings.sortDescending);
@@ -2304,6 +2339,7 @@ function renderSettings() {
   $("#set-name").value = settings.playerName;
   $("#set-speed").value = settings.speed;
   $("#set-desc").checked = settings.sortDescending;
+  $("#set-turn-signal").checked = settings.turnSignal !== false;
   $("#set-sound").checked = settings.sound;
   $("#set-speak").checked = settings.speakBids;
   $("#set-speak-humans").checked = settings.speakHumans !== false;
@@ -3474,6 +3510,12 @@ function setSpeed(value) {
 }
 $$(".speed-range").forEach((el) => el.addEventListener("input", (e) => setSpeed(e.target.value)));
 $("#set-desc").addEventListener("change", (e) => { settings.sortDescending = e.target.checked; saveSettings(); });
+$("#set-turn-signal").addEventListener("change", (e) => { settings.turnSignal = e.target.checked; saveSettings(); });
+$("#btn-sort").addEventListener("click", () => {
+  settings.sortDescending = !settings.sortDescending;
+  saveSettings();
+  renderGame();
+});
 $("#set-sound").addEventListener("change", (e) => { settings.sound = e.target.checked; saveSettings(); renderSettings(); renderMuteButtons(); });
 
 /** De mute-knoppen (startscherm en spel) laten zien of het geluid aan of uit staat. */

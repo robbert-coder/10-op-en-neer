@@ -95,6 +95,27 @@ export function cardSound(kind) {
   }
 }
 
+/**
+ * Een kort belletje (twee tonen, ter plekke gemaakt) als jij aan de beurt bent. Nodig omdat sommige spelers het
+ * niet zien als ze even wegkijken. Staat los van de kaartgeluiden, met een eigen instelling (Beurtsignaal).
+ */
+export function turnChime() {
+  if (!audio || !settings.sound || settings.turnSignal === false || inBackground() || audio.state !== "running") return;
+  const now = audio.currentTime;
+  [[880, 0], [1320, 0.13]].forEach(([freq, delay]) => {
+    const osc = audio.createOscillator();
+    osc.type = "sine";
+    osc.frequency.value = freq;
+    const g = audio.createGain();
+    g.gain.setValueAtTime(0.0001, now + delay);
+    g.gain.exponentialRampToValueAtTime(0.18, now + delay + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + delay + 0.5);
+    osc.connect(g).connect(audio.destination);
+    osc.start(now + delay);
+    osc.stop(now + delay + 0.55);
+  });
+}
+
 /** Een geluid uit sounds/ laden (één keer; daarna uit het geheugen). Geeft null als het er niet is. */
 export function loadSound(name) {
   if (!buffers.has(name)) {

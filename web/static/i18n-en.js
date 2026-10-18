@@ -668,4 +668,10 @@ export default {
   "Je haalde de highscore deze keer niet.": "You didn't make the high scores this time.",
   "Dit zijn je eigen tien beste spellen op dit apparaat; je kunt er vaker in staan. In de Hall of Fame staat iedereen online één keer, met zijn beste score.": "These are your own ten best games on this device; you can appear more than once. In the Hall of Fame everyone online appears once, with their best score.",
   "In de Hall of Fame staan alle spelers online. Je eigen tien beste spellen, ook als die niet je allerbeste zijn, zie je bij \"Op dit apparaat\".": "The Hall of Fame shows all players online. Your own ten best games, even those that aren't your very best, are under \"On this device\".",
+  "Kaarten van hoog naar laag; tik voor laag naar hoog": "Cards from high to low; tap for low to high",
+  "Kaarten van laag naar hoog; tik voor hoog naar laag": "Cards from low to high; tap for high to low",
+  "Jij bent aan de beurt: voorspel!": "Your turn: make your bid!",
+  "Jij bent aan de beurt!": "Your turn!",
+  "Beurtsignaal": "Turn signal",
+  "Een belletje en even trillen als je aan de beurt bent.": "A chime and a short vibration when it's your turn.",
 };

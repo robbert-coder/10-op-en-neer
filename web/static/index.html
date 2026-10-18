@@ -288,9 +288,10 @@
           <svg class="bid-order" id="bid-order" aria-hidden="true" hidden></svg>
           <div class="trump-big" id="trump-big" hidden></div>
           <div class="win-flags" id="win-flags"></div>
+          <div class="turn-banner" id="turn-banner" hidden></div>
         </div>
       </div>
-      <div class="status"><span id="g-status"></span><button class="tip-btn" id="btn-say" aria-label="Iets zeggen" hidden>🗣️</button><button class="tip-btn" id="btn-tip">Tip</button>
+      <div class="status"><span id="g-status"></span><button class="tip-btn" id="btn-say" aria-label="Iets zeggen" hidden>🗣️</button><button class="tip-btn sort-btn" id="btn-sort" hidden></button><button class="tip-btn" id="btn-tip">Tip</button>
         <div class="say-menu" id="say-menu" hidden></div></div>
       <div class="seat south" id="seat-1"></div>
       <div class="bids" id="bids"></div>
@@ -433,6 +434,10 @@
           <label class="switch-row">
             <span><b>Geluid</b><small>Geluidjes bij het spel, bijvoorbeeld bij een slag te veel of een goede voorspelling.</small></span>
             <input type="checkbox" id="set-sound" class="switch">
+          </label>
+          <label class="switch-row">
+            <span><b>Beurtsignaal</b><small>Een belletje en even trillen als je aan de beurt bent.</small></span>
+            <input type="checkbox" id="set-turn-signal" class="switch">
           </label>
           <label class="switch-row" id="row-cards">
             <span><b>Kaartgeluiden</b><small>Je hoort de kaarten schudden, over tafel schuiven en bij elkaar vegen.</small></span>

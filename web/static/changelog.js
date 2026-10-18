@@ -1,6 +1,15 @@
 // Wat er per versie nieuw is. Wie na een nieuwe versie terugkomt, ziet dit in het hoofdmenu.
 // items in het Nederlands, en dezelfde punten in het Engels (en), voor wie het spel in het Engels speelt.
 export const CHANGES = [
+  { v: "2.57", items: [
+    "Naast Tip staat een sorteerknop: wissel tijdens het spel tussen hoog naar laag en laag naar hoog. Je keuze blijft bewaard (ook bij Instellingen, Aflopend sorteren).",
+    "Ben je aan de beurt, dan komt er een bord over de tafel, wippen je kaarten of bodknoppen even op, klinkt er een belletje en trilt je telefoon of tablet kort. Belletje en trillen zet je uit bij Instellingen, Beurtsignaal.",
+    "Op een groot scherm is de chat breder en hoger.",
+  ], en: [
+    "Next to Tip there is a sort button: switch between high to low and low to high during the game. Your choice is kept (also in Settings, Sort high to low).",
+    "When it's your turn a sign appears over the table, your cards or bid buttons hop up, a chime sounds and your phone or tablet vibrates briefly. Turn the chime and vibration off in Settings, Turn signal.",
+    "On a large screen the chat is wider and taller.",
+  ] },
   { v: "2.56", items: [
     "Het keuzemenu van de praatknop valt niet meer achter je kaarten.",
   ], en: [
