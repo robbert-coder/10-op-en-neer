@@ -7,7 +7,8 @@ import * as tineke from "./tineke.js";
 import { BID_LINES, WET_LINES, BID_MS, REACTION_MS } from "./voices.js";
 import { CHARACTERS, CHARACTER_IDS, CLASSIC_CAST, REACTIONS, REACTIONS_EN, drawCast, everyoneMissed, nextSpeaker } from "./characters.js";
 import { CHANGES } from "./changelog.js";
-import { cloudEnabled, makeCloudCode, normalizeCloudCode, formatCloudCode, validCloudCode, fetchStats, saveStats, fetchHallOfFame, onCloudHealth } from "./cloud.js";
+import { cloudEnabled, makeCloudCode, normalizeCloudCode, formatCloudCode, validCloudCode, fetchStats, saveStats, fetchHallOfFame, onCloudHealth, sendReport } from "./cloud.js";
+import { REPORT_TEXT_MAX, REPORT_TEXT_MIN, captureScreen, cleanReport, deviceText } from "./feedback.js";
 import { Host, Guest, PublicLobby, makeCode, normalizeCode, useIdentity, AVATAR_EMOJIS, AVATAR_FACES, cleanAvatar, cleanStats, cleanVoice } from "./net.js";
 import { chatLimit, cleanStartGame, cleanText, devParam } from "./validate.js";
 import { loadIdentity } from "./ident.js";
@@ -1420,6 +1421,11 @@ function moodFor(nr) {
  */
 function updateSeats() {
   if (!st) return;
+  // Spotlight: ben jij aan de beurt, dan staan de anderen in het halfdonker; anders je eigen kaarten
+  const live = st.phase === "BIDDING" || st.phase === "PLAYING";
+  const mine = humanBidding() || humanPlaying();
+  $("#game").classList.toggle("my-turn", live && mine);
+  $("#game").classList.toggle("others-turn", live && !mine);
   if ($("#seat-1").dataset.key !== seatsKey() || !$("#seat-1 .avatar")) buildSeats();
   placeWinFlags();
   for (let nr = 1; nr <= st.players.length; nr++) {
@@ -2254,6 +2260,110 @@ let faceDraft = null; // de keuzes in de editor, pas bij Opslaan je plaatje
  * De editor openen, met je huidige poppetje als begin (of het gekozen gezicht omgezet, of een willekeurig).
  * Nodig zodat je je poppetje zelf kunt samenstellen; opslaan gaat via setAvatar, net als een gekozen gezicht.
  */
+// ------------------------------------------------------------------------------------------
+// Bug of idee melden
+// ------------------------------------------------------------------------------------------
+
+/** De melding die je aan het maken bent: soort, tekst, schermafbeelding (alleen vanuit het spel) en status. */
+let report = null;
+
+/**
+ * Het meldvenster openen. Vanuit het spel eerst een schermafbeelding maken (voordat het venster eroverheen
+ * komt), zodat de ontwikkelaar ziet wat jij zag. Nodig omdat een bug zonder plaatje vaak moeilijk na te spelen is.
+ */
+async function openReport(fromGame) {
+  menuOpen = false;
+  $("#gamemenu").hidden = true;
+  report = { kind: "bug", text: "", shot: null, withShot: true, fromGame, status: fromGame ? "shooting" : "", sending: false };
+  $("#feedback").hidden = false;
+  renderReport(true);
+  if (fromGame) {
+    // Het venster even onzichtbaar, zodat het niet op de schermafbeelding staat
+    $("#feedback").style.visibility = "hidden";
+    await wait(60);
+    const shot = await captureScreen();
+    $("#feedback").style.visibility = "";
+    if (!report) return;
+    report.shot = shot;
+    report.status = "";
+    renderReport();
+  }
+}
+
+function closeReport() {
+  report = null;
+  $("#feedback").hidden = true;
+  $("#feedback").innerHTML = "";
+}
+
+/** Het meldvenster tekenen. [frame]: alles opnieuw (bij openen); anders alleen wat verandert, zodat je tekst blijft staan. */
+function renderReport(frame = false) {
+  if (!report) return;
+  const box = $("#feedback");
+  if (frame) {
+    box.innerHTML = `<div class="dialog fb-box"><h3>${t("Bug of idee melden")}</h3>
+      <div class="tabs fb-kind"><button type="button" data-fb-kind="bug">${t("Bug (iets gaat mis)")}</button><button type="button" data-fb-kind="idee">${t("Idee")}</button></div>
+      <textarea id="fb-text" maxlength="${REPORT_TEXT_MAX}" rows="5"></textarea>
+      <div class="fb-shot"></div>
+      <p class="fb-note">${t("Je naam, de versie van het spel en het soort apparaat gaan mee, zodat we het kunnen nazoeken.")}</p>
+      <p class="fb-status" role="status"></p>
+      <div class="actions"><button type="button" data-fb="cancel">${t("Annuleren")}</button><button type="button" class="primary" data-fb="send">${t("Versturen")}</button></div></div>`;
+  }
+  $$("#feedback [data-fb-kind]").forEach((b) => b.classList.toggle("selected", b.dataset.fbKind === report.kind));
+  $("#fb-text").placeholder = report.kind === "bug" ? t("Wat ging er mis, en wat deed je net daarvoor?") : t("Wat zou je graag anders of erbij willen?");
+  const shot = $("#feedback .fb-shot");
+  shot.hidden = !report.fromGame;
+  shot.innerHTML = !report.fromGame ? ""
+    : report.status === "shooting" ? `<p class="fb-note">${t("Schermafbeelding maken…")}</p>`
+    : report.shot ? `<label class="fb-shot-row"><input type="checkbox" id="fb-with-shot" ${report.withShot ? "checked" : ""}><span>${t("Schermafbeelding meesturen")}</span></label><img class="fb-preview" alt="" src="${report.shot}">`
+    : `<p class="fb-note">${t("De schermafbeelding is niet gelukt; je melding kan wel zonder.")}</p>`;
+  const status = $("#feedback .fb-status");
+  status.textContent = report.status === "sent" ? t("Bedankt! Je melding is verstuurd.")
+    : report.status === "short" ? t("Schrijf iets meer, dan begrijpen we wat je bedoelt.")
+    : report.status === "error" ? t("Versturen lukt nu niet. Probeer het straks nog eens; je tekst blijft staan.") : "";
+  status.classList.toggle("bad", report.status === "short" || report.status === "error");
+  const send = $("#feedback [data-fb=\"send\"]");
+  send.disabled = report.sending || report.status === "shooting" || report.status === "sent";
+  send.textContent = report.sending ? t("Versturen…") : t("Versturen");
+  $("#feedback [data-fb=\"cancel\"]").textContent = report.status === "sent" ? t("Sluiten") : t("Annuleren");
+}
+
+/** De melding controleren en versturen. Lukt het niet, dan blijft het venster open met je tekst erin. */
+async function submitReport() {
+  if (!report || report.sending) return;
+  report.text = $("#fb-text").value;
+  const clean = cleanReport({ kind: report.kind, text: report.text, version: APP_VERSION, device: deviceText(!!nativeApp),
+    name: settings.playerName, shot: report.withShot ? report.shot : null });
+  if (!clean || clean.text.length < REPORT_TEXT_MIN) { report.status = "short"; renderReport(); return; }
+  report.sending = true;
+  report.status = "";
+  renderReport();
+  try {
+    await sendReport(clean);
+    if (!report) return;
+    report.status = "sent";
+  } catch {
+    if (!report) return;
+    report.status = "error";
+  }
+  report.sending = false;
+  renderReport();
+}
+
+$("#feedback").addEventListener("click", (e) => {
+  if (!report) return;
+  const kind = e.target.closest("[data-fb-kind]")?.dataset.fbKind;
+  if (kind) { report.kind = kind; renderReport(); return; }
+  const action = e.target.closest("[data-fb]")?.dataset.fb;
+  if (action === "cancel") closeReport();
+  else if (action === "send") submitReport();
+});
+$("#feedback").addEventListener("change", (e) => {
+  if (report && e.target.id === "fb-with-shot") report.withShot = e.target.checked;
+});
+$("#btn-report").addEventListener("click", () => openReport(false));
+$("#btn-report-ingame").addEventListener("click", () => openReport(true));
+
 function openFaceEditor() {
   const cur = myAvatar();
   const code = isFaceCode(cur) ? cur : AVATAR_FACES.includes(cur) ? codeFromLook(lookOf(cur)) : randomFace();

@@ -1,6 +1,13 @@
 // Wat er per versie nieuw is. Wie na een nieuwe versie terugkomt, ziet dit in het hoofdmenu.
 // items in het Nederlands, en dezelfde punten in het Engels (en), voor wie het spel in het Engels speelt.
 export const CHANGES = [
+  { v: "2.58", items: [
+    "Spotlight: ben jij aan de beurt, dan staan de anderen in het halfdonker en jij en je kaarten in het licht. Is een ander aan de beurt, dan zijn je kaarten een tikje donkerder.",
+    "Nieuw: Bug of idee melden, in het hoofdmenu en in het menu tijdens het spel. Vanuit het spel kun je er een schermafbeelding bij sturen.",
+  ], en: [
+    "Spotlight: when it's your turn the others are dimmed and you and your cards are lit up. When someone else is playing, your cards are slightly darker.",
+    "New: report a bug or idea, from the main menu and the in-game menu. From the game you can add a screenshot.",
+  ] },
   { v: "2.57", items: [
     "Naast Tip staat een sorteerknop: wissel tijdens het spel tussen hoog naar laag en laag naar hoog. Je keuze blijft bewaard (ook bij Instellingen, Aflopend sorteren).",
     "Ben je aan de beurt, dan komt er een bord over de tafel, wippen je kaarten of bodknoppen even op, klinkt er een belletje en trilt je telefoon of tablet kort. Belletje en trillen zet je uit bij Instellingen, Beurtsignaal.",

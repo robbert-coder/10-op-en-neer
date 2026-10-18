@@ -96,3 +96,11 @@ export const sendHofScore = (player, name, avatar, e) =>
 
 export const sendHofPlayer = (player, name, avatar, stats) =>
   rpc("hof_put_player", { p_player: player, p_name: name, p_avatar: avatar, p_stats: stats });
+
+/** Een bug of idee insturen (feedback.js controleert hem eerst). */
+export const sendReport = (r) =>
+  rpc("put_melding", { p_kind: r.kind, p_text: r.text, p_version: r.version, p_device: r.device, p_name: r.name, p_shot: r.shot ?? "" });
+/** Alle meldingen lezen, alleen met de beheercode (meldingen.html). Geeft null bij een verkeerde code. */
+export const fetchReports = (code) => rpc("get_meldingen", { p_code: String(code ?? "").slice(0, 100) });
+/** Een melding als afgehandeld (of weer open) markeren, alleen met de beheercode. */
+export const markReport = (code, id, done) => rpc("set_melding_klaar", { p_code: String(code ?? "").slice(0, 100), p_id: id, p_klaar: !!done });

@@ -1138,3 +1138,46 @@ button.primary { background: linear-gradient(180deg, #F7C761, var(--gold)); box-
 .hand.nudge .card.up, .bids.nudge button:not(:disabled) { animation: turn-nudge .55s ease-in-out 2; }
 @keyframes turn-nudge { 0%, 100% { translate: 0 0; } 50% { translate: 0 -14px; } }
 @media (prefers-reduced-motion: reduce) { .turn-banner.show { animation: none; opacity: 1; } .hand.nudge .card.up, .bids.nudge button { animation: none; } }
+
+/* Spotlight op wie aan de beurt is: niet jij, dan je kaarten iets donkerder; wel jij, dan de anderen in het
+   halfdonker en jij en je kaarten in het licht */
+.game .hand .card, .game .seat > .avatar, .game .seat .info { transition: filter .35s, opacity .35s; }
+.game.others-turn .hand .card { filter: brightness(.82) saturate(.85); }
+.game.my-turn .seat:not(#seat-1) > .avatar, .game.my-turn .seat:not(#seat-1) .info { filter: brightness(.5) saturate(.6); }
+.game.my-turn #seat-1 .avatar { box-shadow: 0 0 0 3px var(--gold), 0 0 26px 6px rgba(255, 201, 77, .6); }
+.game.my-turn #seat-1 .who { text-shadow: 0 0 12px rgba(255, 201, 77, .6); }
+.game.my-turn .hand { background: radial-gradient(ellipse 60% 70% at 50% 75%, rgba(255, 214, 120, .22), transparent 72%); }
+.game.my-turn .hand .card.up { filter: brightness(1.06); box-shadow: 0 6px 18px rgba(0,0,0,.4), 0 0 14px rgba(255, 214, 120, .45); }
+
+/* Bug of idee melden */
+#feedback { z-index: 75; }
+.fb-box { max-width: 520px; gap: 10px; overflow-y: auto; }
+.fb-box .fb-kind { margin: 0; }
+.fb-box textarea { width: 100%; min-height: 110px; resize: vertical; padding: 10px 12px; font: inherit; font-size: 16px; color: var(--text);
+  background: rgba(0,0,0,.25); border: 1px solid var(--line); border-radius: 12px; -webkit-user-select: text; user-select: text; }
+.fb-shot-row { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.fb-preview { display: block; width: 100%; max-height: 180px; object-fit: contain; margin-top: 6px; border-radius: 10px; border: 1px solid var(--line); background: #000; }
+.fb-note { margin: 0; font-size: 13px; color: var(--muted); }
+.fb-status { margin: 0; min-height: 1.2em; font-size: 14px; color: var(--good); }
+.fb-status.bad { color: var(--bad); }
+.fb-status:empty { display: none; }
+
+/* Beheerpagina met meldingen */
+body.reports-page { overflow: auto; background: #1C120C; }
+#reports { max-width: 900px; margin: 0 auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.rp-login { margin: 40px auto; max-width: 380px; }
+.rp-login form { display: flex; gap: 8px; }
+.rp-login input { flex: 1; min-width: 0; padding: 10px; font: inherit; color: var(--text); background: rgba(0,0,0,.25); border: 1px solid var(--line); border-radius: 12px; }
+.rp-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.rp-head h2 { margin: 0; flex: 1; }
+.rp-item { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px; }
+.rp-item.done { opacity: .55; }
+.rp-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); }
+.rp-meta button { margin-left: auto; padding: 6px 12px; font-size: 13px; }
+.rp-kind { padding: 2px 8px; border-radius: 8px; color: #fff; }
+.rp-kind.bug { background: #C0392B; }
+.rp-kind.idee { background: #2E9D5B; }
+.rp-text { white-space: pre-wrap; margin: 8px 0; -webkit-user-select: text; user-select: text; }
+.rp-device { display: block; color: var(--muted); font-size: 11px; word-break: break-all; }
+.rp-shot { max-height: 320px; cursor: zoom-in; }
+.rp-shot.big { max-height: none; cursor: zoom-out; }
