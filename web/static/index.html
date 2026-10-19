@@ -292,11 +292,17 @@
           <div class="win-flags" id="win-flags"></div>
         </div>
       </div>
-      <div class="status"><span id="g-status"></span><button class="tip-btn" id="btn-say" aria-label="Iets zeggen" hidden>🗣️</button><button class="tip-btn sort-btn" id="btn-sort" hidden></button><button class="tip-btn" id="btn-tip">Tip</button>
+      <div class="status"><span id="g-status"></span><button class="tip-btn" id="btn-say" aria-label="Iets zeggen" hidden>🗣️</button>
         <div class="say-menu" id="say-menu" hidden></div></div>
       <div class="seat south" id="seat-1"></div>
       <div class="bids" id="bids"></div>
-      <div class="hand" id="hand"></div>
+      <div class="hand-row" id="hand-row">
+        <div class="hand" id="hand"></div>
+        <div class="hand-tools" id="hand-tools">
+          <button class="hand-tool" id="btn-sort" hidden><svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true"><path id="sort-bars" d=""/><path d="M20 5v13m-3-3 3 3 3-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span id="sort-label"></span></button>
+          <button class="hand-tool" id="btn-tip" title="Tip: welke kaart of welk bod raadt de computer aan?"><svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18h6m-5 3h4M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.3 1.1 2.2h5c0-.9.4-1.6 1.1-2.2A6 6 0 0 0 12 3Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Tip</span></button>
+        </div>
+      </div>
       <div class="chat-dock" id="chat-dock" hidden>
         <div class="dock-bar">
           <span class="dock-last" id="dock-last"></span>

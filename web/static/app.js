@@ -1725,7 +1725,8 @@ function renderGame() {
   // Sorteerknop: laat zien hoe je kaarten nu liggen; een tik draait het om (en dat blijft je instelling)
   const sortBtn = $("#btn-sort");
   sortBtn.hidden = st.hand.length < 2;
-  sortBtn.textContent = settings.sortDescending ? "⇅ A…2" : "⇅ 2…A";
+  $("#sort-label").textContent = settings.sortDescending ? "A…2" : "2…A";
+  $("#sort-bars").setAttribute("d", settings.sortDescending ? SORT_BARS_DOWN : SORT_BARS_UP);
   sortBtn.setAttribute("aria-label", settings.sortDescending ? t("Kaarten van hoog naar laag; tik voor laag naar hoog") : t("Kaarten van laag naar hoog; tik voor hoog naar laag"));
   sortBtn.title = sortBtn.getAttribute("aria-label");
 
@@ -1751,13 +1752,32 @@ function renderGame() {
   renderRoundEnd();
 }
 
+/** Het sorteericoontje: drie balkjes van hoog naar laag of van laag naar hoog. */
+const SORT_BARS_DOWN = "M3 5h12v2.6H3zm0 5.7h9v2.6H3zm0 5.7h6V19H3z";
+const SORT_BARS_UP = "M3 5h6v2.6H3zm0 5.7h9v2.6H3zm0 5.7h12V19H3z";
+
+/** Ruimte tussen je kaarten en de sorteer- en tipknop; de buitenste kaart waaiert er een stukje in. */
+const HAND_TOOLS_GAP = 34;
+
+/**
+ * De sorteer- en tipknop naast je kaarten zetten, of (smal scherm) in de statusregel. Nodig omdat er op een
+ * telefoon naast de kaarten geen plek is zonder ze kleiner te maken, en erboven je eigen plaats aan tafel staat.
+ */
+function placeHandTools(beside) {
+  const tools = $("#hand-tools");
+  const home = beside ? $("#hand-row") : $(".game .status");
+  if (tools.parentElement !== home) home.insertBefore(tools, beside ? null : $("#say-menu"));
+  tools.classList.toggle("in-status", !beside);
+}
+
 /** Kaartgroottes aanpassen aan het scherm. */
 function layout() {
   if (screen !== "game" || !st) return;
   $("#g-round").textContent = window.innerWidth < 440 ? t("Ronde {n}/{m}", { n: st.round, m: st.rounds }) : t("Ronde {n} van {m}", { n: st.round, m: st.rounds });
   // Telefoon dwars: de hand staat in de rechterkolom en mag niet te hoog worden
   const sideways = phoneSideways();
-  const width = sideways ? $("#bids").clientWidth : $("#game").clientWidth;
+  // De rij met je hand en de sorteer- en tipknop is even breed als de plek waar je kaarten liggen
+  const width = $("#hand-row").clientWidth;
   const handEl = $("#hand");
   const cards = Array.from(handEl.children);
   const n = cards.length;
@@ -1765,7 +1785,12 @@ function layout() {
   const maxW = wide ? Math.min(118, Math.max(74, window.innerHeight / 8.5)) : sideways ? Math.min(74, Math.max(44, window.innerHeight / 6))
     : isTablet() ? Math.min(120, window.innerWidth / 7) : 74;
   // Door het waaieren steken de buitenste kaarten wat uit; die ruimte houden we vrij
-  const available = Math.min(width - 24, wide || isTablet() ? 1000 : 640) - (n > 4 ? maxW * 0.7 : 0);
+  // Op een breed scherm staan de sorteer- en tipknop naast je kaarten (de hand blijft in het midden, met aan
+  // beide kanten ruimte); op een smal scherm in de statusregel erboven, anders worden de kaarten te klein
+  const beside = width >= 700;
+  placeHandTools(beside);
+  const tools = beside ? 2 * ($("#hand-tools").offsetWidth + HAND_TOOLS_GAP) : 0;
+  const available = Math.min(width - 24 - tools, wide || isTablet() ? 1000 : 640) - (n > 4 ? maxW * 0.7 : 0);
   const hw = n <= 1 ? maxW : Math.min(maxW, available / (0.58 * (n - 1) + 1));
   const spacing = n <= 1 ? 0 : Math.min(hw + 6, (available - hw) / (n - 1));
   handEl.style.setProperty("--hw", `${hw}px`);

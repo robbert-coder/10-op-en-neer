@@ -1,6 +1,11 @@
 // Wat er per versie nieuw is. Wie na een nieuwe versie terugkomt, ziet dit in het hoofdmenu.
 // items in het Nederlands, en dezelfde punten in het Engels (en), voor wie het spel in het Engels speelt.
 export const CHANGES = [
+  { v: "2.62", items: [
+    "De sorteer- en tipknop staan nu vlak naast je kaarten (op een telefoon er net boven), met een duidelijk icoontje: balkjes met een pijl om te sorteren en een lampje voor een tip.",
+  ], en: [
+    "The sort and tip buttons now sit right next to your cards (just above them on a phone), with clear icons: bars with an arrow to sort and a light bulb for a tip.",
+  ] },
   { v: "2.61", items: [
     "Het bord \"Jij bent aan de beurt\" over de tafel is weg. Je kaarten wippen nog wel even op, met een belletje.",
   ], en: [

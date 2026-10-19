@@ -706,4 +706,5 @@ export default {
   "Ongedaan maken": "Undo",
   "Alles wissen": "Clear all",
   "Je kunt ook een cijfer typen.": "You can also type a number.",
+  "Tip: welke kaart of welk bod raadt de computer aan?": "Tip: which card or bid does the computer recommend?",
 };
