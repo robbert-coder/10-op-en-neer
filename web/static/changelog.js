@@ -1,6 +1,11 @@
 // Wat er per versie nieuw is. Wie na een nieuwe versie terugkomt, ziet dit in het hoofdmenu.
 // items in het Nederlands, en dezelfde punten in het Engels (en), voor wie het spel in het Engels speelt.
 export const CHANGES = [
+  { v: "2.64", items: [
+    "Voorspellen met de cijfertoetsen werkt nu ook als het chatvak nog actief is (als het leeg is), met Num Lock uit, en op een toetsenbord waar je voor cijfers Shift nodig hebt.",
+  ], en: [
+    "Bidding with the number keys now also works while the chat box is still active (when it is empty), with Num Lock off, and on keyboards that need Shift for digits.",
+  ] },
   { v: "2.63", items: [
     "Meldingen in het spel (nog niet aan de beurt, kleur bekennen, een tip, nieuws van de tafel) komen nu als kort berichtje boven je kaarten dat vanzelf verdwijnt. Ze bleven soms staan terwijl ze al niet meer klopten.",
     "Op de beheerpagina hebben meldingen nu een nummer, zodat je er makkelijk naar kunt verwijzen.",

@@ -1,7 +1,7 @@
 // Tests voor bidkeys.js: voorspellen met de cijfertoetsen.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { bidFromKey } from "../static/bidkeys.js";
+import { bidFromKey, digitMayBid, keyDigit } from "../static/bidkeys.js";
 
 test("één cijfer is meteen het bod als er niet meer dan 9 kaarten zijn", () => {
   assert.deepEqual(bidFromKey("", "3", 7), { bid: 3 });
@@ -20,4 +20,20 @@ test("geen cijfer of te hoog: niets", () => {
   assert.equal(bidFromKey("", "a", 10), null);
   assert.equal(bidFromKey("", "Enter", 10), null);
   assert.equal(bidFromKey("", "8", 5), null);
+});
+
+test("keyDigit leest het teken of de toets", () => {
+  assert.equal(keyDigit("7", "Digit7"), "7");
+  assert.equal(keyDigit("&", "Digit1"), "1"); // AZERTY zonder Shift
+  assert.equal(keyDigit("End", "Numpad1"), "1"); // Num Lock uit
+  assert.equal(keyDigit("a", "KeyA"), "");
+  assert.equal(keyDigit(undefined, undefined), "");
+});
+
+test("digitMayBid: geen vak, verborgen vak of leeg chatvak wel; vak met tekst niet", () => {
+  assert.equal(digitMayBid(null), true);
+  assert.equal(digitMayBid({ visible: false, chat: false, value: "abc" }), true);
+  assert.equal(digitMayBid({ visible: true, chat: true, value: "" }), true);
+  assert.equal(digitMayBid({ visible: true, chat: true, value: "hoi" }), false);
+  assert.equal(digitMayBid({ visible: true, chat: false, value: "" }), false);
 });

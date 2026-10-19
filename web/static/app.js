@@ -8,7 +8,7 @@ import { BID_LINES, WET_LINES, BID_MS, REACTION_MS } from "./voices.js";
 import { CHARACTERS, CHARACTER_IDS, CLASSIC_CAST, REACTIONS, REACTIONS_EN, drawCast, everyoneMissed, nextSpeaker } from "./characters.js";
 import { CHANGES } from "./changelog.js";
 import { cloudEnabled, makeCloudCode, normalizeCloudCode, formatCloudCode, validCloudCode, fetchStats, saveStats, fetchHallOfFame, onCloudHealth, sendReport } from "./cloud.js";
-import { BID_KEY_WAIT_MS, bidFromKey } from "./bidkeys.js";
+import { BID_KEY_WAIT_MS, bidFromKey, digitMayBid, keyDigit } from "./bidkeys.js";
 import { parseEnterTargets, pickEnterTarget } from "./enterkeys.js";
 import { REPORT_TEXT_MAX, REPORT_TEXT_MIN, canvasToShot, captureScreen, cleanReport, deviceText, toImagePoint } from "./feedback.js";
 import { Host, Guest, PublicLobby, makeCode, normalizeCode, useIdentity, AVATAR_EMOJIS, AVATAR_FACES, cleanAvatar, cleanStats, cleanVoice } from "./net.js";
@@ -3838,6 +3838,8 @@ $("#bids").addEventListener("click", (e) => {
  */
 let bidKeyPending = "";
 let bidKeyTimer = null;
+/** De chatvakken in het spel; is zo'n vak leeg, dan is een cijfer toch een bod (zie digitMayBid). */
+const CHAT_INPUTS = ["chat-input", "dock-input"];
 function bidByKey(n) {
   bidKeyPending = "";
   clearTimeout(bidKeyTimer);
@@ -3847,10 +3849,15 @@ function bidByKey(n) {
 }
 document.addEventListener("keydown", (e) => {
   if (screen !== "game" || !st || !humanBidding() || e.ctrlKey || e.metaKey || e.altKey) return;
-  if (e.target.closest?.("input, textarea, select") || !$("#dialog").hidden || !$("#feedback").hidden) return;
-  const r = bidFromKey(bidKeyPending, e.key, st.cards);
+  if (!$("#dialog").hidden || !$("#feedback").hidden) return;
+  const digit = keyDigit(e.key, e.code);
+  if (!digit) return;
+  const field = e.target.closest?.("input, textarea, select");
+  if (field && !digitMayBid({ visible: field.getClientRects().length > 0, chat: CHAT_INPUTS.includes(field.id), value: field.value })) return;
+  const r = bidFromKey(bidKeyPending, digit, st.cards);
   if (!r) return;
   e.preventDefault();
+  field?.blur();
   if ("bid" in r) { bidByKey(r.bid); return; }
   bidKeyPending = r.pending;
   clearTimeout(bidKeyTimer);
