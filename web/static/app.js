@@ -5,6 +5,8 @@ import { faceSvg, initialSvg, emojiSvg, customFaceSvg, lookOf } from "./faces.js
 import { FACE_EXTRAS, FACE_PARTS, codeFromLook, decodeChoice, encodeFace, isFaceCode, randomFace } from "./avatarcode.js";
 import * as tineke from "./tineke.js";
 import { BID_LINES, WET_LINES, BID_MS, REACTION_MS } from "./voices.js";
+import { BID_LINES_EN, WET_LINES_EN } from "./voices-en.js";
+import { EN_MS } from "./voices-en-ms.js";
 import { CHARACTERS, CHARACTER_IDS, CLASSIC_CAST, REACTIONS, REACTIONS_EN, drawCast, everyoneMissed, nextSpeaker } from "./characters.js";
 import { CHANGES } from "./changelog.js";
 import { cloudEnabled, makeCloudCode, normalizeCloudCode, formatCloudCode, validCloudCode, fetchStats, saveStats, fetchHallOfFame, onCloudHealth, sendReport } from "./cloud.js";
@@ -21,7 +23,7 @@ import { KINDS, addGame, addHighScore, highScoreWindow, loadHighScores, matchesV
 import { flushHof, hofCache, hofId, queueHof, sha256Hex } from "./hof.js";
 import { cardSound, initSound, loadSound, playSound, soundReady, stopSound, turnChime, voicePlaying } from "./sound.js";
 import { ALL_WET_REMARK_MS, MAX_WAITING_REMARKS, REMARK_SHOW_MS, WAITING_REMARK_MS, resultWait, toastMs } from "./pacing.js";
-import { OPENERS, PHRASES, PHRASE_GAP_MS, sayWire, spokenPhrase, QUICK, RETURNERS, TIP_CHAT, WIRE_TEXTS, openerFile, phraseFile, reactionFile, returnFile, SPOKEN_REACTIONS, tinekeFile } from "./speech.js";
+import { OPENERS, PHRASES, PHRASE_GAP_MS, sayWire, spokenPhrase, QUICK, RETURNERS, TIP_CHAT, WIRE_TEXTS, openerFile, phraseFile, reactionFile, returnFile, SPOKEN_REACTIONS, tinekeFile, EN_DIR } from "./speech.js";
 import { celebrate, isCelebrating } from "./celebrate.js";
 import { askNotifications, clearTurnNotice, inBackground, iosBrowser, isIOS, notifyAlways, notifyPermission, notifyUnsupportedText, setAppVisible, turnNotice } from "./notify.js";
 import { cardHtml, sortHand, trumpMiniHtml } from "./cards.js";
@@ -283,23 +285,31 @@ onCloudHealth((ok) => {
 // eerste geluid niet hapert
 // In de app mag het geluid meteen aan; op de website pas na de eerste tik
 initSound(() => {
-  if (myVoice() !== "geen") BID_LINES[`speler_${myVoice()}`].forEach((row, n) => loadSound(`bod_speler_${myVoice()}_${n}_0`));
+  if (myVoice() !== "geen") BID_LINES[`speler_${myVoice()}`].forEach((row, n) => loadSound(voice(`bod_speler_${myVoice()}_${n}_0`)));
   preloadCast();
   playOpener();
 }, !!nativeApp);
+
+/**
+ * De opname van een stem in de taal van het spel: in het Engels uit sounds/en/ (zelfde naam). Nodig omdat elke
+ * gesproken zin (voorspelling, nat, reactie, Tineke, begroeting, snelle zin) in beide talen is ingesproken.
+ */
+const voice = (name) => (isEnglish ? EN_DIR + name : name);
+/** Hoe lang een opname van een voorspelling duurt (ms), in de taal van het spel. */
+const bidMs = (v, n, k) => (isEnglish ? EN_MS[`bod_${v}_${n}_${k}`] ?? 1500 : BID_MS[v][n][k]);
 
 /** Truus roept je toe: één keer bij het openen, zolang je nog op het startscherm staat. */
 let openerPlayed = false;
 function playOpener() {
   if (openerPlayed || screen !== "menu" || !settings.sound || settings.opener === false) return;
   openerPlayed = true;
-  playSound(openerFile(Math.floor(Math.random() * OPENERS.length)));
+  playSound(voice(openerFile(Math.floor(Math.random() * OPENERS.length))));
 }
 /** Terug op het startscherm na een spel: Truus daagt je uit voor nog een potje. */
 function playReturn() {
   if (!soundReady() || !settings.sound || settings.opener === false) return;
   openerPlayed = true;
-  playSound(returnFile(Math.floor(Math.random() * RETURNERS.length)));
+  playSound(voice(returnFile(Math.floor(Math.random() * RETURNERS.length))));
 }
 
 /** De stemmen van de computerspelers in het huidige spel alvast laden. */
@@ -308,8 +318,8 @@ function preloadCast() {
   for (let nr = 2; nr <= st.players.length; nr++) {
     const v = faceFor(nr);
     if (!v || !BID_LINES[v]) continue;
-    BID_LINES[v].forEach((row, n) => row.forEach((_, k) => loadSound(`bod_${v}_${n}_${k}`)));
-    WET_LINES[v].forEach((_, k) => loadSound(`nat_${v}_${k}`));
+    BID_LINES[v].forEach((row, n) => row.forEach((_, k) => loadSound(voice(`bod_${v}_${n}_${k}`))));
+    WET_LINES[v].forEach((_, k) => loadSound(voice(`nat_${v}_${k}`)));
   }
 }
 
@@ -643,10 +653,9 @@ function announceBids(afterLanding = (fn) => fn()) {
       const speak = settings.sound && settings.speakBids && !(human && (settings.speakHumans === false || humanVoice(nr) === "geen"));
       const v = voiceFor(nr);
       const k = human ? 0 : pickLine(`bod${nr}`, BID_LINES[v][p.bid].length, true);
-      if (speak) playSound(`bod_${v}_${p.bid}_${k}`);
-      // In het Engels blijven de opnames Nederlands, maar staat in de ballon alleen het getal
-      const line = isEnglish ? "" : BID_LINES[v][p.bid][k];
-      const ms = speak ? BID_MS[v][p.bid][k] + 250 : 1300 + (k ? line.length * 25 : 0);
+      if (speak) playSound(voice(`bod_${v}_${p.bid}_${k}`));
+      const line = (isEnglish ? BID_LINES_EN[v]?.[p.bid]?.[k] : BID_LINES[v][p.bid][k]) ?? "";
+      const ms = speak ? bidMs(v, p.bid, k) + 250 : 1300 + (k ? line.length * 25 : 0);
       if (speak) speechUntil = Date.now() + ms;
       if (nr > 1) talkingUntil[nr] = Date.now() + ms;
       showBubble(nr, bidBubble(k ? line : "", p.bid), ms + 300);
@@ -665,17 +674,13 @@ function announceBids(afterLanding = (fn) => fn()) {
         const k = pickLine(`nat${nr}`, WET_LINES[v].length, false);
         const say = settings.sound && settings.speakBids;
         afterLanding(() => {
-          if (say) playSound(`nat_${v}_${k}`);
-          showBubble(nr, esc(isEnglish ? WET_EN[k % WET_EN.length] : WET_LINES[v][k]), 2600, true);
+          if (say) playSound(voice(`nat_${v}_${k}`));
+          showBubble(nr, esc((isEnglish ? WET_LINES_EN[v]?.[k] : WET_LINES[v][k]) ?? t("Nat…")), 2600, true);
         });
       }
     }
   }
 }
-
-/** Wat een computerspeler in het Engels in zijn ballon zegt als hij nat gaat (de opname blijft Nederlands). */
-const WET_EN = ["Oh no!", "That's gone wrong.", "Missed it!", "Well, that's that.", "Bother.", "Not my round.", "There goes my bid.", "Can't make it now.",
-  "Oops.", "Drat!", "So close.", "Never mind."];
 
 // Karakters van de computerspelers -------------------------------------------------------------
 // Zie characters.js: per spel geloot, elk met een eigen manier van praten. Ze reageren af en toe op elkaar.
@@ -707,16 +712,16 @@ function react(nr, kind, delay, mood = "", interrupt = false) {
   const round = st.round;
   setTimeout(() => {
     if (!canReact() || st.round !== round) return;
-    // Sommige reacties zijn ingesproken (Nederlandse opname, net als bij nat gaan); de stem kan uit
+    // Sommige reacties zijn ingesproken (net als bij nat gaan); de stem kan uit
     const spoken = kind in SPOKEN_REACTIONS && settings.sound && settings.speakBids;
     // Praat er al iemand (wolkje in beeld of een stem), dan alleen een gebaar: niet door elkaar heen
     if (!interrupt && ($("#flyers .bubble") || (spoken && voicePlaying()))) { gesture(nr, mood === "sad" ? "sigh" : "react"); return; }
     const k = pickLine(`r-${kind}-${nr}`, lines.length, false);
     // Een ingesproken zin blijft zo lang in beeld als de opname duurt
     const file = reactionFile(kind, who, k);
-    const ms = spoken ? Math.max(1900, (REACTION_MS[file] ?? 0) + 400) : 1900;
+    const ms = spoken ? Math.max(1900, ((isEnglish ? EN_MS : REACTION_MS)[file] ?? 0) + 400) : 1900;
     showBubble(nr, `<span>${esc(lines[k])}</span>`, ms, mood);
-    if (spoken) playSound(file);
+    if (spoken) playSound(voice(file));
     gesture(nr, mood === "sad" ? "sigh" : kind === "slag" ? "cheer" : "react");
   }, delay);
 }
@@ -1092,15 +1097,17 @@ function leaveGame() {
 /** Laat Tineke iets zeggen. Bij wait=true pauzeert het spel tot je op Begrepen tikt. */
 /** Tineke zegt de zinnen hardop, na elkaar (opnames uit speech.js). Een nieuwe uitleg breekt de vorige af. */
 let tinekeVoiceToken = 0;
+/** Nederlandse zin van Tineke naar de Engelse die ze in een Engels spel zegt (tineke.js, spokenPairs). */
+const TINEKE_EN = new Map(tineke.spokenPairs());
 let tinekeTalking = false;
 async function tinekeSpeak(lines) {
   const token = ++tinekeVoiceToken;
-  // De opnames zijn Nederlands: in het Engels laat Tineke alleen tekst zien
-  if (isEnglish || !soundReady() || !settings.sound || settings.tinekeVoice === false) return;
+  if (!soundReady() || !settings.sound || settings.tinekeVoice === false) return;
   for (const line of lines) {
     if (token !== tinekeVoiceToken) return;
     tinekeTalking = true;
-    const ms = await playSound(tinekeFile(line));
+    // In het Engels: de Engelse zin bij een Nederlandse (uit say), of de Engelse tekst die al op het scherm staat
+    const ms = await playSound(isEnglish ? EN_DIR + tinekeFile(TINEKE_EN.get(line) ?? line) : tinekeFile(line));
     if (!ms) break;
     await wait(ms + 150);
   }
@@ -2584,8 +2591,7 @@ function renderSettings() {
   $("#set-cards").checked = settings.cardSounds !== false;
   renderVoicePick();
   $("#set-tineke-voice").checked = settings.tinekeVoice !== false;
-  // Tineke spreekt alleen Nederlands; in het Engels laat ze alleen tekst zien
-  $("#row-tineke-voice").hidden = !settings.sound || isEnglish;
+  $("#row-tineke-voice").hidden = !settings.sound;
   $("#set-opener").checked = settings.opener !== false;
   $("#row-opener").hidden = !settings.sound;
   $("#row-speak-humans").hidden = !settings.sound || !settings.speakBids;
@@ -2900,8 +2906,7 @@ $("#say-menu").addEventListener("click", (e) => {
   if (!sendChat(sayWire(k))) return;
   lastSaid = Date.now();
   $("#say-menu").hidden = true;
-  // De opnames zijn Nederlands: in het Engels zie je alleen de tekst
-  if (!isEnglish && soundReady() && settings.sound && myVoice() !== "geen") playSound(phraseFile(myVoice(), k));
+  if (soundReady() && settings.sound && myVoice() !== "geen") playSound(voice(phraseFile(myVoice(), k)));
 });
 document.addEventListener("click", (e) => { if (!e.target.closest("#say-menu")) $("#say-menu").hidden = true; });
 setInterval(() => { if (!$("#say-menu").hidden) renderSayMenu(); }, 1000);
@@ -2909,11 +2914,11 @@ setInterval(() => { if (!$("#say-menu").hidden) renderSayMenu(); }, 1000);
 /** Een snelle zin van een medespeler hardop, in zijn stem (en niet vaker dan de afzender mag). */
 function hearPhrase(m) {
   const k = spokenPhrase(m.text);
-  if (k < 0 || isEnglish || !settings.sound || settings.speakHumans === false || !soundReady()) return;
+  if (k < 0 || !settings.sound || settings.speakHumans === false || !soundReady()) return;
   if (Date.now() - (heardAt.get(m.seat) ?? 0) < PHRASE_GAP_MS - 5000) return;
   heardAt.set(m.seat, Date.now());
-  const voice = cleanVoice(online.players.find((p) => p.seat === m.seat)?.voice) ?? "neutraal";
-  if (voice !== "geen") playSound(phraseFile(voice, k));
+  const theirVoice = cleanVoice(online.players.find((p) => p.seat === m.seat)?.voice) ?? "neutraal";
+  if (theirVoice !== "geen") playSound(voice(phraseFile(theirVoice, k)));
 }
 
 $("#chat-quick").innerHTML = QUICK.map((q) => `<button type="button" class="${q.length > 2 ? "txt" : ""}" data-q="${esc(q)}">${esc(t(q))}</button>`).join("");
@@ -3785,7 +3790,7 @@ document.addEventListener("click", (e) => {
   saveSettings();
   renderVoicePick();
   online?.link?.setVoice?.(settings.voice);
-  if (soundReady() && settings.sound && myVoice() !== "geen") playSound(`bod_speler_${myVoice()}_${2 + Math.floor(Math.random() * 6)}_0`);
+  if (soundReady() && settings.sound && myVoice() !== "geen") playSound(voice(`bod_speler_${myVoice()}_${2 + Math.floor(Math.random() * 6)}_0`));
 });
 $("#set-tineke-voice").addEventListener("change", (e) => { settings.tinekeVoice = e.target.checked; saveSettings(); if (!e.target.checked) tinekeSilence(); });
 $("#set-opener").addEventListener("change", (e) => { settings.opener = e.target.checked; saveSettings(); });

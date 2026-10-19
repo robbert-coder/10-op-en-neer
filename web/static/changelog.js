@@ -1,6 +1,11 @@
 // Wat er per versie nieuw is. Wie na een nieuwe versie terugkomt, ziet dit in het hoofdmenu.
 // items in het Nederlands, en dezelfde punten in het Engels (en), voor wie het spel in het Engels speelt.
 export const CHANGES = [
+  { v: "2.65", items: [
+    "Engelse stemmen: speel je in het Engels, dan praten alle personages, Tineke en de begroeting nu ook in het Engels, met hun eigen stem en manier van praten.",
+  ], en: [
+    "English voices: when you play in English, all characters, Tineke and the welcome now speak English too, with their own voice and way of talking.",
+  ] },
   { v: "2.64", items: [
     "Voorspellen met de cijfertoetsen werkt nu ook als het chatvak nog actief is (als het leeg is), met Num Lock uit, en op een toetsenbord waar je voor cijfers Shift nodig hebt.",
   ], en: [

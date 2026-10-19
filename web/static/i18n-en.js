@@ -474,7 +474,7 @@ export default {
   "Ook de voorspelling van jezelf en je medespelers hardop, alleen het getal.": "Also say your own bid and those of the other players out loud, just the number.",
   "Zo klinken jouw voorspelling en snelle zinnen, ook bij je medespelers.": "This is how your bid and quick phrases sound, for the other players too.",
   "Tineke spreekt": "Tineke speaks",
-  "Tineke zegt haar uitleg en opmerkingen ook hardop.": "Tineke also says her explanations and remarks out loud (in Dutch only).",
+  "Tineke zegt haar uitleg en opmerkingen ook hardop.": "Tineke also says her explanations and remarks out loud.",
   "Begroeting": "Greeting",
   "Truus roept je toe op het startscherm en daagt je uit voor nog een potje.": "Truus calls out to you on the start screen and challenges you to another game.",
   "Spel delen": "Share the game",

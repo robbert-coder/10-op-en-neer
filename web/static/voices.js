@@ -1,5 +1,5 @@
 // Wat de spelers zeggen bij hun voorspelling en als ze nat gaan. Bij elke tekst hoort een geluid:
-// sounds/bod_<speler>_<bod>_<variant>.mp3 en sounds/nat_<speler>_<variant>.mp3, ingesproken met ElevenLabs-stemmen (tools/elevenlabs.py); alleen "speler" (niet meer
+// sounds/bod_<speler>_<bod>_<variant>.mp3 en sounds/nat_<speler>_<variant>.mp3 (Engels: voices-en.js, sounds/en/), ingesproken met ElevenLabs-stemmen (tools/elevenlabs.py); alleen "speler" (niet meer
 // gebruikt) is nog een Piper-stem (CC0, tools/stemmen.py).
 // Variant 0 is alleen het getal; die wordt het vaakst gekozen. Voorspellingen zijn kort en rijmen niet;
 // bij nat gaan balt elke computerspeler op zijn eigen manier.
