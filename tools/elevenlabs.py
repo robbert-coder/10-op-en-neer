@@ -10,6 +10,8 @@
 #   python3 tools/elevenlabs.py inspreken[:henk,kees] <map>  Alle voorspellingen en nat-zinnen (uit
 #                                                    web/static/voices.js) inspreken met de stemmen in KEUZE
 #   python3 tools/elevenlabs.py extra[:tineke] <map>  Begroeting, snelle zinnen en Tineke (web/static/speech.js)
+#   python3 tools/elevenlabs.py engels[:henk,tineke] <map>  Alles in het Engels, met dezelfde stemmen
+#                                                    (englishSpeechJobs in web/static/speech.js), voor sounds/en/
 #   python3 tools/elevenlabs.py proef:<eigenaar>/<stem>/<Naam> <map>  Bibliotheekstem aan het account toevoegen en
 #                                                    een paar spelzinnen laten inspreken (kost een paar honderd credits)
 import base64, http.client, json, os, re, sys, urllib.error, urllib.parse, urllib.request
@@ -267,9 +269,9 @@ def saved_voice(k):
                                    "generated_voice_id": k["ontwerp"]})["voice_id"]
 
 
-def speak(voice_id, model, text, path, settings=None):
+def speak(voice_id, model, text, path, settings=None, language="nl"):
     import time
-    body = {"text": text, "model_id": model, "language_code": "nl"} | ({"voice_settings": settings} if settings else {})
+    body = {"text": text, "model_id": model, "language_code": language} | ({"voice_settings": settings} if settings else {})
     for attempt in range(6):
         req = urllib.request.Request(f"{API}/text-to-speech/{voice_id}?output_format=mp3_44100_128", method="POST",
                                      data=json.dumps(body).encode(),
@@ -343,6 +345,53 @@ def extra(out, only):
         ms = dict(pool.map(one, jobs))
     json.dump({"ms": ms, "jobs": jobs}, open(f"{out}/extra.json", "w"), ensure_ascii=False)
     import shutil
+    shutil.rmtree(f"{out}/ruw")
+    print("klaar:", len(ms), "geluiden")
+
+
+def engels(out, only):
+    """Alle zinnen in het Engels (englishSpeechJobs uit web/static/speech.js), met dezelfde stemmen en tonen."""
+    import shutil, subprocess
+    from concurrent.futures import ThreadPoolExecutor
+    root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+    js = "import('./web/static/speech.js').then((m) => console.log(JSON.stringify(m.englishSpeechJobs())))"
+    jobs = json.loads(subprocess.run(["node", "--input-type=module", "-e", js], cwd=root, capture_output=True, text=True, check=True).stdout)
+    jobs = [j for j in jobs if not only or j["who"] in only]
+    os.makedirs(f"{out}/ruw", exist_ok=True)
+    os.makedirs(f"{out}/mp3", exist_ok=True)
+
+    ids = {}
+    for who in {j["who"] for j in jobs}:
+        if who == "begroeting":
+            # Truus op het startscherm, zoals in het Nederlands (stap begroeting)
+            ids[who] = (BEGROETING_STEMMEN["truus"], "eleven_v3", "[excited] ")
+        elif who in EXTRA:
+            ids[who] = EXTRA[who]
+        elif "ontwerp" in KEUZE[who]:
+            ids[who] = (saved_voice(KEUZE[who]), MODEL["ontwerp"], "")
+        else:
+            ids[who] = (KEUZE[who]["stem"], MODEL["stem"], "")
+
+    def one(j):
+        vid, model, prefix = ids[j["who"]]
+        if "tone" in j and j["who"] in TOON:
+            prefix, settings = TOON[j["who"]][j["tone"]] + " ", EXPRESSIEF
+        elif j["who"] == "begroeting":
+            settings = {"stability": 0.0}
+        else:
+            settings = {"stability": 0.5}
+        for _ in range(4):
+            speak(vid, model, prefix + j["text"], f"{out}/ruw/{j['file']}.mp3", settings, "en")
+            ms = polish(out, j["file"])
+            if 250 <= ms <= 400 + 140 * len(j["text"]):
+                break
+            print("opnieuw", j["file"], ms, "ms:", j["text"], flush=True)
+        return j["file"], ms
+
+    print(len(jobs), "zinnen,", sum(len(j["text"]) for j in jobs), "tekens", flush=True)
+    with ThreadPoolExecutor(4) as pool:
+        ms = dict(pool.map(one, jobs))
+    json.dump({"ms": ms}, open(f"{out}/engels.json", "w"), ensure_ascii=False)
     shutil.rmtree(f"{out}/ruw")
     print("klaar:", len(ms), "geluiden")
 
@@ -428,6 +477,8 @@ def inspreken(out, only):
 def main(stap, out):
     if stap == "begroeting":
         begroeting(out)
+    elif stap.startswith("engels"):
+        engels(out, stap[7:].split(",") if ":" in stap else None)
     elif stap.startswith("extra"):
         extra(out, stap[6:].split(",") if ":" in stap else None)
     elif stap.startswith("inspreken"):

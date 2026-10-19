@@ -4,8 +4,10 @@
 // Ze spreekt ook: elke vaste zin heeft een opname (spokenLines). Bij teksten met een kaart, naam of
 // getal zegt ze een vaste, iets algemenere versie (say); op het scherm staat de precieze tekst.
 
-// Op het scherm staat de tekst in de taal van het spel (t, i18n.js); de opnames zijn alleen Nederlands.
+// Op het scherm staat de tekst in de taal van het spel (t, i18n.js). De opnames zijn er in het Nederlands en in
+// het Engels (spokenPairs: elke Nederlandse zin met de Engelse die ze dan zegt).
 import { suitWord, t } from "./i18n.js";
+import EN from "./i18n-en.js";
 
 const pick = (list) => list[Math.floor(Math.random() * list.length)];
 
@@ -359,6 +361,64 @@ const SAY = {
   wetFewBB: "Je bent nat: er zijn te weinig kaarten over om je voorspelling nog te halen. Elke slag verschil kost punten, dus haal er nog zoveel mogelijk.",
 };
 const adviceText = (n) => `Mijn advies: kies ${WORD[n] ?? n}.`;
+
+// Dezelfde vaste zinnen in het Engels (de Engelse opnames), met dezelfde sleutels als SAY
+const SUIT_NAME_EN = ["", "clubs", "diamonds", "spades", "hearts"];
+const WORD_EN = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen"];
+const SAY_EN = {
+  bidFirst: "You've got your cards. Now you have to bid how many tricks you'll take: how many times do you think you'll have the highest card on the table this round? Tap a number.",
+  bid: "Now bid how many tricks you'll take. Tap a number.",
+  bidDone: "Your bid is shown by your name under BID; next to it is how many tricks you have. That's also where you see the other players' bids. At the top you can see whether there are tricks left over or too few.",
+  leadFirst: "You lead now: you put down the first card. You can tell by the lead label next to your name.",
+  leadAgain: "You play a card now, because you just won a trick.",
+  tapOnly: "Tap your card.",
+  tapAny: "Tap a card.",
+  lastCard: "The players before you have played their cards. Now it's your turn to play: tap your card.",
+  follow: (suit) => `The first card on the table is a ${suit.slice(0, -1)}. Now you must follow suit: play ${suit} as well.`,
+  canFollow: (suit) => `Tap one of your ${suit}; the cards you may play are raised.`,
+  cannotFollow: (suit) => `You don't have any ${suit}, so you may play any card.`,
+  wonLead: "You win this trick, because nobody had a higher card in your suit.",
+  otherLead: "The player who led wins this trick, because nobody had a higher card in that suit.",
+  wonTrump: (suit) => `You win this trick, because you trumped: ${suit} are trumps.`,
+  otherTrump: (suit) => `This trick goes to the player who trumped: ${suit} are trumps.`,
+  wonHigh: "You win this trick, because you had the highest card in the suit that was led.",
+  otherHigh: "This trick goes to the player with the highest card in the suit that was led.",
+  trickCount: "You can see how many tricks everyone has by the number under TRICKS.",
+  scoreGood: "Your bid was right, so you get points.",
+  scoreSome: "Your bid didn't work out, but you still get a few points.",
+  scoreNone: "Your bid didn't work out. No points this time.",
+  scoreList: "All the scores are on the score sheet, with the button at the top right.",
+  trump: (suit) => `${suit[0].toUpperCase()}${suit.slice(1)} are trumps this round. A trump beats every card of the other suits, even an ace. If you don't have the suit that was led, you may play a trump. Then you win the trick, even with a low trump, unless someone plays a higher one. So count your trumps when you bid.`,
+  noTrump: "There are no trumps this round. The highest card in the suit that was led always wins the trick.",
+  exact: "Try to take exactly as many tricks as you bid. Take more or fewer and you've missed, and you get no points this round.",
+  exactBB: "Try to take exactly as many tricks as you bid. Take more or fewer and you've missed, and you get fewer points: 3 less for every trick you're off.",
+  wetMany: "You've missed: you have more tricks than you bid. Too many tricks is wrong too, so you get no points this round.",
+  wetFew: "You've missed: there aren't enough cards left to make your bid. You get no points this round.",
+  wetManyBB: "You've missed: you have more tricks than you bid. Every trick you're off costs points, so try not to take any more.",
+  wetFewBB: "You've missed: there aren't enough cards left to make your bid. Every trick you're off costs points, so take as many as you still can.",
+};
+const adviceTextEn = (n) => `My advice: choose ${WORD_EN[n] ?? n}.`;
+/** De Engelse zin van "kleur bekennen" precies zoals hij op het scherm staat (zie comment). */
+const followTextEn = (suit) => (EN["Je moet kleur bekennen. Kies een {suit}."] ?? "").replace("{suit}", suit);
+
+/**
+ * Elke zin die Tineke hardop kan zeggen, met de Engelse zin die ze in een Engels spel zegt: [[nl, en], ...].
+ * Nodig omdat de opnames per taal apart zijn; in het Engels zoekt het spel bij een Nederlandse zin (uit say) de
+ * Engelse op. Een zin zonder vertaling (zoals "Haha.") blijft gelijk.
+ */
+export function spokenPairs() {
+  const same = (list) => list.map((nl) => [nl, EN[nl] ?? nl]);
+  const pairs = [
+    ...same([...clickList(GREETINGS[0]), ...GREETINGS.slice(1), ...Object.values(COMMENTS).flat()]),
+    ...SUITS.map((suit, i) => [followText(suit), followTextEn(SUIT_NAME_EN[i + 1])]),
+    ...same([...END_OTHER, ...END_BEST, ...END_TABLE.flatMap(([, x]) => x), WELCOME, HELP_OFF]),
+    ...Object.entries(SAY).flatMap(([k, v]) => (typeof v === "function"
+      ? SUITS.map((suit, i) => [v(suit), SAY_EN[k](SUIT_NAME_EN[i + 1])])
+      : [[v, SAY_EN[k]]])),
+    ...WORD.map((_, n) => [adviceText(n), adviceTextEn(n)]),
+  ];
+  return [...new Map(pairs).entries()];
+}
 
 /** Alle zinnen die Tineke hardop kan zeggen; tools/elevenlabs.py maakt er de opnames van. */
 export function spokenLines() {
