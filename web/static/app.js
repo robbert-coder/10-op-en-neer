@@ -8,9 +8,10 @@ import { BID_LINES, WET_LINES, BID_MS, REACTION_MS } from "./voices.js";
 import { CHARACTERS, CHARACTER_IDS, CLASSIC_CAST, REACTIONS, REACTIONS_EN, drawCast, everyoneMissed, nextSpeaker } from "./characters.js";
 import { CHANGES } from "./changelog.js";
 import { cloudEnabled, makeCloudCode, normalizeCloudCode, formatCloudCode, validCloudCode, fetchStats, saveStats, fetchHallOfFame, onCloudHealth, sendReport } from "./cloud.js";
-import { REPORT_TEXT_MAX, REPORT_TEXT_MIN, captureScreen, cleanReport, deviceText } from "./feedback.js";
+import { BID_KEY_WAIT_MS, bidFromKey } from "./bidkeys.js";
+import { REPORT_TEXT_MAX, REPORT_TEXT_MIN, canvasToShot, captureScreen, cleanReport, deviceText, toImagePoint } from "./feedback.js";
 import { Host, Guest, PublicLobby, makeCode, normalizeCode, useIdentity, AVATAR_EMOJIS, AVATAR_FACES, cleanAvatar, cleanStats, cleanVoice } from "./net.js";
-import { chatLimit, cleanStartGame, cleanText, devParam } from "./validate.js";
+import { cleanName, chatLimit, cleanStartGame, cleanText, devParam } from "./validate.js";
 import { loadIdentity } from "./ident.js";
 import { $, $$, esc, nativeApp, reducedMotion, wait } from "./dom.js";
 import { DEFAULT_NAMES, myAvatar, myVoice, saveSettings, settings, store } from "./storage.js";
@@ -1717,6 +1718,8 @@ function renderGame() {
       html += `<button data-bid="${n}" class="${forbidden ? "forbidden" : ""} ${n === hintBid ? "hint" : ""}" ${forbidden ? "disabled" : ""}>${n}</button>`;
     }
     if (st.forbiddenBid >= 0) html += `<p>${t("Rondmaken is niet toegestaan: je mag geen {n} zeggen.", { n: st.forbiddenBid })}</p>`;
+    // Met een toetsenbord (muis of touchpad) kun je ook een cijfer typen
+    if (window.matchMedia("(pointer: fine)").matches) html += `<p class="bids-keys">${t("Je kunt ook een cijfer typen.")}</p>`;
     bids.innerHTML = html;
     bids.classList.toggle("many", st.cards >= 9);
     bids.hidden = false;
@@ -2274,7 +2277,7 @@ let report = null;
 async function openReport(fromGame) {
   menuOpen = false;
   $("#gamemenu").hidden = true;
-  report = { kind: "bug", text: "", shot: null, withShot: true, fromGame, status: fromGame ? "shooting" : "", sending: false };
+  report = { kind: "bug", text: "", shot: null, strokes: [], withShot: true, fromGame, status: fromGame ? "shooting" : "", sending: false };
   $("#feedback").hidden = false;
   renderReport(true);
   if (fromGame) {
@@ -2303,7 +2306,7 @@ function renderReport(frame = false) {
   if (frame) {
     box.innerHTML = `<div class="dialog fb-box"><h3>${t("Bug of idee melden")}</h3>
       <div class="tabs fb-kind"><button type="button" data-fb-kind="bug">${t("Bug (iets gaat mis)")}</button><button type="button" data-fb-kind="idee">${t("Idee")}</button></div>
-      <textarea id="fb-text" maxlength="${REPORT_TEXT_MAX}" rows="5"></textarea>
+      <textarea id="fb-text" maxlength="${REPORT_TEXT_MAX}" rows="3"></textarea>
       <div class="fb-shot"></div>
       <p class="fb-note">${t("Je naam, de versie van het spel en het soort apparaat gaan mee, zodat we het kunnen nazoeken.")}</p>
       <p class="fb-status" role="status"></p>
@@ -2313,10 +2316,20 @@ function renderReport(frame = false) {
   $("#fb-text").placeholder = report.kind === "bug" ? t("Wat ging er mis, en wat deed je net daarvoor?") : t("Wat zou je graag anders of erbij willen?");
   const shot = $("#feedback .fb-shot");
   shot.hidden = !report.fromGame;
-  shot.innerHTML = !report.fromGame ? ""
-    : report.status === "shooting" ? `<p class="fb-note">${t("Schermafbeelding maken…")}</p>`
-    : report.shot ? `<label class="fb-shot-row"><input type="checkbox" id="fb-with-shot" ${report.withShot ? "checked" : ""}><span>${t("Schermafbeelding meesturen")}</span></label><img class="fb-preview" alt="" src="${report.shot}">`
-    : `<p class="fb-note">${t("De schermafbeelding is niet gelukt; je melding kan wel zonder.")}</p>`;
+  // Alleen opnieuw opbouwen als de toestand verandert, anders verdwijnt wat je getekend hebt
+  const shotKey = !report.fromGame ? "" : report.status === "shooting" ? "shooting" : report.shot ? "shot" : "none";
+  if (shot.dataset.key !== shotKey) {
+    shot.dataset.key = shotKey;
+    shot.innerHTML = shotKey === "" ? ""
+      : shotKey === "shooting" ? `<p class="fb-note">${t("Schermafbeelding maken…")}</p>`
+      : shotKey === "shot" ? `<label class="fb-shot-row"><input type="checkbox" id="fb-with-shot" ${report.withShot ? "checked" : ""}><span>${t("Schermafbeelding meesturen")}</span></label>
+        <p class="fb-note">${t("Teken met je vinger of muis om iets aan te wijzen.")}</p>
+        <canvas class="fb-preview fb-canvas" id="fb-canvas" aria-label="${t("Schermafbeelding")}"></canvas>
+        <div class="fb-draw-tools"><button type="button" class="text" data-fb="undo">${t("Ongedaan maken")}</button><button type="button" class="text" data-fb="clear">${t("Alles wissen")}</button></div>`
+      : `<p class="fb-note">${t("De schermafbeelding is niet gelukt; je melding kan wel zonder.")}</p>`;
+    if (shotKey === "shot") setupShotCanvas();
+  }
+  $$("#feedback .fb-draw-tools button").forEach((b) => { b.disabled = report.strokes.length === 0; });
   const status = $("#feedback .fb-status");
   status.textContent = report.status === "sent" ? t("Bedankt! Je melding is verstuurd.")
     : report.status === "short" ? t("Schrijf iets meer, dan begrijpen we wat je bedoelt.")
@@ -2328,12 +2341,71 @@ function renderReport(frame = false) {
   $("#feedback [data-fb=\"cancel\"]").textContent = report.status === "sent" ? t("Sluiten") : t("Annuleren");
 }
 
+/** De schermafbeelding als plaatje achter het tekenvel; ingeladen bij het openen. */
+let shotImage = null;
+
+/** Het tekenvel klaarzetten: schermafbeelding erin en tekenen met vinger, pen of muis. */
+function setupShotCanvas() {
+  const canvas = $("#fb-canvas");
+  shotImage = new Image();
+  shotImage.onload = () => {
+    canvas.width = shotImage.naturalWidth;
+    canvas.height = shotImage.naturalHeight;
+    drawShot();
+  };
+  shotImage.src = report.shot;
+  let line = null;
+  canvas.addEventListener("pointerdown", (e) => {
+    if (!report) return;
+    e.preventDefault();
+    canvas.setPointerCapture?.(e.pointerId);
+    line = [toImagePoint(e.clientX, e.clientY, canvas.getBoundingClientRect(), canvas.width, canvas.height)];
+    report.strokes.push(line);
+    drawShot();
+  });
+  canvas.addEventListener("pointermove", (e) => {
+    if (!line || !report) return;
+    line.push(toImagePoint(e.clientX, e.clientY, canvas.getBoundingClientRect(), canvas.width, canvas.height));
+    drawShot();
+  });
+  const end = () => { if (line) { line = null; renderReport(); } };
+  canvas.addEventListener("pointerup", end);
+  canvas.addEventListener("pointercancel", end);
+}
+
+/** Schermafbeelding plus de rode lijnen die je getekend hebt. */
+function drawShot() {
+  const canvas = $("#fb-canvas");
+  if (!canvas || !shotImage?.complete || !report) return;
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(shotImage, 0, 0);
+  ctx.strokeStyle = "#FF2D2D";
+  ctx.lineWidth = Math.max(3, canvas.width / 160);
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  for (const pts of report.strokes) {
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    // Eén tik is een stip
+    for (const [x, y] of pts.length > 1 ? pts.slice(1) : [[pts[0][0] + 0.1, pts[0][1]]]) ctx.lineTo(x, y);
+    ctx.stroke();
+  }
+}
+
+/** De schermafbeelding die meegaat: met je tekening erin als je iets getekend hebt. */
+function reportShot() {
+  if (!report.withShot || !report.shot) return null;
+  if (report.strokes.length === 0) return report.shot;
+  const canvas = $("#fb-canvas");
+  return (canvas && canvasToShot(canvas)) ?? report.shot;
+}
+
 /** De melding controleren en versturen. Lukt het niet, dan blijft het venster open met je tekst erin. */
 async function submitReport() {
   if (!report || report.sending) return;
   report.text = $("#fb-text").value;
   const clean = cleanReport({ kind: report.kind, text: report.text, version: APP_VERSION, device: deviceText(!!nativeApp),
-    name: settings.playerName, shot: report.withShot ? report.shot : null });
+    name: settings.playerName, shot: reportShot() });
   if (!clean || clean.text.length < REPORT_TEXT_MIN) { report.status = "short"; renderReport(); return; }
   report.sending = true;
   report.status = "";
@@ -2355,6 +2427,12 @@ $("#feedback").addEventListener("click", (e) => {
   const kind = e.target.closest("[data-fb-kind]")?.dataset.fbKind;
   if (kind) { report.kind = kind; renderReport(); return; }
   const action = e.target.closest("[data-fb]")?.dataset.fb;
+  if (action === "undo" || action === "clear") {
+    if (action === "undo") report.strokes.pop(); else report.strokes = [];
+    drawShot();
+    renderReport();
+    return;
+  }
   if (action === "cancel") closeReport();
   else if (action === "send") submitReport();
 });
@@ -3357,7 +3435,7 @@ function renderOnline() {
 $("#btn-online").addEventListener("click", () => show("online"));
 $("#btn-online-back").addEventListener("click", () => { if (online?.game && game) show("game"); });
 $("#on-name").addEventListener("input", (e) => {
-  settings.playerName = e.target.value.trim() || t("Speler");
+  settings.playerName = cleanName(e.target.value) || t("Speler");
   pubLobby?.setMe({ name: settings.playerName });
   renderAvatarPick();
   saveSettings();
@@ -3592,14 +3670,14 @@ $("#btn-hs-clear").addEventListener("click", () => {
 });
 
 $("#ng-name").addEventListener("input", (e) => {
-  settings.playerName = e.target.value.trim() || t("Speler");
+  settings.playerName = cleanName(e.target.value) || t("Speler");
   renderAvatarPick();
   saveSettings();
 });
 // Staat er nog "Speler", dan is het in één keer te vervangen
 for (const id of ["#ng-name", "#on-name", "#set-name"]) $(id).addEventListener("focus", (e) => e.target.select());
 $("#set-name").addEventListener("input", (e) => {
-  settings.playerName = e.target.value.trim() || t("Speler");
+  settings.playerName = cleanName(e.target.value) || t("Speler");
   renderAvatarPick();
   saveSettings();
   if (game) {
@@ -3704,6 +3782,30 @@ $("#bids").addEventListener("click", (e) => {
   const action = e.target.closest("[data-action]")?.dataset.action;
   if (action === "scores") { showScores = true; renderDialog(); }
   if (action === "next-round") continueAfterRound();
+});
+/**
+ * Voorspellen met de cijfertoetsen (op een computer of tablet met toetsenbord). Niet als je in een tekstvak
+ * typt of als er een venster open is. Een verboden bod (rondmaken) doet niets, net als de knop.
+ */
+let bidKeyPending = "";
+let bidKeyTimer = null;
+function bidByKey(n) {
+  bidKeyPending = "";
+  clearTimeout(bidKeyTimer);
+  if (!humanBidding()) return;
+  const button = $(`#bids [data-bid="${n}"]`);
+  if (button && !button.disabled) onBid(n);
+}
+document.addEventListener("keydown", (e) => {
+  if (screen !== "game" || !st || !humanBidding() || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.target.closest?.("input, textarea, select") || !$("#dialog").hidden || !$("#feedback").hidden) return;
+  const r = bidFromKey(bidKeyPending, e.key, st.cards);
+  if (!r) return;
+  e.preventDefault();
+  if ("bid" in r) { bidByKey(r.bid); return; }
+  bidKeyPending = r.pending;
+  clearTimeout(bidKeyTimer);
+  bidKeyTimer = setTimeout(() => bidByKey(Number(bidKeyPending)), BID_KEY_WAIT_MS);
 });
 $("#hand").addEventListener("click", (e) => {
   const c = e.target.closest("[data-code]");

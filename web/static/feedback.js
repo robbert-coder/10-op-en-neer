@@ -61,12 +61,28 @@ export async function captureScreen(el = document.getElementById("app")) {
     const h2c = await loadHtml2canvas();
     const scale = Math.min(1, 1200 / Math.max(1, el.clientWidth)) * Math.min(2, window.devicePixelRatio || 1);
     const canvas = await h2c(el, { backgroundColor: "#2A1B12", scale, logging: false, useCORS: true });
-    for (const quality of [0.7, 0.5, 0.35]) {
-      const url = canvas.toDataURL("image/jpeg", quality);
-      if (isShot(url)) return url;
-    }
+    return canvasToShot(canvas);
   } catch { /* zonder schermafbeelding */ }
   return null;
+}
+
+/** Een tekenvel als JPEG (data-URL), zo nodig met minder kwaliteit tot hij klein genoeg is; anders null. */
+export function canvasToShot(canvas) {
+  for (const quality of [0.7, 0.5, 0.35]) {
+    const url = canvas.toDataURL("image/jpeg", quality);
+    if (isShot(url)) return url;
+  }
+  return null;
+}
+
+/**
+ * Een plek op het scherm (vinger of muis) omrekenen naar pixels van de schermafbeelding, die kleiner getoond
+ * wordt dan hij is. Nodig om op de juiste plek te tekenen als je iets aanwijst.
+ */
+export function toImagePoint(clientX, clientY, rect, width, height) {
+  const x = ((clientX - rect.left) / Math.max(1, rect.width)) * width;
+  const y = ((clientY - rect.top) / Math.max(1, rect.height)) * height;
+  return [Math.min(width, Math.max(0, x)), Math.min(height, Math.max(0, y))];
 }
 
 /** Een korte beschrijving van het apparaat, zodat een bug na te spelen is. */

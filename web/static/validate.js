@@ -23,6 +23,11 @@ export function cleanText(v, max) {
   return String(v).replace(/[\u0000-\u001f\u007f\u2028\u2029]/g, " ").trim().slice(0, max);
 }
 
+/** Hoe lang een spelersnaam mag zijn; langer past niet bij de hoofden aan tafel. */
+export const NAME_MAX = 15;
+/** Een spelersnaam: zonder stuurtekens en hoogstens NAME_MAX tekens. Geeft "" als er niets overblijft. */
+export const cleanName = (v) => cleanText(v, NAME_MAX).trim();
+
 /** Een geheel getal tussen min en max, anders [fallback]. Voor stoelen, scores, aantallen en tijden. */
 export function cleanInt(v, min, max, fallback = min) {
   const n = typeof v === "number" ? v : typeof v === "string" && v.trim() !== "" ? Number(v) : NaN;
@@ -101,7 +106,7 @@ export function cleanGame(g) {
     rounds: cleanInt(g.rounds, 0, 60, 0),
     good: Math.min(cleanInt(g.rounds, 0, 60, 0), cleanInt(g.good, 0, 60, 0)),
     online: !!g.online,
-    others: cleanList(g.others, 4, (n) => cleanText(n, 16) || null),
+    others: cleanList(g.others, 4, (n) => cleanName(n) || null),
     ...(g.tips ? { tips: true } : {}),
     // Sinds 2.33: soort spel en of het volledig was, uit de spelcode (oudere spellen hebben dit niet)
     ...(["10openneer", "boerenbridge", "hybride"].includes(g.key) ? { key: g.key } : {}),
@@ -114,7 +119,7 @@ export function cleanChat(m) {
   if (!isObject(m)) return null;
   const text = cleanText(m.text, 200);
   if (!text) return null;
-  return { seat: cleanInt(m.seat, 0, 5, 0), name: cleanText(m.name, 16) || "Speler", text, time: cleanInt(m.time, 0, 8.64e15, Date.now()) };
+  return { seat: cleanInt(m.seat, 0, 5, 0), name: cleanName(m.name) || "Speler", text, time: cleanInt(m.time, 0, 8.64e15, Date.now()) };
 }
 
 /**

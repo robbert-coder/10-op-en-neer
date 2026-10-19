@@ -1,6 +1,15 @@
 // Wat er per versie nieuw is. Wie na een nieuwe versie terugkomt, ziet dit in het hoofdmenu.
 // items in het Nederlands, en dezelfde punten in het Engels (en), voor wie het spel in het Engels speelt.
 export const CHANGES = [
+  { v: "2.59", items: [
+    "Bug of idee melden: teken met je vinger of muis op de schermafbeelding om iets aan te wijzen.",
+    "Met een toetsenbord kun je je voorspelling ook met de cijfertoetsen doen.",
+    "Namen zijn hoogstens 15 tekens, zodat ze aan tafel passen. Een langere naam wordt ingekort.",
+  ], en: [
+    "Report a bug or idea: draw on the screenshot with your finger or mouse to point something out.",
+    "With a keyboard you can also make your bid with the number keys.",
+    "Names are at most 15 characters, so they fit at the table. A longer name is shortened.",
+  ] },
   { v: "2.58", items: [
     "Spotlight: ben jij aan de beurt, dan staan de anderen in het halfdonker en jij en je kaarten in het licht. Is een ander aan de beurt, dan zijn je kaarten een tikje donkerder.",
     "Nieuw: Bug of idee melden, in het hoofdmenu en in het menu tijdens het spel. Vanuit het spel kun je er een schermafbeelding bij sturen.",

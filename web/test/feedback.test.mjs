@@ -33,3 +33,11 @@ test("isShot: alleen een JPEG als data-URL en niet te groot", () => {
   assert.equal(isShot(`data:image/jpeg;base64,${"A".repeat(REPORT_SHOT_MAX)}`), false);
   assert.equal(cleanReport({ ...ok, shot: "javascript:alert(1)" }).shot, null);
 });
+
+test("toImagePoint rekent een plek op het scherm om naar pixels van de schermafbeelding", async () => {
+  const { toImagePoint } = await import("../static/feedback.js");
+  const rect = { left: 100, top: 50, width: 300, height: 150 };
+  assert.deepEqual(toImagePoint(100, 50, rect, 1200, 600), [0, 0]);
+  assert.deepEqual(toImagePoint(250, 125, rect, 1200, 600), [600, 300]);
+  assert.deepEqual(toImagePoint(900, -20, rect, 1200, 600), [1200, 0]); // buiten het plaatje: op de rand
+});

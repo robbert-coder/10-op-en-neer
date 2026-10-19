@@ -120,3 +120,12 @@ test("cleanStats: overzicht per soort spel alleen met bekende soorten", () => {
   assert.deepEqual(Object.keys(s.v), ["boerenbridge"]);
   assert.equal(s.v.boerenbridge.w, 2); // nooit meer gewonnen dan gespeeld
 });
+
+test("cleanName: namen hoogstens 15 tekens, zonder stuurtekens", async () => {
+  const { cleanName, NAME_MAX } = await import("../static/validate.js");
+  assert.equal(NAME_MAX, 15);
+  assert.equal(cleanName("Robbert"), "Robbert");
+  assert.equal(cleanName("Een heel erg lange naam"), "Een heel erg la");
+  assert.equal(cleanName("  \u0007 "), "");
+  assert.equal(cleanName(null), "");
+});

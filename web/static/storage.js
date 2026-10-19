@@ -1,6 +1,6 @@
 // Wat het spel op dit apparaat bewaart (localStorage) en je instellingen. Lukt opslaan niet (privémodus),
 // dan werkt alles gewoon, alleen zonder te onthouden.
-import { cleanAvatar, cleanVoice } from "./validate.js";
+import { cleanAvatar, cleanName, cleanVoice } from "./validate.js";
 import { randomFace } from "./avatarcode.js";
 import { isEnglish } from "./i18n.js";
 
@@ -33,6 +33,8 @@ export const settings = Object.assign(
   store.get("instellingen", {}),
 );
 export const saveSettings = () => store.set("instellingen", settings);
+// Een te lange naam van vroeger inkorten (sinds v2.59 hoogstens 15 tekens)
+settings.playerName = cleanName(settings.playerName) || (isEnglish ? "Player" : "Speler");
 // Nog de standaardnaam: die in de taal van het spel
 if (DEFAULT_NAMES.includes(settings.playerName)) settings.playerName = DEFAULT_NAMES[isEnglish ? 1 : 0];
 // Sterke computerspelers stonden vroeger standaard aan; wie ze nooit zelf koos, begint nu met gewone

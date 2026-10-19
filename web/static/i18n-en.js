@@ -704,4 +704,8 @@ export default {
   "Afgehandeld": "Handled",
   "Schermafbeelding": "Screenshot",
   "Opslaan lukt nu niet.": "Saving doesn't work right now.",
+  "Teken met je vinger of muis om iets aan te wijzen.": "Draw with your finger or mouse to point something out.",
+  "Ongedaan maken": "Undo",
+  "Alles wissen": "Clear all",
+  "Je kunt ook een cijfer typen.": "You can also type a number.",
 };

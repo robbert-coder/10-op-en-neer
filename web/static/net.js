@@ -1,4 +1,4 @@
-import { AVATAR_EMOJIS, AVATAR_FACES, BoundedMap, RateLimit, chatLimit, cleanAvatar, cleanChat, cleanInt, cleanList,
+import { AVATAR_EMOJIS, AVATAR_FACES, BoundedMap, RateLimit, chatLimit, cleanAvatar, cleanChat, cleanInt, cleanList, cleanName,
   cleanStats, cleanText, cleanVoice, devParam, isObject } from "./validate.js";
 import { Verifier } from "./ident.js";
 import { normalizeCode as normalizeAnyCode, randomCode } from "./codes.js";
@@ -350,7 +350,7 @@ export class Host {
     if (!msg || typeof msg !== "object") return;
     if (msg.t === "hello") {
       const id = conn.id;
-      const name = cleanText(msg.name, 16) || "Speler";
+      const name = cleanName(msg.name) || "Speler";
       let p = this.players.find((x) => x.id === id);
       // De reden gaat in het Nederlands; de gast vertaalt hem zelf (i18n.js), zodat elke taal aan tafel kan
       if (p?.left && !p.idle) { conn.send({ t: "full", text: "Je had het spel verlaten. Een computer speelt nu voor je verder." }); return; }
@@ -710,7 +710,7 @@ export class Guest {
 function cleanSeatPlayer(p) {
   if (!isObject(p)) return null;
   return {
-    name: cleanText(p.name, 16) || "Speler", seat: cleanInt(p.seat, 1, 5, 1), online: !!p.online, left: !!p.left,
+    name: cleanName(p.name) || "Speler", seat: cleanInt(p.seat, 1, 5, 1), online: !!p.online, left: !!p.left,
     avatar: cleanAvatar(p.avatar), voice: cleanVoice(p.voice), stats: cleanStats(p.stats),
   };
 }
@@ -785,9 +785,9 @@ export class PublicLobby {
       this.hosts.set(code, from);
       if (msg.closed) { if (this.tables.delete(code)) this.emitTables(); return; }
       const seats = Math.max(2, Math.min(5, Math.round(Number(msg.seats)) || 4));
-      const players = (Array.isArray(msg.players) ? msg.players : []).slice(0, 5).map((n) => cleanText(n, 16) || "Speler");
+      const players = (Array.isArray(msg.players) ? msg.players : []).slice(0, 5).map((n) => cleanName(n) || "Speler");
       this.tables.set(code, {
-        code, host: cleanText(msg.host, 16) || "Speler", avatar: cleanAvatar(msg.avatar), seats, players,
+        code, host: cleanName(msg.host) || "Speler", avatar: cleanAvatar(msg.avatar), seats, players,
         free: Math.max(0, Math.min(seats, Math.round(Number(msg.free)) || 0)),
         title: cleanText(msg.title, 40), variant: cleanText(msg.variant, 40), rounds: Math.max(0, Math.min(30, Math.round(Number(msg.rounds)) || 0)),
         time: msg.time, seen: Date.now(), via: via(this.tables.get(code)), away: false, hostId: from,
@@ -797,14 +797,14 @@ export class PublicLobby {
     } else if (t.startsWith(`${PUBLIC}/lobby/`)) {
       const id = t.slice(t.lastIndexOf("/") + 1).slice(0, 40);
       if (id !== from || !fresh(msg.time)) return; // alleen jezelf aanmelden
-      this.people.set(id, { id, name: cleanText(msg.name, 16) || "Speler", avatar: cleanAvatar(msg.avatar), time: msg.time, seen: Date.now(), via: via(this.people.get(id)), me: id === this.me.id });
+      this.people.set(id, { id, name: cleanName(msg.name) || "Speler", avatar: cleanAvatar(msg.avatar), time: msg.time, seen: Date.now(), via: via(this.people.get(id)), me: id === this.me.id });
       this.emitPeople();
     } else if (t === CHAT_TOPIC) {
       const id = `${from}-${cleanText(msg.id, 40)}`;
       if (this.seenChat.has(id) || !fresh(msg.time)) return; // via meerdere servers binnengekomen
       this.seenChat.set(id, true);
       if (!this.chatLimit.allow(from)) return; // spam
-      const m = { id, from, name: cleanText(msg.name, 16) || "Speler", avatar: cleanAvatar(msg.avatar), text: cleanText(msg.text, 200), time: msg.time };
+      const m = { id, from, name: cleanName(msg.name) || "Speler", avatar: cleanAvatar(msg.avatar), text: cleanText(msg.text, 200), time: msg.time };
       if (!m.text) return;
       this.chat.push(m);
       if (this.chat.length > 100) this.chat.shift();
