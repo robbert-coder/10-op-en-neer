@@ -1,6 +1,11 @@
 // Wat er per versie nieuw is. Wie na een nieuwe versie terugkomt, ziet dit in het hoofdmenu.
 // items in het Nederlands, en dezelfde punten in het Engels (en), voor wie het spel in het Engels speelt.
 export const CHANGES = [
+  { v: "2.61", items: [
+    "Het bord \"Jij bent aan de beurt\" over de tafel is weg. Je kaarten wippen nog wel even op, met een belletje.",
+  ], en: [
+    "The \"Your turn\" sign over the table is gone. Your cards still bounce briefly, with a chime.",
+  ] },
   { v: "2.60", items: [
     "Enter in een invulveld brengt je verder: na je naam naar het volgende veld of de Start-knop, en bij een code meteen meedoen.",
   ], en: [

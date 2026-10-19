@@ -670,8 +670,6 @@ export default {
   "In de Hall of Fame staan alle spelers online. Je eigen tien beste spellen, ook als die niet je allerbeste zijn, zie je bij \"Op dit apparaat\".": "The Hall of Fame shows all players online. Your own ten best games, even those that aren't your very best, are under \"On this device\".",
   "Kaarten van hoog naar laag; tik voor laag naar hoog": "Cards from high to low; tap for low to high",
   "Kaarten van laag naar hoog; tik voor hoog naar laag": "Cards from low to high; tap for high to low",
-  "Jij bent aan de beurt: voorspel!": "Your turn: make your bid!",
-  "Jij bent aan de beurt!": "Your turn!",
   "Beurtsignaal": "Turn signal",
   "Een belletje en even trillen als je aan de beurt bent.": "A chime and a short vibration when it's your turn.",
   "Bug of idee melden": "Report a bug or idea",

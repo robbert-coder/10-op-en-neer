@@ -1267,21 +1267,12 @@ function onTurn() {
 }
 
 /**
- * Jij bent aan de beurt: even een bord over de tafel, je kaarten of bodknoppen wippen op, een belletje en (op een
- * telefoon of tablet) kort trillen. Nodig omdat de gouden rand en de statusregel voor sommige spelers niet genoeg
+ * Jij bent aan de beurt: je kaarten of bodknoppen wippen even op, een belletje en (op een telefoon of tablet)
+ * kort trillen. Nodig omdat de gouden rand en de statusregel voor sommige spelers niet genoeg
  * opvallen. Belletje en trillen staan bij Instellingen (Beurtsignaal).
  */
-let turnBannerTimer = null;
 function signalTurn() {
   if (screen !== "game" || inBackground()) return;
-  const banner = $("#turn-banner");
-  banner.textContent = humanBidding() ? t("Jij bent aan de beurt: voorspel!") : t("Jij bent aan de beurt!");
-  banner.hidden = false;
-  banner.classList.remove("show");
-  void banner.offsetWidth;
-  banner.classList.add("show");
-  clearTimeout(turnBannerTimer);
-  turnBannerTimer = setTimeout(() => { banner.hidden = true; banner.classList.remove("show"); }, 1900);
   for (const el of [$("#hand"), $("#bids")]) {
     el.classList.remove("nudge");
     void el.offsetWidth;

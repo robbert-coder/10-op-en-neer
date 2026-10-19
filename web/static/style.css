@@ -1125,19 +1125,10 @@ button.primary { background: linear-gradient(180deg, #F7C761, var(--gold)); box-
 /* Sorteerknop naast Tip */
 .sort-btn { white-space: nowrap; font-variant-numeric: tabular-nums; }
 
-/* Beurtsignaal: een bord over de tafel en wippende kaarten of bodknoppen */
-.turn-banner { position: absolute; left: 50%; top: 50%; z-index: 8; transform: translate(-50%, -50%); pointer-events: none;
-  padding: 10px 22px; border-radius: 18px; background: var(--gold); color: var(--gold-ink); font-weight: 900; font-size: 20px;
-  text-align: center; white-space: nowrap; box-shadow: 0 10px 30px rgba(0,0,0,.5); opacity: 0; }
-.turn-banner[hidden] { display: none; }
-.turn-banner.show { animation: turn-banner 1.9s ease-out both; }
-@keyframes turn-banner { 0% { opacity: 0; transform: translate(-50%, -50%) scale(.6); } 12% { opacity: 1; transform: translate(-50%, -50%) scale(1.06); }
-  20% { transform: translate(-50%, -50%) scale(1); } 80% { opacity: 1; } 100% { opacity: 0; } }
-@media (min-width: 1000px) and (min-height: 640px) { .turn-banner { font-size: 28px; padding: 14px 32px; } }
-@media (max-width: 420px) { .turn-banner { font-size: 16px; padding: 8px 14px; white-space: normal; width: 80%; } }
+/* Beurtsignaal: wippende kaarten of bodknoppen */
 .hand.nudge .card.up, .bids.nudge button:not(:disabled) { animation: turn-nudge .55s ease-in-out 2; }
 @keyframes turn-nudge { 0%, 100% { translate: 0 0; } 50% { translate: 0 -14px; } }
-@media (prefers-reduced-motion: reduce) { .turn-banner.show { animation: none; opacity: 1; } .hand.nudge .card.up, .bids.nudge button { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .hand.nudge .card.up, .bids.nudge button { animation: none; } }
 
 /* Spotlight op wie aan de beurt is: niet jij, dan je kaarten iets donkerder; wel jij, dan de anderen in het
    halfdonker en jij en je kaarten in het licht */
