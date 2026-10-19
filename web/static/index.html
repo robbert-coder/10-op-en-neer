@@ -70,7 +70,7 @@
       <header><button class="back" data-go="play" aria-label="Terug">‹</button><h2>Nieuw spel</h2></header>
       <div class="content">
         <div class="group">
-          <label class="field">Jouw naam<input type="text" id="ng-name" maxlength="15" autocomplete="off"></label>
+          <label class="field">Jouw naam<input type="text" id="ng-name" data-enter="#opt-title, #btn-start" enterkeyhint="next" maxlength="15" autocomplete="off"></label>
           <div class="field">Jouw plaatje<div class="avatar-pick"></div></div>
           <div class="field">Jouw stem
             <div class="seg four voice-pick">
@@ -88,7 +88,7 @@
               <button type="button" data-public="1">Openbaar<small>zichtbaar in de lobby</small></button>
             </div>
           </div>
-          <label class="field" id="row-title">Naam van de tafel<input type="text" id="opt-title" maxlength="40" autocomplete="off" placeholder="Bijvoorbeeld: Beginners welkom"></label>
+          <label class="field" id="row-title">Naam van de tafel<input type="text" id="opt-title" data-enter="#btn-start" enterkeyhint="next" maxlength="40" autocomplete="off" placeholder="Bijvoorbeeld: Beginners welkom"></label>
         </div>
         <div class="group">
           <div class="field">Lengte van het spel
@@ -157,7 +157,7 @@
       <header><button class="back" data-go="menu" aria-label="Terug">‹</button><h2>Samen spelen</h2></header>
       <div class="content">
         <div id="online-home" class="online-home">
-          <div class="group"><label class="field">Jouw naam<input type="text" id="on-name" maxlength="15" autocomplete="off"></label></div>
+          <div class="group"><label class="field">Jouw naam<input type="text" id="on-name" data-enter="#btn-host-public, #on-code" enterkeyhint="next" maxlength="15" autocomplete="off"></label></div>
           <div class="tabs" id="online-mode">
             <button data-mode="openbaar">Openbaar</button>
             <button data-mode="prive">Privé</button>
@@ -188,7 +188,7 @@
             <b>Meedoen met een code</b>
             <p class="note">Heb je een code of link van een bekende gekregen? Vul de code hier in.</p>
             <div class="join-row">
-              <input type="text" id="on-code" placeholder="CODE" maxlength="5" autocapitalize="characters" autocomplete="off" spellcheck="false">
+              <input type="text" id="on-code" data-enter="click:#btn-join" enterkeyhint="go" placeholder="CODE" maxlength="5" autocapitalize="characters" autocomplete="off" spellcheck="false">
               <button class="primary" id="btn-join">Meedoen</button>
             </div>
           </div>
@@ -340,7 +340,7 @@
           <details id="cloud-other">
             <summary>Code van een ander apparaat invullen</summary>
             <p class="small-note">Vul de code in die je in de app of op je andere apparaat ziet. De spellen van hier komen erbij.</p>
-            <div class="cloud-enter"><input id="cloud-input" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABCD-EFGH-JKLM" maxlength="16"><button class="primary" id="btn-cloud-use">Gebruiken</button></div>
+            <div class="cloud-enter"><input id="cloud-input" data-enter="click:#btn-cloud-use" enterkeyhint="go" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABCD-EFGH-JKLM" maxlength="16"><button class="primary" id="btn-cloud-use">Gebruiken</button></div>
           </details>
           <p class="cloud-status" id="cloud-status"></p>
         </div>
@@ -401,7 +401,7 @@
           </div>
         </div>
         <div class="group">
-          <label class="field">Jouw naam<input type="text" id="set-name" maxlength="15" autocomplete="off"></label>
+          <label class="field">Jouw naam<input type="text" id="set-name" data-enter="" enterkeyhint="done" maxlength="15" autocomplete="off"></label>
           <div class="field">Jouw plaatje<div class="avatar-pick"></div></div>
           <label class="field">Spelsnelheid<small class="field-note">Hoe snel de computerspelers voorspellen en hun kaarten leggen, en hoe lang een slag op tafel blijft liggen. Ook in het spel aan te passen via het menu.</small>
             <input type="range" id="set-speed" class="speed-range" min="1" max="5" step="1">

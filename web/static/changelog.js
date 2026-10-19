@@ -1,6 +1,11 @@
 // Wat er per versie nieuw is. Wie na een nieuwe versie terugkomt, ziet dit in het hoofdmenu.
 // items in het Nederlands, en dezelfde punten in het Engels (en), voor wie het spel in het Engels speelt.
 export const CHANGES = [
+  { v: "2.60", items: [
+    "Enter in een invulveld brengt je verder: na je naam naar het volgende veld of de Start-knop, en bij een code meteen meedoen.",
+  ], en: [
+    "Enter in a text field moves you on: after your name to the next field or the Start button, and with a code you join right away.",
+  ] },
   { v: "2.59", items: [
     "Bug of idee melden: teken met je vinger of muis op de schermafbeelding om iets aan te wijzen.",
     "Met een toetsenbord kun je je voorspelling ook met de cijfertoetsen doen.",

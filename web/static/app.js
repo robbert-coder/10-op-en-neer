@@ -9,6 +9,7 @@ import { CHARACTERS, CHARACTER_IDS, CLASSIC_CAST, REACTIONS, REACTIONS_EN, drawC
 import { CHANGES } from "./changelog.js";
 import { cloudEnabled, makeCloudCode, normalizeCloudCode, formatCloudCode, validCloudCode, fetchStats, saveStats, fetchHallOfFame, onCloudHealth, sendReport } from "./cloud.js";
 import { BID_KEY_WAIT_MS, bidFromKey } from "./bidkeys.js";
+import { parseEnterTargets, pickEnterTarget } from "./enterkeys.js";
 import { REPORT_TEXT_MAX, REPORT_TEXT_MIN, canvasToShot, captureScreen, cleanReport, deviceText, toImagePoint } from "./feedback.js";
 import { Host, Guest, PublicLobby, makeCode, normalizeCode, useIdentity, AVATAR_EMOJIS, AVATAR_FACES, cleanAvatar, cleanStats, cleanVoice } from "./net.js";
 import { cleanName, chatLimit, cleanStartGame, cleanText, devParam } from "./validate.js";
@@ -3806,6 +3807,19 @@ document.addEventListener("keydown", (e) => {
   bidKeyPending = r.pending;
   clearTimeout(bidKeyTimer);
   bidKeyTimer = setTimeout(() => bidByKey(Number(bidKeyPending)), BID_KEY_WAIT_MS);
+});
+/**
+ * Enter in een los invulveld (zoals je naam) brengt je verder: naar het volgende veld, naar de knop die erbij
+ * hoort, of het veld wordt afgesloten. Welke kant op staat in data-enter in index.html.
+ */
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" || e.isComposing || !e.target.matches?.("input[data-enter]")) return;
+  e.preventDefault();
+  const visible = (el) => !el.disabled && el.getClientRects().length > 0;
+  const next = pickEnterTarget(parseEnterTargets(e.target.dataset.enter), (s) => document.querySelector(s), visible);
+  if (!next) { e.target.blur(); return; }
+  if (next.click) { next.el.click(); return; }
+  next.el.focus();
 });
 $("#hand").addEventListener("click", (e) => {
   const c = e.target.closest("[data-code]");
