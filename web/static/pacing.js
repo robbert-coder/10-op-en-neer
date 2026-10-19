@@ -25,3 +25,18 @@ export const MAX_WAITING_REMARKS = 2;
 export const ALL_WET_REMARK_MS = 1200;
 /** Zo lang staat zo'n opmerking in beeld; de uitslag van de ronde wacht daarop. */
 export const REMARK_SHOW_MS = 2200;
+
+/** Een kort berichtje (toast) staat minstens zo lang, en langer naarmate er meer te lezen is. */
+export const TOAST_MIN_MS = 2600;
+export const TOAST_MAX_MS = 8000;
+/** Per teken extra leestijd. */
+const TOAST_MS_PER_CHAR = 55;
+
+/**
+ * Hoe lang een berichtje blijft staan. Nodig omdat "Je bent nog niet aan de beurt" snel gelezen is, maar
+ * "Een computer speelt nu verder voor je..." niet; zo verdwijnt geen enkel bericht voordat je het kon lezen.
+ */
+export function toastMs(text) {
+  const length = typeof text === "string" ? text.length : 0;
+  return Math.min(TOAST_MAX_MS, Math.max(TOAST_MIN_MS, length * TOAST_MS_PER_CHAR));
+}

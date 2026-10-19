@@ -1,6 +1,13 @@
 // Wat er per versie nieuw is. Wie na een nieuwe versie terugkomt, ziet dit in het hoofdmenu.
 // items in het Nederlands, en dezelfde punten in het Engels (en), voor wie het spel in het Engels speelt.
 export const CHANGES = [
+  { v: "2.63", items: [
+    "Meldingen in het spel (nog niet aan de beurt, kleur bekennen, een tip, nieuws van de tafel) komen nu als kort berichtje boven je kaarten dat vanzelf verdwijnt. Ze bleven soms staan terwijl ze al niet meer klopten.",
+    "Op de beheerpagina hebben meldingen nu een nummer, zodat je er makkelijk naar kunt verwijzen.",
+  ], en: [
+    "Messages in the game (not your turn, follow suit, a tip, news from the table) now show as a short note above your cards that fades away. They sometimes stayed after they no longer applied.",
+    "On the admin page reports now have a number, so you can easily refer to them.",
+  ] },
   { v: "2.62", items: [
     "De sorteer- en tipknop staan nu vlak naast je kaarten (op een telefoon er net boven), met een duidelijk icoontje: balkjes met een pijl om te sorteren en een lampje voor een tip.",
   ], en: [

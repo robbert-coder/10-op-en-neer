@@ -346,7 +346,6 @@ h1 { font-size: 38px; margin: 18px 0 0; letter-spacing: -.5px; text-wrap: balanc
 
 .status { display: flex; align-items: center; gap: 8px; padding: 4px 14px; min-height: 40px; font-size: 14.5px; }
 .status span { flex: 1; min-width: 0; }
-.status span.msg { color: var(--gold); font-weight: 600; }
 .tip-btn { border-radius: 20px; padding: 7px 14px; font-size: 13px; font-weight: 700; color: var(--gold); }
 .tip-btn[hidden] { display: none; }
 /* Snelle zinnen bij samen spelen: klapt open boven de statusregel */
@@ -1126,6 +1125,15 @@ button.primary { background: linear-gradient(180deg, #F7C761, var(--gold)); box-
 /* Sorteer- en tipknop naast je kaarten */
 .hand-row { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; column-gap: 34px; flex: none; width: 100%; }
 .hand-row .hand { grid-column: 2; margin: 0; }
+/* Kort berichtje boven je kaarten dat vanzelf verdwijnt */
+.hand-row { position: relative; }
+.toast { position: absolute; left: 50%; bottom: calc(100% + 6px); z-index: 30; transform: translateX(-50%); max-width: min(90vw, 420px);
+  width: max-content; padding: 8px 16px; border-radius: 14px; background: rgba(28, 18, 12, .92); color: var(--gold); font-weight: 700;
+  font-size: 14.5px; text-align: center; box-shadow: 0 6px 20px rgba(0,0,0,.45); pointer-events: none; }
+.toast[hidden] { display: none; }
+.toast.show { animation: toast var(--toast-ms, 2.6s) ease-out both; }
+@keyframes toast { 0% { opacity: 0; translate: 0 8px; } 6% { opacity: 1; translate: 0 0; } 88% { opacity: 1; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .toast.show { animation: none; } }
 .hand-tools { display: flex; flex-direction: column; gap: 8px; justify-self: start; }
 /* Smal scherm: de knoppen naast elkaar in de statusregel, vlak boven je kaarten */
 .hand-tools.in-status { flex-direction: row; gap: 6px; }
@@ -1179,6 +1187,7 @@ body.reports-page { overflow: auto; background: #1C120C; }
 .rp-item.done { opacity: .55; }
 .rp-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); }
 .rp-meta button { margin-left: auto; padding: 6px 12px; font-size: 13px; }
+.rp-num { color: var(--gold); font-size: 17px; font-variant-numeric: tabular-nums; }
 .rp-kind { padding: 2px 8px; border-radius: 8px; color: #fff; }
 .rp-kind.bug { background: #C0392B; }
 .rp-kind.idee { background: #2E9D5B; }

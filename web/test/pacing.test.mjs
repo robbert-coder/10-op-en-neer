@@ -1,7 +1,7 @@
 // De uitslag van een ronde komt pas als de spelers uitgepraat zijn, maar nooit eindeloos laat.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { resultWait, RESULT_MIN_WAIT_MS, RESULT_MAX_WAIT_MS } from "../static/pacing.js";
+import { resultWait, RESULT_MIN_WAIT_MS, RESULT_MAX_WAIT_MS, toastMs, TOAST_MIN_MS, TOAST_MAX_MS } from "../static/pacing.js";
 
 test("eerst even wachten, zodat een stem na het landen van de kaart meetelt", () => {
   assert.equal(resultWait(0, false), RESULT_MIN_WAIT_MS);
@@ -34,4 +34,12 @@ test("mopperen gaat om de beurt", async () => {
   assert.equal(nextSpeaker([2, 3, 4], 2), 3);
   assert.equal(nextSpeaker([2, 3, 4], 4), 2);
   assert.equal(nextSpeaker([], 2), 0);
+});
+
+test("toastMs: kort bericht minstens de minimumtijd, lang bericht langer maar begrensd", () => {
+  assert.equal(toastMs("Je bent nog niet aan de beurt."), TOAST_MIN_MS);
+  const long = toastMs("Je reageerde niet en de anderen waren akkoord: een computer speelt nu verder voor je. Je kunt blijven kijken en chatten.");
+  assert.ok(long > TOAST_MIN_MS && long <= TOAST_MAX_MS);
+  assert.equal(toastMs("x".repeat(1000)), TOAST_MAX_MS);
+  assert.equal(toastMs(undefined), TOAST_MIN_MS);
 });

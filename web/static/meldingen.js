@@ -64,7 +64,7 @@ function render() {
     <p class="fb-status">${esc(status)}</p>
     ${list.length === 0 ? `<p class="empty-note">${t("Geen meldingen.")}</p>` : list.map((r) => `
       <article class="rp-item ${r.klaar ? "done" : ""}">
-        <div class="rp-meta"><b class="rp-kind ${r.kind}">${r.kind === "bug" ? t("Bug") : t("Idee")}</b>
+        <div class="rp-meta"><b class="rp-num">#${r.id}</b><b class="rp-kind ${r.kind}">${r.kind === "bug" ? t("Bug") : t("Idee")}</b>
           <span>${r.date ? esc(r.date.toLocaleString(locale)) : ""}</span><span>${esc(r.name)}</span><span>v${esc(r.version)}</span>
           <button type="button" data-klaar="${r.id}" data-to="${r.klaar ? "0" : "1"}">${r.klaar ? t("Weer open") : t("Afgehandeld")}</button></div>
         <p class="rp-text">${esc(r.text)}</p>

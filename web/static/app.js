@@ -20,7 +20,7 @@ import { BOERENBRIDGE, TIEN_OP_EN_NEER, createGame, maxCardsFor, maxPlayersFor, 
 import { KINDS, addGame, addHighScore, highScoreWindow, loadHighScores, matchesVs, playersDetail, loadStats, mergeGames, starRating, starsHtml, statsForKind, statsSummary } from "./stats.js";
 import { flushHof, hofCache, hofId, queueHof, sha256Hex } from "./hof.js";
 import { cardSound, initSound, loadSound, playSound, soundReady, stopSound, turnChime, voicePlaying } from "./sound.js";
-import { ALL_WET_REMARK_MS, MAX_WAITING_REMARKS, REMARK_SHOW_MS, WAITING_REMARK_MS, resultWait } from "./pacing.js";
+import { ALL_WET_REMARK_MS, MAX_WAITING_REMARKS, REMARK_SHOW_MS, WAITING_REMARK_MS, resultWait, toastMs } from "./pacing.js";
 import { OPENERS, PHRASES, PHRASE_GAP_MS, sayWire, spokenPhrase, QUICK, RETURNERS, TIP_CHAT, WIRE_TEXTS, openerFile, phraseFile, reactionFile, returnFile, SPOKEN_REACTIONS, tinekeFile } from "./speech.js";
 import { celebrate, isCelebrating } from "./celebrate.js";
 import { askNotifications, clearTurnNotice, inBackground, iosBrowser, isIOS, notifyAlways, notifyPermission, notifyUnsupportedText, setAppVisible, turnNotice } from "./notify.js";
@@ -362,7 +362,6 @@ let gameOverHandled = false;
 let highScorePlace = 0;
 /** De highscorelijst waar het laatste spel in kwam, om hem in het eindscherm te laten zien. */
 let highScoreList = "";
-let message = null;
 let hintCard = 0;
 let hintBid = -1;
 // Tips mogen altijd; heb je er een gebruikt, dan telt het spel niet mee
@@ -529,11 +528,42 @@ function startNewGame(rules) {
   drive();
 }
 
+let toastTimer = null;
+/** "moment" (fout of tip, hoort bij dit moment) of "news" (nieuws van de tafel, blijft tot de tijd om is). */
+let toastKind = "moment";
+
+/**
+ * Een kort berichtje boven je kaarten dat vanzelf verdwijnt: een fout (nog niet aan de beurt, kleur bekennen),
+ * een tip, of nieuws van de tafel (verbinding, iemand vertrok). Nodig omdat zulke meldingen in de statusregel
+ * bleven staan, ook als ze allang niet meer klopten.
+ */
+function showToast(text, kind = "moment") {
+  if (!text) return;
+  toastKind = kind;
+  const toast = $("#toast");
+  toast.textContent = text;
+  toast.hidden = false;
+  toast.classList.remove("show");
+  void toast.offsetWidth;
+  toast.classList.add("show");
+  clearTimeout(toastTimer);
+  const ms = toastMs(text);
+  toast.style.setProperty("--toast-ms", `${ms}ms`);
+  toastTimer = setTimeout(hideToast, ms);
+}
+/** Het berichtje meteen weghalen (er is iets nieuws gebeurd). */
+function hideToast() {
+  clearTimeout(toastTimer);
+  const toast = $("#toast");
+  toast.hidden = true;
+  toast.classList.remove("show");
+}
+
 /**
  * Tijdelijke dingen (melding, tip) weghalen zodra je iets doet; ze horen bij het vorige moment.
  */
 function clearTransient() {
-  message = null;
+  hideToast();
   hintCard = 0;
   hintBid = -1;
   showLastTrick = false;
@@ -943,7 +973,7 @@ function onBid(n) {
   const error = game.bid(n);
   if (!error) netSend(index, n);
   clearTransient();
-  if (error) message = engineText(error);
+  if (error) showToast(engineText(error));
   if (!error) {
     tinekeHide();
     tinekeOpinion = adviceBid == null ? 0 : n <= adviceBid - 2 ? 1 : n >= adviceBid + 2 ? 2 : 0;
@@ -962,8 +992,9 @@ function onBid(n) {
 function onCardTap(code, el) {
   if (busy) return;
   if (!humanPlaying()) {
-    message = st.phase === "BIDDING" ? t("Je moet eerst het aantal slagen voorspellen.") : t("Je bent nog niet aan de beurt.");
-    renderGame();
+    // Pas "eerst voorspellen" als jij dat nog moet doen; heb je al voorspeld, dan wacht je op de anderen
+    const mustBid = st.phase === "BIDDING" && humanBidding();
+    showToast(mustBid ? t("Je moet eerst het aantal slagen voorspellen.") : t("Je bent nog niet aan de beurt."));
     return;
   }
   if (applyTakeovers()) { refresh(); renderGame(); if (!humanPlaying()) { drive(); return; } }
@@ -973,7 +1004,7 @@ function onCardTap(code, el) {
   if (!error) netSend(index, code);
   clearTransient();
   if (error) {
-    message = engineText(error);
+    showToast(engineText(error));
     if (error.startsWith("Je moet kleur bekennen")) tinekeComment("kleur bekennen", true);
     el.animate([{ translate: "0 0" }, { translate: "-6px 0" }, { translate: "6px 0" }, { translate: "0 0" }], { duration: 240 });
   } else {
@@ -1007,10 +1038,10 @@ function onTip() {
 function giveTip() {
   if (humanBidding()) {
     hintBid = game.hintBid();
-    message = t("Tip: voorspel {n}.", { n: hintBid });
+    showToast(t("Tip: voorspel {n}.", { n: hintBid }));
   } else if (humanPlaying()) {
     hintCard = game.hintCard();
-    if (hintCard) message = t("Tip: speel de {card}.", { card: cardName(hintCard) });
+    if (hintCard) showToast(t("Tip: speel de {card}.", { card: cardName(hintCard) }));
   }
   renderGame();
 }
@@ -1248,6 +1279,8 @@ function onTurn() {
   const key = `${st.round}|${st.phase}|${st.active}|${st.players.map((p) => p.cardCount).join("")}|${st.trickWinner}`;
   if (key === lastTurnKey) return;
   lastTurnKey = key;
+  // Een fout of tip hoort bij het vorige moment (bijvoorbeeld "nog niet aan de beurt"); nu is er iets veranderd
+  if (toastKind === "moment") hideToast();
   scheduleWaitingRemark(key);
   if (online?.game) {
     if (humanBidding()) turnNotice(t("Je bent aan de beurt: hoeveel slagen denk je te halen? (ronde {n})", { n: st.round }));
@@ -1683,21 +1716,19 @@ function renderGame() {
   $("#table-label").hidden = !last;
 
   // Statusregel
-  let text = message;
-  if (!text) {
-    if (humanBidding()) text = ""; // de vraag staat boven de knoppen
-    else if (humanPlaying()) text = t("Jij bent aan de beurt. Kies een kaart.");
-    else if (remoteTurn()) {
-      const p = st.players[st.active - 1];
-      const off = online.players.find((x) => x.seat === p.seat)?.online === false;
-      text = off ? t("{name} heeft geen verbinding. Wachten tot {name} terug is…", { name: p.name }) : t("Wachten op {name}…", { name: p.name });
-    }
-    else if (st.phase === "TRICK_COMPLETE") text = engineText(st.status); // de slag gaat vanzelf naar de winnaar; tikken mag, maar hoeft niet
-    else text = engineText(st.status);
+  // (Fouten, tips en nieuws van de tafel staan hier niet: die komen als kort berichtje, zie showToast)
+  let text = "";
+  if (humanBidding()) text = ""; // de vraag staat boven de knoppen
+  else if (humanPlaying()) text = t("Jij bent aan de beurt. Kies een kaart.");
+  else if (remoteTurn()) {
+    const p = st.players[st.active - 1];
+    const off = online.players.find((x) => x.seat === p.seat)?.online === false;
+    text = off ? t("{name} heeft geen verbinding. Wachten tot {name} terug is…", { name: p.name }) : t("Wachten op {name}…", { name: p.name });
   }
+  else if (st.phase === "TRICK_COMPLETE") text = engineText(st.status); // de slag gaat vanzelf naar de winnaar; tikken mag, maar hoeft niet
+  else text = engineText(st.status);
   const status = $("#g-status");
   status.textContent = text;
-  status.classList.toggle("msg", !!message);
   $("#btn-tip").hidden = !(humanBidding() || humanPlaying());
   $("#btn-say").hidden = !othersAtTable() || st.phase === "GAME_OVER";
 
@@ -2677,12 +2708,12 @@ function netEvents() {
     onStatus: (text) => {
       online.status = text;
       if (screen === "online") renderOnline();
-      if (screen === "game" && text) { message = text; renderGame(); }
+      if (screen === "game" && text) showToast(text, "news");
     },
     onError: (text) => {
       online.error = text;
       if (screen === "online") renderOnline();
-      if (screen === "game") { message = text; renderGame(); }
+      if (screen === "game") showToast(text, "news");
     },
     onVotes: (v) => onVotes(v),
     onClosed: (text) => {
@@ -2698,7 +2729,7 @@ function netEvents() {
       online.error = text;
       online.link = null;
       store.remove("online-gast");
-      if (wasPlaying && screen === "game") { message = text; renderGame(); } else show("online");
+      if (wasPlaying && screen === "game") { showToast(text, "news"); renderGame(); } else show("online");
     },
   };
 }
@@ -3030,7 +3061,7 @@ function onNetStart(raw, log) {
   if (same && mine.length <= log.length && mine.every((v, i) => v === log[i].value)) {
     // Weer verbonden: alleen de gemiste handelingen nog uitvoeren
     log.forEach((a, index) => { if (index >= game.actionCount()) online.queue.set(index, { index, ...a }); });
-    message = null;
+    hideToast();
     if (screen === "game") renderGame();
     drive();
     return;
@@ -3055,6 +3086,7 @@ function onNetAction(a) {
 function applyTakeovers() {
   if (!online?.game || !game) return false;
   let changed = false;
+  let news = "";
   for (;;) {
     const a = online.queue.get(game.actionCount());
     if (!a || !(a.value < 0)) break;
@@ -3065,12 +3097,12 @@ function applyTakeovers() {
     const seat = -a.value;
     const name = online.game.names?.[seat - 1] ?? t("Een speler");
     const idle = online.takenIdle?.includes(seat);
-    message = !idle ? t("{name} heeft het spel verlaten. Een computer speelt nu verder voor {name}.", { name })
+    news = !idle ? t("{name} heeft het spel verlaten. Een computer speelt nu verder voor {name}.", { name })
       : seat === online.seat ? t("Je reageerde niet en de anderen waren akkoord: een computer speelt nu verder voor je. Je kunt blijven kijken en chatten.")
         : t("{name} reageerde niet en iedereen was akkoord: een computer speelt nu verder voor {name}.", { name });
-    online.chat.push({ seat: 0, name: "", text: message, time: Date.now(), system: true });
+    online.chat.push({ seat: 0, name: "", text: news, time: Date.now(), system: true });
   }
-  if (changed) { markTakenOver(); renderChat(); turnNotice(message); }
+  if (changed) { markTakenOver(); renderChat(); turnNotice(news); showToast(news, "news"); }
   return changed;
 }
 
@@ -4032,7 +4064,7 @@ window.tienBack = () => {
 
 // Voor de tests
 window.__tienopenneer = { get state() { return st; }, settings, get busy() { return busy; }, celebrate: celebrateWinners, voiceFor,
-  debug: () => ({ count: game?.actionCount(), queue: [...(online?.queue?.keys() ?? [])], seat: online?.seat, busy, driver, tineke: !!tinekeWaiting, msg: message }) };
+  debug: () => ({ count: game?.actionCount(), queue: [...(online?.queue?.keys() ?? [])], seat: online?.seat, busy, driver, tineke: !!tinekeWaiting, msg: $("#toast").hidden ? null : $("#toast").textContent }) };
 
 // Tikken op een speler: zijn statistiek en sterren -----------------------------------------
 
