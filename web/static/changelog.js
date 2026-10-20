@@ -1,6 +1,13 @@
 // Wat er per versie nieuw is. Wie na een nieuwe versie terugkomt, ziet dit in het hoofdmenu.
 // items in het Nederlands, en dezelfde punten in het Engels (en), voor wie het spel in het Engels speelt.
 export const CHANGES = [
+  { v: "2.67", items: [
+    "Op een telefoon blijven de titel en de namen bovenaan de scorelijst nu altijd in beeld; alleen de rondes scrollen.",
+    "De grote troef ligt niet meer over een geopende scorelijst of ander venster heen.",
+  ], en: [
+    "On a phone the title and names at the top of the score sheet now always stay visible; only the rounds scroll.",
+    "The large trump no longer covers an open score sheet or other window.",
+  ] },
   { v: "2.66", items: [
     "Het geluidje als je aan de beurt bent klinkt alleen nog bij online spelen, niet tegen de computer.",
     "De andere spelers worden niet meer donker als jij aan de beurt bent, zodat je hun voorspelling goed kunt zien.",
