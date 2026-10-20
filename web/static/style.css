@@ -739,18 +739,15 @@ h1 { font-size: 38px; margin: 18px 0 0; letter-spacing: -.5px; text-wrap: balanc
   .arena.five { grid-template-columns: clamp(110px, 12vw, 190px) minmax(0, 1fr) minmax(0, 1fr) clamp(110px, 12vw, 190px); }
 }
 
-/* ---------- Voorspellen: troef groot in het midden en de volgorde met de klok mee ---------- */
-.trump-big { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); pointer-events: none; z-index: 2; }
-.trump-big[hidden] { display: none; }
-.trump-big small {
-  position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
-  color: var(--gold); font-weight: 800; font-size: 13px; letter-spacing: .5px; text-transform: uppercase; white-space: nowrap;
-}
-.trump-big .card { box-shadow: 0 12px 30px rgba(0, 0, 0, .45), 0 0 0 3px rgba(255, 201, 77, .55); }
-.trump-big .none {
-  width: calc(var(--tw, 56px) * 1.5); aspect-ratio: 5 / 7; display: grid; place-items: center; text-align: center;
-  border: 2px dashed rgba(255, 255, 255, .45); border-radius: 10px; color: var(--muted); font-weight: 700; font-size: 15px;
-}
+/* ---------- Voorspellen: troef groot rechtsboven en de volgorde met de klok mee ---------- */
+/* Groeit vooral naar rechts, zodat het slagenvak ernaast leesbaar blijft; klikken gaan erdoorheen naar de knoppen */
+.trump { transform-origin: 15% 0; transition: transform .6s cubic-bezier(.5, 0, .3, 1); }
+.trump.big { transform: scale(2.2); z-index: 30; pointer-events: none; }
+.trump.big .card { box-shadow: 0 6px 16px rgba(0, 0, 0, .45), 0 0 0 1.5px rgba(255, 201, 77, .7); }
+.trump.big::after { content: attr(data-label); position: absolute; top: calc(100% + 1px); left: 50%; transform: translateX(-50%);
+  color: var(--gold); font-weight: 800; font-size: 6px; letter-spacing: .4px; text-transform: uppercase; white-space: nowrap; }
+@media (min-width: 1000px) and (min-height: 640px) { .trump.big { transform: scale(1.9); } }
+@media (prefers-reduced-motion: reduce) { .trump { transition: none; } }
 .bid-order { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; z-index: 1; }
 .bid-order[hidden] { display: none; }
 .bid-order > path { fill: none; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
@@ -1152,11 +1149,10 @@ button.primary { background: linear-gradient(180deg, #F7C761, var(--gold)); box-
 @keyframes turn-nudge { 0%, 100% { translate: 0 0; } 50% { translate: 0 -14px; } }
 @media (prefers-reduced-motion: reduce) { .hand.nudge .card.up, .bids.nudge button { animation: none; } }
 
-/* Spotlight op wie aan de beurt is: niet jij, dan je kaarten iets donkerder; wel jij, dan de anderen in het
-   halfdonker en jij en je kaarten in het licht */
+/* Spotlight op wie aan de beurt is: niet jij, dan je kaarten iets donkerder; wel jij, dan krijg jij een gouden
+   gloed (de anderen blijven goed zichtbaar, je wilt hun voorspelling kunnen lezen) */
 .game .hand .card, .game .seat > .avatar, .game .seat .info { transition: filter .35s, opacity .35s; }
 .game.others-turn .hand .card { filter: brightness(.82) saturate(.85); }
-.game.my-turn .seat:not(#seat-1) > .avatar, .game.my-turn .seat:not(#seat-1) .info { filter: brightness(.5) saturate(.6); }
 .game.my-turn #seat-1 .avatar { box-shadow: 0 0 0 3px var(--gold), 0 0 26px 6px rgba(255, 201, 77, .6); }
 .game.my-turn #seat-1 .who { text-shadow: 0 0 12px rgba(255, 201, 77, .6); }
 .game.my-turn .hand { background: radial-gradient(ellipse 60% 70% at 50% 75%, rgba(255, 214, 120, .22), transparent 72%); }

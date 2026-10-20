@@ -22,7 +22,7 @@ import { BOERENBRIDGE, TIEN_OP_EN_NEER, createGame, maxCardsFor, maxPlayersFor, 
 import { KINDS, addGame, addHighScore, highScoreWindow, loadHighScores, matchesVs, playersDetail, loadStats, mergeGames, starRating, starsHtml, statsForKind, statsSummary } from "./stats.js";
 import { flushHof, hofCache, hofId, queueHof, sha256Hex } from "./hof.js";
 import { cardSound, initSound, loadSound, playSound, soundReady, stopSound, turnChime, voicePlaying } from "./sound.js";
-import { ALL_WET_REMARK_MS, MAX_WAITING_REMARKS, REMARK_SHOW_MS, WAITING_REMARK_MS, resultWait, toastMs } from "./pacing.js";
+import { ALL_WET_REMARK_MS, MAX_WAITING_REMARKS, REMARK_SHOW_MS, WAITING_REMARK_MS, resultWait, toastMs, FIRST_BID_PAUSE_MS } from "./pacing.js";
 import { OPENERS, PHRASES, PHRASE_GAP_MS, sayWire, spokenPhrase, QUICK, RETURNERS, TIP_CHAT, WIRE_TEXTS, openerFile, phraseFile, reactionFile, returnFile, SPOKEN_REACTIONS, tinekeFile, EN_DIR } from "./speech.js";
 import { celebrate, isCelebrating } from "./celebrate.js";
 import { askNotifications, clearTurnNotice, inBackground, iosBrowser, isIOS, notifyAlways, notifyPermission, notifyUnsupportedText, setAppVisible, turnNotice } from "./notify.js";
@@ -831,7 +831,9 @@ function stepDelay(phase) {
   // Op de achtergrond kijkt niemand: meteen door, zodat je snel hoort dat je aan de beurt bent
   if (inBackground()) return 0;
   const factor = speedFactor();
-  const base = { BIDDING: 550, PLAYING: 700, TRICK_COMPLETE: 1200 }[phase] ?? 300;
+  let base = { BIDDING: 550, PLAYING: 700, TRICK_COMPLETE: 1200 }[phase] ?? 300;
+  // Net gedeeld: eerst even rustig naar je kaarten en de troef kunnen kijken voor de computers voorspellen
+  if (phase === "BIDDING" && st.players.every((p) => p.bid < 0)) base += FIRST_BID_PAUSE_MS;
   // Tijd om de uitgesproken voorspelling af te laten maken
   const minimum = phase === "BIDDING" ? Math.max(0, speechUntil - Date.now() + 300) : 0;
   return Math.max(base * factor, minimum);
@@ -1319,7 +1321,8 @@ function signalTurn() {
     el.classList.add("nudge");
     setTimeout(() => el.classList.remove("nudge"), 1300);
   }
-  if (settings.turnSignal === false) return;
+  // Belletje en trillen alleen bij samen spelen: tegen de computer ben je zo vaak aan de beurt dat het stoort
+  if (settings.turnSignal === false || !online?.game) return;
   turnChime();
   try { navigator.vibrate?.(120); } catch { /* geen trilfunctie */ }
 }
@@ -1586,47 +1589,13 @@ async function animateCollect(winner) {
 }
 
 /**
- * Zolang er voorspeld wordt staat de troef groot midden op tafel. Heeft iedereen voorspeld, dan schuift hij
- * kleiner wordend naar zijn vaste plek rechtsboven.
+ * Zolang er voorspeld wordt staat de troef groot rechtsboven, op zijn vaste plek; heeft iedereen voorspeld, dan
+ * wordt hij daar weer klein. Niet midden op tafel: dan leek het of er al een kaart gespeeld was.
  */
-function renderTrumpBig() {
-  const el = $("#trump-big");
+function renderTrumpCorner() {
   const corner = $("#g-trump");
-  if (st.phase === "BIDDING" && !showLastTrick) {
-    const key = `${st.round}|${st.trump}`;
-    corner.style.visibility = "hidden";
-    if (el.dataset.key === key && !el.hidden) return;
-    el.dataset.key = key;
-    el.getAnimations().forEach((a) => a.cancel());
-    el.innerHTML = `<small>${t("Troef")}</small>${st.trump
-      ? cardHtml(st.trump, "", "--w:calc(var(--tw, 56px) * 1.5)")
-      : `<div class="none">${t("Geen<br>troef")}</div>`}`;
-    el.hidden = false;
-    el.animate(
-      [{ transform: "translate(-50%, -50%) scale(.3) rotate(-25deg)", opacity: 0 }, { transform: "translate(-50%, -50%)", opacity: 1 }],
-      { duration: animMs(500), easing: "cubic-bezier(.2, .9, .3, 1.25)" },
-    );
-    return;
-  }
-  if (el.hidden) { corner.style.visibility = ""; return; }
-  if (el.dataset.key === "leaving") return;
-  el.dataset.key = "leaving";
-  const from = el.getBoundingClientRect();
-  const to = corner.getBoundingClientRect();
-  if (reducedMotion || !to.width || !from.width) { el.hidden = true; corner.style.visibility = ""; return; }
-  const dx = to.left + to.width / 2 - (from.left + from.width / 2);
-  const dy = to.top + to.height / 2 - (from.top + from.height / 2);
-  const anim = el.animate(
-    [{ transform: "translate(-50%, -50%)" },
-      { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(${to.width / from.width})` }],
-    { duration: animMs(700), easing: "cubic-bezier(.5, 0, .3, 1)", fill: "forwards" },
-  );
-  anim.onfinish = () => {
-    el.hidden = true;
-    el.dataset.key = "";
-    anim.cancel();
-    corner.style.visibility = "";
-  };
+  corner.dataset.label = t("Troef");
+  corner.classList.toggle("big", st.phase === "BIDDING" && !showLastTrick);
 }
 
 /**
@@ -1702,7 +1671,7 @@ function renderGame() {
   $("#g-trump").innerHTML = st.trump ? trumpMiniHtml(st.trump) : `<div class="none">${t("geen<br>troef")}</div>`;
 
   updateSeats();
-  renderTrumpBig();
+  renderTrumpCorner();
   renderBidOrder();
 
   // Tafel: alleen veranderde plekken opnieuw tekenen, zodat nieuwe kaarten kunnen invliegen
@@ -2062,6 +2031,7 @@ function show(name) {
   screen = name;
   $$(".screen").forEach((el) => el.classList.toggle("active", el.id === name));
   if (name === "menu") renderMenu();
+  if (name === "game") markNewsSeen();
   if (name === "newgame") renderNewGame();
   if (name === "highscores") renderHighScores();
   if (name === "stats") { renderStats(); renderCloud(); syncStats(); }
@@ -2652,7 +2622,18 @@ function showNews() {
     <details><summary>${t("Wat is er nieuw?")}</summary>${fresh.map((c) => `<div class="news-v"><small>${t("Versie {v}", { v: esc(c.v) })}</small>
       <ul>${(isEnglish ? c.en : c.items).map((item) => `<li>${esc(item)}</li>`).join("")}</ul></div>`).join("")}</details>`;
   el.hidden = false;
-  $("#news-close").addEventListener("click", () => { store.set("laatste-versie", APP_VERSION); el.hidden = true; });
+  $("#news-close").addEventListener("click", markNewsSeen);
+}
+
+/**
+ * Het nieuwsbericht is gelezen (gesloten, of je bent gaan spelen): onthoud deze versie en verberg het, zodat het
+ * na het spel niet opnieuw in het hoofdmenu staat.
+ */
+function markNewsSeen() {
+  const el = $("#news");
+  if (el.hidden) return;
+  store.set("laatste-versie", APP_VERSION);
+  el.hidden = true;
 }
 
 /**
@@ -2666,7 +2647,7 @@ async function checkForUpdate() {
     if (!res.ok) return;
     const rel = await res.json();
     const installed = nativeApp?.appVersion?.() ?? APP_VERSION;
-    if (!rel.tag_name || !isNewerVersion(rel.tag_name, installed)) return;
+    if (!rel.tag_name || !isNewerVersion(rel.tag_name, installed)) { $("#update-banner").hidden = true; return; }
     const apk = (rel.assets ?? []).find((a) => a.name?.endsWith(".apk"));
     const banner = $("#update-banner");
     banner.href = apk?.browser_download_url ?? rel.html_url;
@@ -2675,6 +2656,20 @@ async function checkForUpdate() {
   } catch {
     // Geen internet: dan later nog eens
   }
+}
+
+/** Hoe vaak we hooguit opnieuw bij GitHub kijken (de app blijft vaak dagen open staan op een tablet). */
+const UPDATE_CHECK_EVERY_MS = 30 * 60 * 1000;
+let lastUpdateCheck = 0;
+
+/**
+ * Kijk opnieuw naar de nieuwste versie als de app weer in beeld komt of een half uur open staat, zodat de knop
+ * niet een versie noemt die alweer achterhaald is. Niet vaker dan eens per half uur (GitHub telt de verzoeken).
+ */
+function recheckForUpdate() {
+  if (document.hidden || Date.now() - lastUpdateCheck < UPDATE_CHECK_EVERY_MS) return;
+  lastUpdateCheck = Date.now();
+  checkForUpdate();
 }
 
 /**
@@ -4029,7 +4024,10 @@ $("#install-hint").hidden = !iosBrowser();
 $("#android-link").hidden = !!nativeApp || isIOS;
 showNews();
 $("#menu-version").textContent = t("Versie {v}", { v: APP_VERSION }) + (nativeApp ? " · app" : "");
+lastUpdateCheck = Date.now();
 checkForUpdate();
+document.addEventListener("visibilitychange", recheckForUpdate);
+setInterval(recheckForUpdate, UPDATE_CHECK_EVERY_MS);
 
 if ("serviceWorker" in navigator && location.protocol === "https:" && !nativeApp) {
   navigator.serviceWorker.register("sw.js").catch(() => { /* bijvoorbeeld in een voorbeeldweergave */ });

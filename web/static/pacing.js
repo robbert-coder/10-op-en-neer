@@ -40,3 +40,6 @@ export function toastMs(text) {
   const length = typeof text === "string" ? text.length : 0;
   return Math.min(TOAST_MAX_MS, Math.max(TOAST_MIN_MS, length * TOAST_MS_PER_CHAR));
 }
+
+/** Extra pauze voor de eerste voorspelling van een ronde: eerst rustig de kaarten en de troef bekijken. */
+export const FIRST_BID_PAUSE_MS = 1500;

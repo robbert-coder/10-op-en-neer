@@ -1,6 +1,21 @@
 // Wat er per versie nieuw is. Wie na een nieuwe versie terugkomt, ziet dit in het hoofdmenu.
 // items in het Nederlands, en dezelfde punten in het Engels (en), voor wie het spel in het Engels speelt.
 export const CHANGES = [
+  { v: "2.66", items: [
+    "Het geluidje als je aan de beurt bent klinkt alleen nog bij online spelen, niet tegen de computer.",
+    "De andere spelers worden niet meer donker als jij aan de beurt bent, zodat je hun voorspelling goed kunt zien.",
+    "De computerspelers wachten even voordat de eerste gaat voorspellen.",
+    "De troef verschijnt bij het voorspellen groot rechtsboven, op zijn eigen plek, in plaats van midden op tafel.",
+    "Heb je het nieuws over een nieuwe versie gezien en ga je spelen, dan staat het daarna niet weer in het menu.",
+    "De app kijkt nu ook opnieuw naar de nieuwste versie als je hem weer opent, zodat de downloadknop niet een oude versie noemt.",
+  ], en: [
+    "The turn chime now only sounds when playing online, not against the computer.",
+    "The other players no longer dim when it is your turn, so you can clearly see their bids.",
+    "The computer players wait a moment before the first one bids.",
+    "During bidding the trump shows large at the top right, in its own spot, instead of in the middle of the table.",
+    "Once you have seen the news about a new version and start playing, it no longer comes back in the menu afterwards.",
+    "The app now checks again for the newest version when you reopen it, so the download button does not name an old version.",
+  ] },
   { v: "2.65", items: [
     "Engelse stemmen: speel je in het Engels, dan praten alle personages, Tineke en de begroeting nu ook in het Engels, met hun eigen stem en manier van praten.",
   ], en: [
