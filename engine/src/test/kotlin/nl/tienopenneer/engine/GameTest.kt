@@ -217,6 +217,27 @@ class GameTest {
         assertTrue(heard.containsAll(listOf(Sound.GOED_VOORSPELD, Sound.MEDESPELER_NAT, Sound.SLAG_TE_VEEL, Sound.SLAG_TE_WEINIG)), "$heard")
     }
 
+    /** Het "onvermijdelijk nat"-geluid klinkt pas als de mens zijn kaart oplegt, niet al als hij aan zet komt. */
+    @Test
+    fun doomSoundWaitsForTheHumanCard() {
+        var doomed = 0
+        for (seed in 1L..60L) {
+            val g = Game(Rules.TIEN_OP_EN_NEER, seed)
+            while (g.phase != Phase.GAME_OVER) {
+                if (g.isHumanTurn) {
+                    // Wat er klonk voordat de mens iets deed, mag het nat-geluid niet bevatten
+                    assertFalse(Sound.ONVOORKOMBARE_ONDERGANG in g.takeSounds())
+                    if (g.phase == Phase.BIDDING) g.humanBid(g.hintBid()) else g.humanPlay(g.hintCard()!!)
+                    if (Sound.ONVOORKOMBARE_ONDERGANG in g.takeSounds()) doomed++
+                } else {
+                    g.advance()
+                    assertFalse(Sound.ONVOORKOMBARE_ONDERGANG in g.takeSounds())
+                }
+            }
+        }
+        assertTrue(doomed > 0, "geen enkele keer onvermijdelijk nat in 60 spellen")
+    }
+
     /**
      * Een mens verlaat halverwege het spel en de computer neemt het over, ook als dat gebeurt terwijl de
      * computers nog aan zet zijn. Herstellen uit het logboek geeft precies dezelfde stand.

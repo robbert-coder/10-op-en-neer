@@ -1,6 +1,11 @@
 // Wat er per versie nieuw is. Wie na een nieuwe versie terugkomt, ziet dit in het hoofdmenu.
 // items in het Nederlands, en dezelfde punten in het Engels (en), voor wie het spel in het Engels speelt.
 export const CHANGES = [
+  { v: "2.69", items: [
+    "Ga je hoe dan ook nat, dan klinkt het treurige geluidje pas als je de kaart hebt opgelegd, niet al als je aan de beurt komt.",
+  ], en: [
+    "When you are bound to miss your bid, the sad sound now plays only once you have played your card, not as soon as it is your turn.",
+  ] },
   { v: "2.68", items: [
     "Computerspelers zeggen minder vaak dat ze nu geen slag meer mogen halen: alleen nog af en toe, en alleen als ze nog minstens drie kaarten hebben.",
   ], en: [

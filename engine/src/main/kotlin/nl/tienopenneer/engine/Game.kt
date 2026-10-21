@@ -187,6 +187,8 @@ class Game internal constructor(
 
     private val sounds = mutableListOf<Sound>()
     private var doomSoundPlayed = false
+    /** De mens is aan zet en gaat hoe dan ook nat; het geluid wacht tot hij zijn kaart echt heeft opgelegd. */
+    private var doomPending = false
 
     /** Geeft de geluiden die sinds de vorige aanroep zijn ontstaan, en leegt de lijst. */
     fun takeSounds(): List<Sound> = sounds.toList().also { sounds.clear() }
@@ -395,6 +397,7 @@ class Game internal constructor(
     private fun startRound() {
         round++
         doomSoundPlayed = false
+        doomPending = false
         // ResetRondeVars + KaartenWeg
         totalBid = 0
         numberBid = 0
@@ -486,6 +489,11 @@ class Game internal constructor(
             highestOnTable = toPlay
         }
         if (!simulation) status = "${pl.name} legt ${card.describe()} op."
+        if (doomPending && toPlay == viewSeat) {
+            doomPending = false
+            doomSoundPlayed = true
+            sounds.add(Sound.ONVOORKOMBARE_ONDERGANG)
+        }
 
         toPlay = nextPlayer(toPlay)
         if (toPlay == leader) {
@@ -537,7 +545,11 @@ class Game internal constructor(
         }
     }
 
-    /** KaartKiezen: geluid als de mens zijn voorspelling onmogelijk nog kan halen. */
+    /**
+     * KaartKiezen: geluid als de mens zijn voorspelling onmogelijk nog kan halen. In het origineel klonk dat al als
+     * hij aan zet kwam; nu pas als hij de kaart oplegt waardoor hij nat gaat (zie playCard), anders verraadt het
+     * geluid het al voordat je zelf iets hebt gedaan.
+     */
     private fun checkHumanDoom() {
         if (simulation || phase != Phase.PLAYING || toPlay != viewSeat) return
         findPossibleCards(viewSeat)
@@ -547,8 +559,7 @@ class Game internal constructor(
         if ((stillNeeded == me.cardCount && canWinCount == 0) ||
             (stillNeeded == 0 && cannotWinCount == 0 && leader == nextPlayer(viewSeat))
         ) {
-            doomSoundPlayed = true
-            sounds.add(Sound.ONVOORKOMBARE_ONDERGANG)
+            doomPending = true
         }
     }
 
