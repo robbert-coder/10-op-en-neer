@@ -43,3 +43,13 @@ test("toastMs: kort bericht minstens de minimumtijd, lang bericht langer maar be
   assert.equal(toastMs("x".repeat(1000)), TOAST_MAX_MS);
   assert.equal(toastMs(undefined), TOAST_MIN_MS);
 });
+
+import { worriesAloud, WORRY_MIN_CARDS, WORRY_CHANCE } from "../static/pacing.js";
+
+test("niets meer mogen halen: alleen hardop met genoeg kaarten over, en dan nog af en toe", () => {
+  assert.equal(worriesAloud(WORRY_MIN_CARDS - 1, 0), false);
+  assert.equal(worriesAloud(1, 0), false);
+  assert.equal(worriesAloud(WORRY_MIN_CARDS, 0), true);
+  assert.equal(worriesAloud(WORRY_MIN_CARDS + 4, WORRY_CHANCE - 0.01), true);
+  assert.equal(worriesAloud(WORRY_MIN_CARDS + 4, WORRY_CHANCE), false);
+});

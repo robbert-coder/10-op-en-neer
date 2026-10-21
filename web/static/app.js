@@ -22,7 +22,7 @@ import { BOERENBRIDGE, TIEN_OP_EN_NEER, createGame, maxCardsFor, maxPlayersFor, 
 import { KINDS, addGame, addHighScore, highScoreWindow, loadHighScores, matchesVs, playersDetail, loadStats, mergeGames, starRating, starsHtml, statsForKind, statsSummary } from "./stats.js";
 import { flushHof, hofCache, hofId, queueHof, sha256Hex } from "./hof.js";
 import { cardSound, initSound, loadSound, playSound, soundReady, stopSound, turnChime, voicePlaying } from "./sound.js";
-import { ALL_WET_REMARK_MS, MAX_WAITING_REMARKS, REMARK_SHOW_MS, WAITING_REMARK_MS, resultWait, toastMs, FIRST_BID_PAUSE_MS } from "./pacing.js";
+import { ALL_WET_REMARK_MS, MAX_WAITING_REMARKS, REMARK_SHOW_MS, WAITING_REMARK_MS, resultWait, toastMs, FIRST_BID_PAUSE_MS, worriesAloud } from "./pacing.js";
 import { OPENERS, PHRASES, PHRASE_GAP_MS, sayWire, spokenPhrase, QUICK, RETURNERS, TIP_CHAT, WIRE_TEXTS, openerFile, phraseFile, reactionFile, returnFile, SPOKEN_REACTIONS, tinekeFile, EN_DIR } from "./speech.js";
 import { celebrate, isCelebrating } from "./celebrate.js";
 import { askNotifications, clearTurnNotice, inBackground, iosBrowser, isIOS, notifyAlways, notifyPermission, notifyUnsupportedText, setAppVisible, turnNotice } from "./notify.js";
@@ -797,10 +797,11 @@ function reactToTrick(nr) {
   const p = st.players[nr - 1];
   // Er een te veel: daar is hij niet blij mee (het nat-zinnetje volgt vanzelf)
   if (p.bid >= 0 && p.tricks > p.bid) { gesture(nr, "sigh"); return; }
-  // Bod gehaald maar nog kaarten over: nu mag hij niets meer halen, dus bezorgd in plaats van blij
+  // Bod gehaald maar nog kaarten over: nu mag hij niets meer halen, dus bezorgd in plaats van blij (hardop alleen
+  // als het echt spannend is, zie worriesAloud)
   if (p.bid >= 0 && p.tricks === p.bid && p.cardCount > 0) {
-    if (Math.random() < 0.4) react(nr, "oei", 350, "sad");
-    else if (Math.random() < 0.6) gesture(nr, "sigh");
+    if (worriesAloud(p.cardCount, Math.random())) react(nr, "oei", 350, "sad");
+    else if (Math.random() < 0.4) gesture(nr, "sigh");
     return;
   }
   if (Math.random() > 0.35) return;

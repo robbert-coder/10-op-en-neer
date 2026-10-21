@@ -1,6 +1,11 @@
 // Wat er per versie nieuw is. Wie na een nieuwe versie terugkomt, ziet dit in het hoofdmenu.
 // items in het Nederlands, en dezelfde punten in het Engels (en), voor wie het spel in het Engels speelt.
 export const CHANGES = [
+  { v: "2.68", items: [
+    "Computerspelers zeggen minder vaak dat ze nu geen slag meer mogen halen: alleen nog af en toe, en alleen als ze nog minstens drie kaarten hebben.",
+  ], en: [
+    "Computer players say less often that they must not take another trick: only now and then, and only with at least three cards left.",
+  ] },
   { v: "2.67", items: [
     "Op een telefoon blijven de titel en de namen bovenaan de scorelijst nu altijd in beeld; alleen de rondes scrollen.",
     "De grote troef ligt niet meer over een geopende scorelijst of ander venster heen.",

@@ -43,3 +43,18 @@ export function toastMs(text) {
 
 /** Extra pauze voor de eerste voorspelling van een ronde: eerst rustig de kaarten en de troef bekijken. */
 export const FIRST_BID_PAUSE_MS = 1500;
+
+/** Pas vanaf zoveel kaarten in de hand is het echt spannend om geen slag meer te halen. */
+export const WORRY_MIN_CARDS = 3;
+/** En dan nog maar af en toe: anders klinkt "dat was niet de bedoeling" te vaak, terwijl het meestal goed komt. */
+export const WORRY_CHANCE = 0.2;
+
+/**
+ * Zegt een computerspeler hardop dat hij nu niets meer mag halen ("oei")? Nodig omdat dat zinnetje anders na
+ * bijna elk gehaald bod klinkt, ook met nog één kaart over, en het daarna toch meestal goed afloopt.
+ * @param {number} cardsLeft kaarten die hij nog in de hand heeft
+ * @param {number} roll willekeurig getal van 0 tot 1 (Math.random), apart zodat het te testen is
+ */
+export function worriesAloud(cardsLeft, roll) {
+  return cardsLeft >= WORRY_MIN_CARDS && roll < WORRY_CHANCE;
+}
