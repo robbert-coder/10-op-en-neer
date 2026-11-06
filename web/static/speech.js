@@ -137,11 +137,12 @@ const REACTIONS_BY_LANG = { nl: REACTIONS, en: REACTIONS_EN, de: REACTIONS_DE };
 
 /**
  * Per opnameset de reacties die er later bij kwamen, met vanaf welke zin ze nieuw zijn. Nodig om alleen de
- * nieuwe zinnen in te spreken (credits): v2.73 wachten en allemaal nat, v2.74 oei, hoog, te veel en te weinig.
+ * nieuwe zinnen in te spreken (credits): v2.73 wachten en allemaal nat, v2.74 oei, hoog, te veel en te weinig, v2.75 tip.
  */
 export const LATER_LINES = {
   erbij: { wacht: 3, allenat: 3 },
   erbij2: { oei: 3, hoog: 6, over: 6, onder: 6 },
+  erbij3: { tip: 6 },
 };
 
 /**

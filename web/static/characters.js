@@ -117,14 +117,14 @@ export const REACTIONS = {
   },
   // Een mens vraagt om een tip
   tip: {
-    henk: ["Een tip? Prima hoor.", "Hm, even spieken.", "Geen schande.", "Rustig nadenken helpt ook.", "Ik zag het wel.", "Tja, een tip."],
-    truus: ["Oeh, een tip!", "Spieken, hè?", "Haha, ik zag het!", "Valsspeler! Grapje!", "Tip van Tineke, hè?", "Slim, hoor!"],
-    kees: ["Zwak, man.", "Tip nodig, hè?", "Ik zag het.", "Zelf nadenken!", "Makkelijk zo.", "Ja ja, met hulp."],
-    ria: ["Ach, een tip is goed, lieverd.", "Niks mis mee.", "Och, slim van je.", "Ik vraag ook wel eens wat.", "Goed zo, vragen mag.", "Gezellig hoor."],
-    bram: ["Bro, een tip?", "Cheatcode!", "Haha, hulp nodig?", "Spieken, hè?", "Tutorial-modus.", "Oké, oké."],
-    gerda: ["Een tip? Dat telt niet mee.", "Dat noteer ik.", "Zelf denken is beter.", "Hulp? Hm.", "Zo win je niks.", "Ik zag het wel."],
-    sjef: ["Ach jong, een tip.", "Mag best, hè.", "Ik vraag ook wel eens de weg.", "Hèhè, slim.", "Niks mis mee, jong.", "Gezellig."],
-    mo: ["Een tip? Mag ik er ook een?", "Spieken! Ik zeg niks.", "Hulplijn ingeschakeld!", "Bel een vriend!", "Een tip? Neem een tip van mij: niks.", "Ik heb het niet gezien. Echt."],
+    henk: ["Een tip? Prima hoor.", "Hm, even spieken.", "Geen schande.", "Rustig nadenken helpt ook.", "Ik zag het wel.", "Tja, een tip.", "Vragen staat vrij."],
+    truus: ["Oeh, een tip!", "Spieken, hè?", "Haha, ik zag het!", "Valsspeler! Grapje!", "Tip van Tineke, hè?", "Slim, hoor!", "Tineke weet alles, hè!"],
+    kees: ["Zwak, man.", "Tip nodig, hè?", "Ik zag het.", "Zelf nadenken!", "Makkelijk zo.", "Ja ja, met hulp.", "Zonder hulp lukt het niet, hè?"],
+    ria: ["Ach, een tip is goed, lieverd.", "Niks mis mee.", "Och, slim van je.", "Ik vraag ook wel eens wat.", "Goed zo, vragen mag.", "Gezellig hoor.", "Slim om even te vragen, lieverd."],
+    bram: ["Bro, een tip?", "Cheatcode!", "Haha, hulp nodig?", "Spieken, hè?", "Tutorial-modus.", "Oké, oké.", "Bro gebruikt een walkthrough."],
+    gerda: ["Een tip? Dat telt niet mee.", "Dat noteer ik.", "Zelf denken is beter.", "Hulp? Hm.", "Zo win je niks.", "Ik zag het wel.", "Hulp gevraagd. Genoteerd."],
+    sjef: ["Ach jong, een tip.", "Mag best, hè.", "Ik vraag ook wel eens de weg.", "Hèhè, slim.", "Niks mis mee, jong.", "Gezellig.", "Een tip van de zaak, jong."],
+    mo: ["Een tip? Mag ik er ook een?", "Spieken! Ik zeg niks.", "Hulplijn ingeschakeld!", "Bel een vriend!", "Een tip? Neem een tip van mij: niks.", "Ik heb het niet gezien. Echt.", "Een tip! Ik geef ook graag tips. Slechte."],
   },
 };
 
@@ -211,14 +211,14 @@ export const REACTIONS_EN = {
     mo: ["Free tricks! Who wants one?", "Some left over. Can I have it?", "Stingy bunch, this.", "Come on, come on.", "A trick going spare!", "Who wants a present?", "There's a trick left over. Who wants to adopt it?"],
   },
   tip: {
-    henk: ["A tip? Fine by me.", "Hm, a quick peek.", "No shame in that.", "Thinking calmly helps too.", "I noticed.", "Well, a tip."],
-    truus: ["Ooh, a tip!", "Peeking, eh?", "Haha, I saw that!", "Cheat! Only joking!", "A tip from Tineke, eh?", "Clever, that!"],
-    kees: ["Weak, mate.", "Needed a tip, eh?", "I saw that.", "Think for yourself!", "Easy that way.", "Sure, with help."],
-    ria: ["Oh, a tip is fine, dear.", "Nothing wrong with that.", "Oh, clever of you.", "I ask now and then too.", "Good, asking is allowed.", "How nice."],
-    bram: ["Bro, a tip?", "Cheat code!", "Haha, need help?", "Peeking, eh?", "Tutorial mode.", "Okay, okay."],
-    gerda: ["A tip? That doesn't count.", "I'm noting that.", "Thinking for yourself is better.", "Help? Hm.", "That's no way to win.", "I noticed."],
-    sjef: ["Ah lad, a tip.", "That's allowed, eh.", "I ask for directions too.", "Heh, clever.", "Nothing wrong with it, lad.", "Cosy."],
-    mo: ["A tip? Can I have one too?", "Peeking! I won't tell.", "Lifeline activated!", "Phone a friend!", "A tip? Here's mine: nothing.", "I didn't see a thing. Honestly."],
+    henk: ["A tip? Fine by me.", "Hm, a quick peek.", "No shame in that.", "Thinking calmly helps too.", "I noticed.", "Well, a tip.", "No harm in asking."],
+    truus: ["Ooh, a tip!", "Peeking, eh?", "Haha, I saw that!", "Cheat! Only joking!", "A tip from Tineke, eh?", "Clever, that!", "Tineke knows everything!"],
+    kees: ["Weak, mate.", "Needed a tip, eh?", "I saw that.", "Think for yourself!", "Easy that way.", "Sure, with help.", "Can't do it without help, eh?"],
+    ria: ["Oh, a tip is fine, dear.", "Nothing wrong with that.", "Oh, clever of you.", "I ask now and then too.", "Good, asking is allowed.", "How nice.", "Smart to ask, dear."],
+    bram: ["Bro, a tip?", "Cheat code!", "Haha, need help?", "Peeking, eh?", "Tutorial mode.", "Okay, okay.", "Bro's using a walkthrough."],
+    gerda: ["A tip? That doesn't count.", "I'm noting that.", "Thinking for yourself is better.", "Help? Hm.", "That's no way to win.", "I noticed.", "Help requested. Noted."],
+    sjef: ["Ah lad, a tip.", "That's allowed, eh.", "I ask for directions too.", "Heh, clever.", "Nothing wrong with it, lad.", "Cosy.", "A tip on the house, lad."],
+    mo: ["A tip? Can I have one too?", "Peeking! I won't tell.", "Lifeline activated!", "Phone a friend!", "A tip? Here's mine: nothing.", "I didn't see a thing. Honestly.", "A tip! I like giving tips too. Bad ones."],
   },
 };
 
@@ -314,14 +314,14 @@ export const REACTIONS_DE = {
   },
   // Een mens vraagt om een tip
   tip: {
-    henk: ["Ein Tipp? Meinetwegen.", "Hm, kurz mal spicken.", "Keine Schande.", "Ruhig nachdenken hilft auch.", "Hab ich gesehen.", "Tja, ein Tipp."],
-    truus: ["Oh, ein Tipp!", "Gespickt, was?", "Haha, hab ich gesehen!", "Schummler! War nur Spaß!", "Ein Tipp von Tineke, was?", "Schlau, das!"],
-    kees: ["Schwach, Mann.", "Tipp gebraucht, was?", "Hab ich gesehen.", "Selber denken!", "So ist's leicht.", "Klar, mit Hilfe."],
-    ria: ["Ach, ein Tipp ist schon gut, mein Lieber.", "Nichts dabei.", "Ach, schlau von dir.", "Ich frage auch mal.", "Gut so, fragen ist erlaubt.", "Wie nett."],
-    bram: ["Bro, ein Tipp?", "Cheatcode!", "Haha, brauchst du Hilfe?", "Gespickt, was?", "Tutorial-Modus.", "Okay, okay."],
-    gerda: ["Ein Tipp? Das zählt nicht.", "Das notiere ich.", "Selber denken ist besser.", "Hilfe? Hm.", "So gewinnt man nicht.", "Hab ich gesehen."],
-    sjef: ["Ach Junge, ein Tipp.", "Ist erlaubt, ne.", "Ich frag auch mal nach dem Weg.", "Hehe, schlau.", "Nichts dabei, Junge.", "Gemütlich."],
-    mo: ["Ein Tipp? Krieg ich auch einen?", "Gespickt! Ich sag nichts.", "Joker eingesetzt!", "Telefonjoker!", "Ein Tipp? Hier ist meiner: nichts.", "Ich hab nichts gesehen. Ehrlich."],
+    henk: ["Ein Tipp? Meinetwegen.", "Hm, kurz mal spicken.", "Keine Schande.", "Ruhig nachdenken hilft auch.", "Hab ich gesehen.", "Tja, ein Tipp.", "Fragen kostet nichts."],
+    truus: ["Oh, ein Tipp!", "Gespickt, was?", "Haha, hab ich gesehen!", "Schummler! War nur Spaß!", "Ein Tipp von Tineke, was?", "Schlau, das!", "Tineke weiß einfach alles!"],
+    kees: ["Schwach, Mann.", "Tipp gebraucht, was?", "Hab ich gesehen.", "Selber denken!", "So ist's leicht.", "Klar, mit Hilfe.", "Ohne Hilfe geht's nicht, was?"],
+    ria: ["Ach, ein Tipp ist schon gut, mein Lieber.", "Nichts dabei.", "Ach, schlau von dir.", "Ich frage auch mal.", "Gut so, fragen ist erlaubt.", "Wie nett.", "Klug, mal zu fragen, mein Lieber."],
+    bram: ["Bro, ein Tipp?", "Cheatcode!", "Haha, brauchst du Hilfe?", "Gespickt, was?", "Tutorial-Modus.", "Okay, okay.", "Bro benutzt eine Komplettlösung."],
+    gerda: ["Ein Tipp? Das zählt nicht.", "Das notiere ich.", "Selber denken ist besser.", "Hilfe? Hm.", "So gewinnt man nicht.", "Hab ich gesehen.", "Hilfe geholt. Notiert."],
+    sjef: ["Ach Junge, ein Tipp.", "Ist erlaubt, ne.", "Ich frag auch mal nach dem Weg.", "Hehe, schlau.", "Nichts dabei, Junge.", "Gemütlich.", "Ein Tipp aufs Haus, Junge."],
+    mo: ["Ein Tipp? Krieg ich auch einen?", "Gespickt! Ich sag nichts.", "Joker eingesetzt!", "Telefonjoker!", "Ein Tipp? Hier ist meiner: nichts.", "Ich hab nichts gesehen. Ehrlich.", "Ein Tipp! Ich gebe auch gern Tipps. Schlechte."],
   },
 };
 

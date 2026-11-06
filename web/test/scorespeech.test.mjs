@@ -76,7 +76,7 @@ test("de extra zinnen bij wachten en allemaal nat: alleen de nieuwe, in elke taa
 test("elke nieuwe opname (uitslag, felicitatie, reacties) bestaat en heeft een duur", async () => {
   const { existsSync } = await import("node:fs");
   const { EXTRA_MS } = await import("../static/voices-extra-ms.js");
-  for (const set of ["uitslag", "reacties", "erbij", "erbij2"]) {
+  for (const set of ["uitslag", "reacties", "erbij", "erbij2", "erbij3"]) {
     for (const job of recordingJobs(set)) {
       assert.ok(existsSync(new URL(`../static/sounds/${job.file}.mp3`, import.meta.url)), job.file);
       assert.ok(EXTRA_MS[job.file] > 0, job.file);
