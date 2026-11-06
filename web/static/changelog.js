@@ -1,6 +1,13 @@
 // Wat er per versie nieuw is. Wie na een nieuwe versie terugkomt, ziet dit in het hoofdmenu.
 // items in het Nederlands, en dezelfde punten in het Engels (en), voor wie het spel in het Engels speelt.
 export const CHANGES = [
+  { v: "2.74", items: [
+    "Nog meer nieuwe zinnen van de personages: als ze per ongeluk een slag te veel halen, bij een hoog bod en als er te veel of te weinig slagen voorspeld zijn. In alle drie de talen.",
+  ], en: [
+    "Even more new lines from the characters: when they take one trick too many, at a high bid and when too many or too few tricks were bid. In all three languages.",
+  ], de: [
+    "Noch mehr neue Sprüche der Figuren: wenn sie aus Versehen einen Stich zu viel machen, bei einer hohen Ansage und wenn zu viele oder zu wenige Stiche angesagt wurden. In allen drei Sprachen.",
+  ] },
   { v: "2.73", items: [
     "De personages hebben nieuwe zinnen als ze op je wachten en als iedereen nat gaat, ingesproken in alle drie de talen.",
   ], en: [
