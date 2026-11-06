@@ -8,6 +8,7 @@
 // het Engels (spokenPairs: elke Nederlandse zin met de Engelse die ze dan zegt).
 import { suitWord, t } from "./i18n.js";
 import EN from "./i18n-en.js";
+import DE from "./i18n-de.js";
 
 const pick = (list) => list[Math.floor(Math.random() * list.length)];
 
@@ -401,21 +402,68 @@ const adviceTextEn = (n) => `My advice: choose ${WORD_EN[n] ?? n}.`;
 /** De Engelse zin van "kleur bekennen" precies zoals hij op het scherm staat (zie comment). */
 const followTextEn = (suit) => (EN["Je moet kleur bekennen. Kies een {suit}."] ?? "").replace("{suit}", suit);
 
+// En in het Duits (de Duitse opnames), weer met dezelfde sleutels als SAY
+const SUIT_NAME_DE = ["", "Kreuz", "Karo", "Pik", "Herz"];
+const WORD_DE = ["null", "eins", "zwei", "drei", "vier", "fünf", "sechs", "sieben", "acht", "neun", "zehn", "elf", "zwölf", "dreizehn"];
+const SAY_DE = {
+  bidFirst: "Du hast deine Karten bekommen. Jetzt musst du ansagen, wie viele Stiche du machst: Wie oft hast du in dieser Runde wohl die höchste Karte auf dem Tisch? Tippe auf eine Zahl.",
+  bid: "Sag jetzt an, wie viele Stiche du machst. Tippe auf eine Zahl.",
+  bidDone: "Deine Ansage siehst du bei deinem Namen unter ANSAGE; daneben steht, wie viele Stiche du schon hast. So siehst du auch, was die anderen angesagt haben. Oben steht, ob zusammen Stiche übrig sind oder zu wenige.",
+  leadFirst: "Du spielst jetzt aus: Du legst als Erster eine Karte. Das siehst du am Schild raus bei deinem Namen.",
+  leadAgain: "Du legst jetzt eine Karte, weil du gerade einen Stich gemacht hast.",
+  tapOnly: "Tippe auf deine Karte.",
+  tapAny: "Tippe auf eine Karte.",
+  lastCard: "Die Spieler vor dir haben ihre Karte gelegt. Jetzt bist du dran: Tippe auf deine Karte.",
+  follow: (suit) => `Die erste Karte auf dem Tisch ist ${suit}. Jetzt musst du Farbe bedienen: Leg auch eine ${suit}-Karte.`,
+  canFollow: (suit) => `Tippe auf eine ${suit}-Karte; die Karten, die du spielen darfst, stehen hoch.`,
+  cannotFollow: (suit) => `Du hast kein ${suit}, also darfst du jede Karte spielen.`,
+  wonLead: "Du bekommst diesen Stich, weil niemand eine höhere Karte in deiner Farbe hatte.",
+  otherLead: "Wer ausgespielt hat, bekommt diesen Stich, weil niemand eine höhere Karte in dieser Farbe hatte.",
+  wonTrump: (suit) => `Du bekommst diesen Stich, weil du gestochen hast: ${suit} ist Trumpf.`,
+  otherTrump: (suit) => `Dieser Stich geht an den Spieler, der gestochen hat: ${suit} ist Trumpf.`,
+  wonHigh: "Du bekommst diesen Stich, weil du die höchste Karte in der ausgespielten Farbe hattest.",
+  otherHigh: "Dieser Stich geht an den Spieler mit der höchsten Karte in der ausgespielten Farbe.",
+  trickCount: "Wie viele Stiche jeder hat, siehst du an der Zahl unter STICHE.",
+  scoreGood: "Deine Ansage stimmte, also bekommst du Punkte.",
+  scoreSome: "Deine Ansage hat nicht geklappt, aber ein paar Punkte bekommst du trotzdem.",
+  scoreNone: "Deine Ansage hat nicht geklappt. Diesmal keine Punkte.",
+  scoreList: "Alle Punkte stehen auf der Punkteliste, mit dem Knopf oben rechts.",
+  trump: (suit) => `${suit} ist in dieser Runde Trumpf. Eine Trumpfkarte schlägt alle Karten der anderen Farben, sogar ein Ass. Hast du die ausgespielte Farbe nicht, darfst du stechen. Dann gewinnst du den Stich, auch mit einem niedrigen Trumpf, außer jemand sticht höher. Zähl deine Trümpfe also mit, wenn du ansagst.`,
+  noTrump: "In dieser Runde gibt es keinen Trumpf. Die höchste Karte in der ausgespielten Farbe gewinnt immer den Stich.",
+  exact: "Versuch, genau so viele Stiche zu machen, wie du angesagt hast. Machst du mehr oder weniger, liegst du daneben und bekommst in dieser Runde keine Punkte.",
+  exactBB: "Versuch, genau so viele Stiche zu machen, wie du angesagt hast. Machst du mehr oder weniger, liegst du daneben und bekommst weniger Punkte: 3 weniger pro Stich Unterschied.",
+  wetMany: "Daneben: Du hast mehr Stiche, als du angesagt hast. Auch zu viele Stiche sind falsch, also bekommst du in dieser Runde keine Punkte.",
+  wetFew: "Daneben: Es sind zu wenige Karten übrig, um deine Ansage noch zu schaffen. In dieser Runde bekommst du keine Punkte.",
+  wetManyBB: "Daneben: Du hast mehr Stiche, als du angesagt hast. Jeder Stich Unterschied kostet Punkte, also versuch, keine weiteren zu machen.",
+  wetFewBB: "Daneben: Es sind zu wenige Karten übrig, um deine Ansage noch zu schaffen. Jeder Stich Unterschied kostet Punkte, also mach noch so viele wie möglich.",
+};
+const adviceTextDe = (n) => `Mein Rat: Wähl ${WORD_DE[n] ?? n}.`;
+/** De Duitse zin van "kleur bekennen" precies zoals hij op het scherm staat. */
+const followTextDe = (suit) => (DE["Je moet kleur bekennen. Kies een {suit}."] ?? "").replace("{suit}", suit);
+
+/** Per taal: vertaling van de schermteksten, de vaste zinnen, de kleuren en de zinnen voor advies en kleur bekennen. */
+const SPOKEN = {
+  en: { table: EN, say: SAY_EN, suits: SUIT_NAME_EN, advice: adviceTextEn, follow: followTextEn },
+  de: { table: DE, say: SAY_DE, suits: SUIT_NAME_DE, advice: adviceTextDe, follow: followTextDe },
+};
+
 /**
- * Elke zin die Tineke hardop kan zeggen, met de Engelse zin die ze in een Engels spel zegt: [[nl, en], ...].
- * Nodig omdat de opnames per taal apart zijn; in het Engels zoekt het spel bij een Nederlandse zin (uit say) de
- * Engelse op. Een zin zonder vertaling (zoals "Haha.") blijft gelijk.
+ * Elke zin die Tineke hardop kan zeggen, met de zin die ze in een spel in een andere taal zegt: [[nl, vertaling],
+ * ...]. Nodig omdat de opnames per taal apart zijn; het spel zoekt bij een Nederlandse zin (uit say) die in de taal
+ * van het spel op. Een zin zonder vertaling (zoals "Haha.") blijft gelijk.
+ * @param {"en"|"de"} language de taal van de opnames
  */
-export function spokenPairs() {
-  const same = (list) => list.map((nl) => [nl, EN[nl] ?? nl]);
+export function spokenPairs(language = "en") {
+  const { table, say, suits, advice, follow } = SPOKEN[language];
+  const same = (list) => list.map((nl) => [nl, table[nl] ?? nl]);
   const pairs = [
     ...same([...clickList(GREETINGS[0]), ...GREETINGS.slice(1), ...Object.values(COMMENTS).flat()]),
-    ...SUITS.map((suit, i) => [followText(suit), followTextEn(SUIT_NAME_EN[i + 1])]),
+    ...SUITS.map((suit, i) => [followText(suit), follow(suits[i + 1])]),
     ...same([...END_OTHER, ...END_BEST, ...END_TABLE.flatMap(([, x]) => x), WELCOME, HELP_OFF]),
     ...Object.entries(SAY).flatMap(([k, v]) => (typeof v === "function"
-      ? SUITS.map((suit, i) => [v(suit), SAY_EN[k](SUIT_NAME_EN[i + 1])])
-      : [[v, SAY_EN[k]]])),
-    ...WORD.map((_, n) => [adviceText(n), adviceTextEn(n)]),
+      ? SUITS.map((suit, i) => [v(suit), say[k](suits[i + 1])])
+      : [[v, say[k]]])),
+    ...WORD.map((_, n) => [adviceText(n), advice(n)]),
   ];
   return [...new Map(pairs).entries()];
 }

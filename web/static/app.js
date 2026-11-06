@@ -6,8 +6,10 @@ import { FACE_EXTRAS, FACE_PARTS, codeFromLook, decodeChoice, encodeFace, isFace
 import * as tineke from "./tineke.js";
 import { BID_LINES, WET_LINES, BID_MS, REACTION_MS } from "./voices.js";
 import { BID_LINES_EN, WET_LINES_EN } from "./voices-en.js";
+import { BID_LINES_DE, WET_LINES_DE } from "./voices-de.js";
 import { EN_MS } from "./voices-en-ms.js";
-import { CHARACTERS, CHARACTER_IDS, CLASSIC_CAST, REACTIONS, REACTIONS_EN, drawCast, everyoneMissed, nextSpeaker } from "./characters.js";
+import { DE_MS } from "./voices-de-ms.js";
+import { CHARACTERS, CHARACTER_IDS, CLASSIC_CAST, REACTIONS, REACTIONS_DE, REACTIONS_EN, drawCast, everyoneMissed, nextSpeaker } from "./characters.js";
 import { CHANGES } from "./changelog.js";
 import { cloudEnabled, makeCloudCode, normalizeCloudCode, formatCloudCode, validCloudCode, fetchStats, saveStats, fetchHallOfFame, onCloudHealth, sendReport } from "./cloud.js";
 import { BID_KEY_WAIT_MS, bidFromKey, digitMayBid, keyDigit } from "./bidkeys.js";
@@ -23,12 +25,12 @@ import { KINDS, addGame, addHighScore, highScoreWindow, loadHighScores, matchesV
 import { flushHof, hofCache, hofId, queueHof, sha256Hex } from "./hof.js";
 import { cardSound, initSound, loadSound, playSound, soundReady, stopSound, turnChime, voicePlaying } from "./sound.js";
 import { ALL_WET_REMARK_MS, MAX_WAITING_REMARKS, REMARK_SHOW_MS, WAITING_REMARK_MS, resultWait, toastMs, FIRST_BID_PAUSE_MS, worriesAloud } from "./pacing.js";
-import { OPENERS, PHRASES, PHRASE_GAP_MS, sayWire, spokenPhrase, QUICK, RETURNERS, TIP_CHAT, WIRE_TEXTS, openerFile, phraseFile, reactionFile, returnFile, SPOKEN_REACTIONS, tinekeFile, EN_DIR } from "./speech.js";
+import { OPENERS, PHRASES, PHRASE_GAP_MS, sayWire, spokenPhrase, QUICK, RETURNERS, TIP_CHAT, WIRE_TEXTS, openerFile, phraseFile, reactionFile, returnFile, SPOKEN_REACTIONS, tinekeFile, VOICE_DIRS } from "./speech.js";
 import { celebrate, isCelebrating } from "./celebrate.js";
 import { askNotifications, clearTurnNotice, inBackground, iosBrowser, isIOS, notifyAlways, notifyPermission, notifyUnsupportedText, setAppVisible, turnNotice } from "./notify.js";
 import { cardHtml, sortHand, trumpMiniHtml } from "./cards.js";
 import { APP_VERSION, isNewerVersion } from "./version.js";
-import { cardName, decimal, detailText, engineText, isEnglish, lang, locale, t, translateDom, variantText } from "./i18n.js";
+import { cardName, decimal, detailText, engineText, isEnglish, isGerman, lang, locale, t, translateDom, variantText } from "./i18n.js";
 
 // De vaste teksten van de pagina in de taal van het spel (i18n.js), voordat er iets getekend wordt
 translateDom(document);
@@ -291,12 +293,20 @@ initSound(() => {
 }, !!nativeApp);
 
 /**
- * De opname van een stem in de taal van het spel: in het Engels uit sounds/en/ (zelfde naam). Nodig omdat elke
- * gesproken zin (voorspelling, nat, reactie, Tineke, begroeting, snelle zin) in beide talen is ingesproken.
+ * Wat de spelers zeggen in de taal van het spel (voorspellingen, nat, reacties) en hoe lang elke opname duurt.
+ * Nodig omdat elke gesproken zin per taal apart is geschreven en ingesproken; Nederlands is de basis.
  */
-const voice = (name) => (isEnglish ? EN_DIR + name : name);
+const SPOKEN = {
+  nl: { bids: BID_LINES, wet: WET_LINES, reactions: REACTIONS, ms: null },
+  en: { bids: BID_LINES_EN, wet: WET_LINES_EN, reactions: REACTIONS_EN, ms: EN_MS },
+  de: { bids: BID_LINES_DE, wet: WET_LINES_DE, reactions: REACTIONS_DE, ms: DE_MS },
+}[lang];
+/** De opname van een stem in de taal van het spel: in het Engels uit sounds/en/, in het Duits uit sounds/de/. */
+const voice = (name) => VOICE_DIRS[lang] + name;
+/** Hoe lang een opname duurt (ms), in de taal van het spel; 0 als die niet bekend is. */
+const voiceMs = (file) => (SPOKEN.ms ? SPOKEN.ms[file] ?? 0 : REACTION_MS[file] ?? 0);
 /** Hoe lang een opname van een voorspelling duurt (ms), in de taal van het spel. */
-const bidMs = (v, n, k) => (isEnglish ? EN_MS[`bod_${v}_${n}_${k}`] ?? 1500 : BID_MS[v][n][k]);
+const bidMs = (v, n, k) => (SPOKEN.ms ? SPOKEN.ms[`bod_${v}_${n}_${k}`] ?? 1500 : BID_MS[v][n][k]);
 
 /** Truus roept je toe: één keer bij het openen, zolang je nog op het startscherm staat. */
 let openerPlayed = false;
@@ -654,7 +664,7 @@ function announceBids(afterLanding = (fn) => fn()) {
       const v = voiceFor(nr);
       const k = human ? 0 : pickLine(`bod${nr}`, BID_LINES[v][p.bid].length, true);
       if (speak) playSound(voice(`bod_${v}_${p.bid}_${k}`));
-      const line = (isEnglish ? BID_LINES_EN[v]?.[p.bid]?.[k] : BID_LINES[v][p.bid][k]) ?? "";
+      const line = SPOKEN.bids[v]?.[p.bid]?.[k] ?? "";
       const ms = speak ? bidMs(v, p.bid, k) + 250 : 1300 + (k ? line.length * 25 : 0);
       if (speak) speechUntil = Date.now() + ms;
       if (nr > 1) talkingUntil[nr] = Date.now() + ms;
@@ -675,7 +685,7 @@ function announceBids(afterLanding = (fn) => fn()) {
         const say = settings.sound && settings.speakBids;
         afterLanding(() => {
           if (say) playSound(voice(`nat_${v}_${k}`));
-          showBubble(nr, esc((isEnglish ? WET_LINES_EN[v]?.[k] : WET_LINES[v][k]) ?? t("Nat…")), 2600, true);
+          showBubble(nr, esc(SPOKEN.wet[v]?.[k] ?? t("Nat…")), 2600, true);
         });
       }
     }
@@ -707,7 +717,7 @@ function computerSeats(nr) {
  */
 function react(nr, kind, delay, mood = "", interrupt = false) {
   const who = faceFor(nr);
-  const lines = (isEnglish ? REACTIONS_EN : REACTIONS)[kind]?.[who];
+  const lines = SPOKEN.reactions[kind]?.[who];
   if (!lines || !canReact()) return;
   const round = st.round;
   setTimeout(() => {
@@ -719,7 +729,7 @@ function react(nr, kind, delay, mood = "", interrupt = false) {
     const k = pickLine(`r-${kind}-${nr}`, lines.length, false);
     // Een ingesproken zin blijft zo lang in beeld als de opname duurt
     const file = reactionFile(kind, who, k);
-    const ms = spoken ? Math.max(1900, ((isEnglish ? EN_MS : REACTION_MS)[file] ?? 0) + 400) : 1900;
+    const ms = spoken ? Math.max(1900, voiceMs(file) + 400) : 1900;
     showBubble(nr, `<span>${esc(lines[k])}</span>`, ms, mood);
     if (spoken) playSound(voice(file));
     gesture(nr, mood === "sad" ? "sigh" : kind === "slag" ? "cheer" : "react");
@@ -1100,8 +1110,8 @@ function leaveGame() {
 /** Laat Tineke iets zeggen. Bij wait=true pauzeert het spel tot je op Begrepen tikt. */
 /** Tineke zegt de zinnen hardop, na elkaar (opnames uit speech.js). Een nieuwe uitleg breekt de vorige af. */
 let tinekeVoiceToken = 0;
-/** Nederlandse zin van Tineke naar de Engelse die ze in een Engels spel zegt (tineke.js, spokenPairs). */
-const TINEKE_EN = new Map(tineke.spokenPairs());
+/** Nederlandse zin van Tineke naar die ze in een Engels of Duits spel zegt (tineke.js, spokenPairs). */
+const TINEKE_SAID = lang === "nl" ? null : new Map(tineke.spokenPairs(lang));
 let tinekeTalking = false;
 async function tinekeSpeak(lines) {
   const token = ++tinekeVoiceToken;
@@ -1109,8 +1119,8 @@ async function tinekeSpeak(lines) {
   for (const line of lines) {
     if (token !== tinekeVoiceToken) return;
     tinekeTalking = true;
-    // In het Engels: de Engelse zin bij een Nederlandse (uit say), of de Engelse tekst die al op het scherm staat
-    const ms = await playSound(isEnglish ? EN_DIR + tinekeFile(TINEKE_EN.get(line) ?? line) : tinekeFile(line));
+    // In een andere taal: de zin in die taal bij een Nederlandse (uit say), of de tekst die al op het scherm staat
+    const ms = await playSound(TINEKE_SAID ? voice(tinekeFile(TINEKE_SAID.get(line) ?? line)) : tinekeFile(line));
     if (!ms) break;
     await wait(ms + 150);
   }
@@ -1914,8 +1924,12 @@ function renderRoundEnd() {
 
 /** Klein Nederlands vlaggetje bij de winnaar in de eindstand. */
 const NL_FLAG = `<svg class="nl-flag" viewBox="0 0 9 6" role="img" aria-label="${t("winnaar")}"><rect width="9" height="2" fill="#AE1C28"/><rect y="2" width="9" height="2" fill="#FFFFFF"/><rect y="4" width="9" height="2" fill="#21468B"/></svg>`;
-/** Plaats als rangtelwoord: "1e" of "1st". */
-const ordinal = (n) => (!isEnglish ? `${n}e` : `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] ?? "th"}`);
+/** Plaats als rangtelwoord: "1e", "1st" of "1.". */
+function ordinal(n) {
+  if (isGerman) return `${n}.`;
+  if (!isEnglish) return `${n}e`;
+  return `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] ?? "th"}`;
+}
 const winnerFlag = (p) => (st.phase === "GAME_OVER" && p.rank === 1 ? NL_FLAG : "");
 
 function gameOverHtml() {
@@ -2621,7 +2635,7 @@ function showNews() {
   el.innerHTML = `<div class="news-head"><b>${t("🎉 Welkom terug! Er is een nieuwe versie: {v}", { v: esc(APP_VERSION) })}</b>
     <button class="news-close" id="news-close" aria-label="${t("Sluiten")}">✕</button></div>
     <details><summary>${t("Wat is er nieuw?")}</summary>${fresh.map((c) => `<div class="news-v"><small>${t("Versie {v}", { v: esc(c.v) })}</small>
-      <ul>${(isEnglish ? c.en : c.items).map((item) => `<li>${esc(item)}</li>`).join("")}</ul></div>`).join("")}</details>`;
+      <ul>${((isGerman ? c.de ?? c.en : isEnglish ? c.en : null) ?? c.items).map((item) => `<li>${esc(item)}</li>`).join("")}</ul></div>`).join("")}</details>`;
   el.hidden = false;
   $("#news-close").addEventListener("click", markNewsSeen);
 }

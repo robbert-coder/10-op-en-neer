@@ -2,10 +2,12 @@
 // dan werkt alles gewoon, alleen zonder te onthouden.
 import { cleanAvatar, cleanName, cleanVoice } from "./validate.js";
 import { randomFace } from "./avatarcode.js";
-import { isEnglish } from "./i18n.js";
+import { lang } from "./i18n.js";
 
 /** Naam zolang je zelf geen naam hebt gekozen, in beide talen. */
-export const DEFAULT_NAMES = ["Speler", "Player"];
+/** De standaardnaam per taal (zelfde volgorde als LANGS in i18n.js): wie hem niet wijzigt, krijgt die van zijn taal. */
+export const DEFAULT_NAMES = ["Speler", "Player", "Spieler"];
+const defaultName = () => ({ nl: "Speler", en: "Player", de: "Spieler" })[lang];
 
 export const store = {
   get(key, fallback) {
@@ -27,16 +29,16 @@ export const store = {
 /** Je instellingen; één gedeeld object, dat elk scherm kan aanpassen en daarna met saveSettings bewaart. */
 export const settings = Object.assign(
   {
-    playerName: isEnglish ? "Player" : "Speler", speed: 3, sortDescending: false, sound: true, speakBids: true, smart: false,
+    playerName: defaultName(), speed: 3, sortDescending: false, sound: true, speakBids: true, smart: false,
     tinekeHelp: true, tinekeNew: true, tinekeSeen: [], tinekeComments: true, tinekeAsked: false, tinekeVoice: true, opener: true,
   },
   store.get("instellingen", {}),
 );
 export const saveSettings = () => store.set("instellingen", settings);
 // Een te lange naam van vroeger inkorten (sinds v2.59 hoogstens 15 tekens)
-settings.playerName = cleanName(settings.playerName) || (isEnglish ? "Player" : "Speler");
+settings.playerName = cleanName(settings.playerName) || defaultName();
 // Nog de standaardnaam: die in de taal van het spel
-if (DEFAULT_NAMES.includes(settings.playerName)) settings.playerName = DEFAULT_NAMES[isEnglish ? 1 : 0];
+if (DEFAULT_NAMES.includes(settings.playerName)) settings.playerName = defaultName();
 // Sterke computerspelers stonden vroeger standaard aan; wie ze nooit zelf koos, begint nu met gewone
 if (!settings.smartChosen) settings.smart = false;
 

@@ -222,6 +222,109 @@ export const REACTIONS_EN = {
   },
 };
 
+/** Dezelfde reacties in het Duits (zelfde soorten, karakters en aantallen als REACTIONS_EN), als het spel in het Duits draait. */
+export const REACTIONS_DE = {
+  // Je laat de computers lang wachten: een bijdehante opmerking
+  wacht: {
+    henk: ["Lass dir ruhig Zeit. Ich werde sowieso alt.", "Ich hole mir gleich mal eine Zeitung.", "Hm. Denkst du noch, oder schläfst du?"],
+    truus: ["Schätzchen, wir werden hier grau!", "Hallo? Ist da jemand?", "Ich hab mir inzwischen die Nägel lackiert!"],
+    kees: ["Komm schon, das ist kein Schach.", "Heute noch?", "Soll ich dir eine Karte aussuchen?"],
+    ria: ["Immer mit der Ruhe, mein Lieber, ich koche Kaffee.", "Ich habe inzwischen einen Schal gestrickt.", "Lass dir Zeit. Ich hab bis Weihnachten."],
+    bram: ["Bro, bist du AFK?", "Ich check dann mal mein Handy.", "Loading... loading..."],
+    gerda: ["Wir haben nicht den ganzen Tag.", "Ich zähle die Sekunden.", "Nicht wählen ist auch eine Wahl."],
+    sjef: ["Ich hol inzwischen noch eine Runde.", "Keine Eile, Junge. Na ja, ein bisschen.", "Soll ich die Karten warm halten?"],
+    mo: ["Ich bin inzwischen ein Jahr älter geworden.", "Machen wir Pause? Ach, machen wir ja schon.", "Spannender Film, das hier."],
+  },
+  // Iedereen is deze ronde nat gegaan
+  allenat: {
+    henk: ["So. Alle daneben. Gemütlich.", "Das haben wir zusammen schön vermasselt.", "Keiner punktet. Auch ein Ergebnis."],
+    truus: ["Alle daneben! Was für ein Drama!", "Na, ihr Lieben, wir gehen alle baden!", "Alle zusammen! Holt die Taschentücher!"],
+    kees: ["Respekt, alle daneben.", "Na, gut gemacht, alle.", "Keiner? Echt keiner?"],
+    ria: ["Ach, wir sind alle baden gegangen.", "Alle daneben, dann erst mal ein Tässchen Tee.", "Gemütlich, zusammen daneben."],
+    bram: ["Alle daneben, epic fail.", "Bro, wir alle? Respekt.", "Gruppen-Fail, nice."],
+    gerda: ["Ungenügend. Für alle.", "Das ist eine Schande.", "Alle daneben. Das notiere ich."],
+    sjef: ["Alle daneben, die Runde geht aufs Haus!", "Prost, auf die Nullrunde!", "Hehe, alle baden gegangen."],
+    mo: ["Alle daneben? Ich hol den Regenschirm.", "Synchronbaden, Leute!", "Das war so geplant. Ehrlich."],
+  },
+  // Een computerspeler haalt een slag terwijl hij zijn bod al heeft: nu mag hij niets meer halen
+  oei: {
+    henk: ["Oje.", "Hm, jetzt habe ich genug.", "Jetzt vorsichtig."],
+    truus: ["Oh nein, oh nein!", "Hilfe, den wollte ich nicht!", "Oje, ihr Lieben!"],
+    kees: ["Ups.", "Den brauchte ich nicht.", "Jetzt keinen Stich mehr."],
+    ria: ["Oje, mein Lieber.", "Ach, jetzt muss ich aufpassen.", "Den brauchte ich nicht."],
+    bram: ["Uff, Bro.", "Nicht der Plan.", "Jetzt nix mehr nehmen."],
+    gerda: ["Das war nicht der Plan.", "Jetzt keine Fehler mehr.", "Hm. Konzentration."],
+    sjef: ["Oje, Junge.", "Den hätte ich liegen lassen sollen.", "Jetzt ganz ruhig."],
+    mo: ["Oje, oje.", "Wer hat mir den untergejubelt?", "Kann ich den umtauschen?"],
+  },
+  // Een computerspeler haalt een slag
+  slag: {
+    henk: ["Der gehört mir.", "Ordentlich.", "So macht man das.", "Sieh mal an.", "Ganz ruhig geholt.", "Hab ich kommen sehen."],
+    truus: ["Hab ich dich!", "Juhu!", "Schau dir das an!", "Oh, wie schön!", "Der ist meiner, ihr Lieben!", "Hurra!"],
+    kees: ["Schön.", "Nimm das!", "Yes.", "Im Sack.", "Locker.", "Hab ich doch gesagt."],
+    ria: ["Oh, der ist meiner!", "Schau mal einer an!", "Haha, erwischt!", "Ach, wie nett!", "Den nehme ich mit, mein Lieber.", "Oh ja!"],
+    bram: ["Easy!", "Let's go!", "Hab ihn, Bro.", "Krass!", "Einfach genommen.", "Skills."],
+    gerda: ["Wie erwartet.", "Genau nach Plan.", "Notiert.", "Selbstverständlich.", "Der gehört mir.", "Gut."],
+    sjef: ["Hehe, der ist drin.", "Siehst du, Junge.", "Ganz gemütlich.", "Prost!", "Schreib ihn auf meinen Deckel.", "Schön, ne."],
+    mo: ["Tadaa!", "Applaus, bitte!", "Aus Versehen gewonnen.", "Magie!", "Keiner hat's kommen sehen. Ich auch nicht.", "Kaching!"],
+  },
+  // Iemand voorspelt veel slagen
+  hoog: {
+    henk: ["Na, das ist kühn.", "Das ist viel.", "Hm, ehrgeizig.", "Mutig.", "Wir werden sehen.", "Das würde ich mich nicht trauen."],
+    truus: ["Wow, du traust dich was!", "Oh! Das ist ja was!", "Na, na!", "Oh, wie aufregend!", "Du hast vielleicht Nerven!", "Das wird eine Show!"],
+    kees: ["Ja, klar.", "Das glaubst du doch selbst nicht.", "Sehr tough.", "Große Klappe.", "Na los, zeig mal.", "Wird nichts."],
+    ria: ["Oh, das ist aber viel!", "Na, viel Glück damit!", "Meine Güte, so viele?", "Ach, wie tapfer.", "Pass bloß auf, mein Lieber.", "Das ist ja allerhand!"],
+    bram: ["Bro, im Ernst?", "Vollgas!", "Das ist next level.", "Respekt.", "Big brain move.", "Mutig!"],
+    gerda: ["Übermütig.", "Das klappt nicht.", "Ehrgeizig. Zu ehrgeizig.", "Ich behalte dich im Auge.", "Interessant.", "Darauf freue ich mich."],
+    sjef: ["Donnerwetter, Junge!", "Hehe, das ist viel, ne.", "Gar nicht schlecht.", "Prost auf deinen Mut.", "Auf deine Gesundheit!", "Na, der zieht's durch."],
+    mo: ["Da hat jemand gut gefrühstückt!", "Langsam, Champion!", "Willst du meine Stiche auch?", "Das ist viel. Ich zähl mit.", "Okay, Held!", "Sollen wir schon mal klatschen?"],
+  },
+  // Het totaal van de voorspellingen is precies het aantal kaarten
+  rond: {
+    henk: ["Geht auf. Schade.", "Hm. Schön glatt.", "Das ist schade.", "Geht auf. Also aufpassen.", "Geht genau auf.", "Tja. Geht auf."],
+    truus: ["Ach, geht auf. Langweilig!", "Oh nein, geht auf!", "Wie schade!", "Geht auf! Wie öde!", "Oh, alles passt. Bäh!", "Geht auf, wie langweilig!"],
+    kees: ["Geht auf? Na toll.", "Pff, geht auf.", "Lahm.", "Geht auf. Egal.", "Langweilig, Mann.", "Geht auf, ja ja."],
+    ria: ["Oh, geht auf. Schade.", "Na ja, geht auf.", "Das wäre mir lieber nicht.", "Ach, es passt genau.", "Geht auf, mein Lieber.", "Na, schön glatt."],
+    bram: ["Geht auf? Langweilig.", "Meh, geht auf.", "Hoffnungslos glatt.", "Geht auf, boring.", "Alle happy, gähn.", "Geht auf. Okay dann."],
+    gerda: ["Geht auf. Alle aufpassen.", "Geht auf. Das dürfte eigentlich nicht sein.", "Hm, geht auf.", "Das ist zu einfach.", "Geht auf. Schade.", "Ordentlich. Zu ordentlich."],
+    sjef: ["Ach, geht auf, Junge.", "Geht auf, ne. Gemütlich.", "Ist auch gut.", "Alle zufrieden.", "Rund wie ein Bierdeckel.", "Hehe, geht auf."],
+    mo: ["Geht auf! Genau wie ich.", "Geht auf. Welche Harmonie.", "Alle gewinnen! Oder nicht.", "Rund wie ein Donut.", "Perfekt glatt. Langweilig.", "Friedlich, oder?"],
+  },
+  // Er zijn samen meer slagen voorspeld dan er zijn
+  over: {
+    henk: ["Zu viel angesagt. Jemand geht baden.", "Das passt nicht.", "Das geht nicht gut aus.", "Jemand kann nicht rechnen.", "Zu viele. Spannend.", "Das wird eng."],
+    truus: ["Das geht schief, sag ich dir!", "Zu viele! Spannend!", "Hoppla, zu viele!", "Wer geht baden?", "Ein Drama bahnt sich an!", "Oh, das wird ein Kampf!"],
+    kees: ["Da wird jemand bluten.", "Zu viele, Leute.", "Wer geht baden?", "Ganz schön gierig.", "Einer verliert.", "Das wird eine Rauferei."],
+    ria: ["Hoppla, das wird ein Gedränge!", "Das sind zu viele!", "Da geht jemand baden.", "Ach, das passt nicht.", "Da kriegt jemand nasse Füße.", "Meine Güte, zu viele!"],
+    bram: ["Zu viele, Bro.", "Das wird ein Fight.", "Einer geht baden, safe.", "Chaos!", "Das wird lustig.", "Zu gierig, Mann."],
+    gerda: ["Zu viele. Jemand hat schlecht gezählt.", "Das geht schief. Nicht bei mir.", "Einer von euch geht baden.", "Zu viele. Aufpassen.", "Schlampig.", "Ich werde es nicht sein."],
+    sjef: ["Zu viele, Junge.", "Gedränge an der Theke.", "Da geht einer schwimmen, ne.", "Zu viele. Hehe.", "Wer gibt die nächste Runde aus?", "Das wird knapp, Junge."],
+    mo: ["Zu viele! Wer hat geschmuggelt?", "Einer geht unter. Ich hab eine Quietscheente.", "Das passt nicht. Wie meine Hose.", "Zu viele. Popcorn her!", "Jemand lügt!", "Hoppla, Chaos!"],
+  },
+  // Er zijn samen minder slagen voorspeld dan er zijn
+  onder: {
+    henk: ["Da bleiben Stiche übrig.", "Zu wenige. Vorsicht.", "Da muss noch was weg.", "Wer nimmt den Rest?", "Zu bescheiden.", "Da bleibt was liegen."],
+    truus: ["Da bleiben welche übrig!", "Wer nimmt den Extra?", "Zu wenige, spannend!", "Oh, ein Geschenk für jemanden!", "Wer will noch?", "Spannend!"],
+    kees: ["Jemand kriegt ein Geschenk.", "Zu wenige, aufpassen.", "Wer nimmt den Rest?", "Ganz schön geizig.", "Da geht jemand baden.", "Verschenken, Leute."],
+    ria: ["Da ist noch was übrig!", "Da muss noch was verteilt werden.", "Wer möchte noch einen?", "Ach, jemand kriegt einen dazu.", "Zu sparsam, mein Lieber.", "Da bleibt was auf dem Tisch."],
+    bram: ["Zu wenige, Bro.", "Wer nimmt den Rest?", "Gratis Stiche!", "Einer kriegt einen, safe.", "Zu chillig.", "Geizig, Mann."],
+    gerda: ["Zu wenige. Jemand kriegt einen zu viel.", "Jetzt aufpassen.", "Stiche übrig. Nicht für mich.", "Zu vorsichtig.", "Hm. Zu wenige.", "Da muss einer einen schlucken."],
+    sjef: ["Da bleibt was übrig, Junge.", "Wer will noch eine Runde?", "Zu wenige, ne.", "Ist noch was übrig, hehe.", "Schreib's auf den Deckel.", "Sparsam, Junge."],
+    mo: ["Gratis Stiche! Wer will?", "Da bleibt was übrig. Darf ich?", "Geiziges Volk hier.", "Komm schon, komm schon.", "Ein Stich übrig!", "Wer will ein Geschenk?"],
+  },
+  // Een mens vraagt om een tip
+  tip: {
+    henk: ["Ein Tipp? Meinetwegen.", "Hm, kurz mal spicken.", "Keine Schande.", "Ruhig nachdenken hilft auch.", "Hab ich gesehen.", "Tja, ein Tipp."],
+    truus: ["Oh, ein Tipp!", "Gespickt, was?", "Haha, hab ich gesehen!", "Schummler! War nur Spaß!", "Ein Tipp von Tineke, was?", "Schlau, das!"],
+    kees: ["Schwach, Mann.", "Tipp gebraucht, was?", "Hab ich gesehen.", "Selber denken!", "So ist's leicht.", "Klar, mit Hilfe."],
+    ria: ["Ach, ein Tipp ist schon gut, mein Lieber.", "Nichts dabei.", "Ach, schlau von dir.", "Ich frage auch mal.", "Gut so, fragen ist erlaubt.", "Wie nett."],
+    bram: ["Bro, ein Tipp?", "Cheatcode!", "Haha, brauchst du Hilfe?", "Gespickt, was?", "Tutorial-Modus.", "Okay, okay."],
+    gerda: ["Ein Tipp? Das zählt nicht.", "Das notiere ich.", "Selber denken ist besser.", "Hilfe? Hm.", "So gewinnt man nicht.", "Hab ich gesehen."],
+    sjef: ["Ach Junge, ein Tipp.", "Ist erlaubt, ne.", "Ich frag auch mal nach dem Weg.", "Hehe, schlau.", "Nichts dabei, Junge.", "Gemütlich."],
+    mo: ["Ein Tipp? Krieg ich auch einen?", "Gespickt! Ich sag nichts.", "Joker eingesetzt!", "Telefonjoker!", "Ein Tipp? Hier ist meiner: nichts.", "Ich hab nichts gesehen. Ehrlich."],
+  },
+};
+
 /**
  * Of iedereen deze (afgelopen) ronde nat ging. Nodig voor de opmerking van een computerspeler als niemand zijn
  * bod haalde; alleen bij twee of meer spelers die allemaal voorspeld hebben.

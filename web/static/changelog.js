@@ -1,6 +1,13 @@
 // Wat er per versie nieuw is. Wie na een nieuwe versie terugkomt, ziet dit in het hoofdmenu.
 // items in het Nederlands, en dezelfde punten in het Engels (en), voor wie het spel in het Engels speelt.
 export const CHANGES = [
+  { v: "2.70", items: [
+    "Duits als derde taal: tik op het Duitse vlaggetje in het hoofdmenu of kies het bij Instellingen. Alle teksten, de uitleg van Tineke en wat de personages zeggen zijn vertaald.",
+  ], en: [
+    "German as a third language: tap the German flag in the main menu or choose it in Settings. All texts, Tineke's explanations and what the characters say are translated.",
+  ], de: [
+    "Deutsch als dritte Sprache: Tippe im Hauptmenü auf die deutsche Flagge oder wähle es in den Einstellungen. Alle Texte, Tinekes Erklärungen und was die Figuren sagen, sind übersetzt.",
+  ] },
   { v: "2.69", items: [
     "Ga je hoe dan ook nat, dan klinkt het treurige geluidje pas als je de kaart hebt opgelegd, niet al als je aan de beurt komt.",
   ], en: [

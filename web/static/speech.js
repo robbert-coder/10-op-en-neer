@@ -2,9 +2,11 @@
 // bij samen spelen hardop kunt laten zeggen, en de uitleg van Tineke (tineke.js). Opnames: sounds/<naam>.mp3,
 // gemaakt met tools/elevenlabs.py (stap "extra"), dat speechJobs() via node uitleest.
 import { spokenLines, spokenPairs, speechFile } from "./tineke.js";
-import { REACTIONS, REACTIONS_EN } from "./characters.js";
+import { REACTIONS, REACTIONS_DE, REACTIONS_EN } from "./characters.js";
 import { BID_LINES_EN, OPENERS_EN, RETURNERS_EN, WET_LINES_EN } from "./voices-en.js";
+import { BID_LINES_DE, OPENERS_DE, RETURNERS_DE, WET_LINES_DE } from "./voices-de.js";
 import EN from "./i18n-en.js";
+import DE from "./i18n-de.js";
 
 // Truus roept je toe op het startscherm (gekozen door Robbert). De opnames maakt de stap "begroeting" van
 // tools/elevenlabs.py; deze teksten staan hier alleen ter informatie.
@@ -87,21 +89,34 @@ export function speechJobs() {
 
 /** Map voor de Engelse opnames: sounds/en/<naam>.mp3 (zelfde namen als de Nederlandse). */
 export const EN_DIR = "en/";
+/** Map van de opnames per taal: sounds/<map><naam>.mp3; Nederlands staat direct in sounds/. */
+export const VOICE_DIRS = { nl: "", en: EN_DIR, de: "de/" };
+
+/** Alle teksten per taal die worden ingesproken (zelfde vorm als in het Nederlands). */
+const SPEECH_TEXTS = {
+  en: { bids: BID_LINES_EN, wet: WET_LINES_EN, reactions: REACTIONS_EN, table: EN, openers: OPENERS_EN, returners: RETURNERS_EN },
+  de: { bids: BID_LINES_DE, wet: WET_LINES_DE, reactions: REACTIONS_DE, table: DE, openers: OPENERS_DE, returners: RETURNERS_DE },
+};
 
 /**
- * Alles wat de stap "engels" van tools/elevenlabs.py inspreekt: { file, text, who, tone? }. Zelfde
- * bestandsnamen als in het Nederlands (in sounds/en/), behalve Tineke: die heeft de hash van haar Engelse zin.
- * who = personage, speler_<stem>, tineke of begroeting (Truus op het startscherm).
+ * Alles wat tools/elevenlabs.py in een andere taal inspreekt (stap "engels" of "duits"): { file, text, who, tone? }.
+ * Zelfde bestandsnamen als in het Nederlands (in sounds/en/ of sounds/de/), behalve Tineke: die heeft de hash van
+ * haar zin in die taal. who = personage, speler_<stem>, tineke of begroeting (Truus op het startscherm).
+ * @param {"en"|"de"} language
  */
-export function englishSpeechJobs() {
-  const bids = Object.entries(BID_LINES_EN).flatMap(([who, rows]) => rows.flatMap((row, n) => row.map((text, k) =>
+export function translatedSpeechJobs(language) {
+  const { bids: bidLines, wet: wetLines, reactions: reactionLines, table, openers, returners } = SPEECH_TEXTS[language];
+  const bids = Object.entries(bidLines).flatMap(([who, rows]) => rows.flatMap((row, n) => row.map((text, k) =>
     ({ file: `bod_${who}_${n}_${k}`, text, who, ...(who.startsWith("speler_") ? {} : { tone: 0 }) }))));
-  const wet = Object.entries(WET_LINES_EN).flatMap(([who, lines]) => lines.map((text, k) => ({ file: `nat_${who}_${k}`, text, who, tone: 1 })));
-  const reactions = Object.entries(SPOKEN_REACTIONS).flatMap(([kind, tone]) => Object.entries(REACTIONS_EN[kind]).flatMap(([who, lines]) =>
+  const wet = Object.entries(wetLines).flatMap(([who, lines]) => lines.map((text, k) => ({ file: `nat_${who}_${k}`, text, who, tone: 1 })));
+  const reactions = Object.entries(SPOKEN_REACTIONS).flatMap(([kind, tone]) => Object.entries(reactionLines[kind]).flatMap(([who, lines]) =>
     lines.map((text, k) => ({ file: reactionFile(kind, who, k), text, who, tone }))));
-  const tineke = [...new Set(spokenPairs().map(([, en]) => en))].map((text) => ({ file: speechFile(text), text, who: "tineke" }));
-  const phrases = PHRASE_VOICES.flatMap((v) => PHRASES.map((nl, k) => ({ file: phraseFile(v, k), text: EN[nl] ?? nl, who: `speler_${v}` })));
-  const greetings = [...OPENERS_EN.map((text, k) => ({ file: openerFile(k), text, who: "begroeting" })),
-    ...RETURNERS_EN.map((text, k) => ({ file: returnFile(k), text, who: "begroeting" }))];
+  const tineke = [...new Set(spokenPairs(language).map(([, said]) => said))].map((text) => ({ file: speechFile(text), text, who: "tineke" }));
+  const phrases = PHRASE_VOICES.flatMap((v) => PHRASES.map((nl, k) => ({ file: phraseFile(v, k), text: table[nl] ?? nl, who: `speler_${v}` })));
+  const greetings = [...openers.map((text, k) => ({ file: openerFile(k), text, who: "begroeting" })),
+    ...returners.map((text, k) => ({ file: returnFile(k), text, who: "begroeting" }))];
   return [...bids, ...wet, ...reactions, ...tineke, ...phrases, ...greetings];
 }
+
+/** De Engelse opnames (stap "engels"); zie translatedSpeechJobs. */
+export const englishSpeechJobs = () => translatedSpeechJobs("en");

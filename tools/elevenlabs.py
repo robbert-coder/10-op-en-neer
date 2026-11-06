@@ -12,6 +12,8 @@
 #   python3 tools/elevenlabs.py extra[:tineke] <map>  Begroeting, snelle zinnen en Tineke (web/static/speech.js)
 #   python3 tools/elevenlabs.py engels[:henk,tineke] <map>  Alles in het Engels, met dezelfde stemmen
 #                                                    (englishSpeechJobs in web/static/speech.js), voor sounds/en/
+#   python3 tools/elevenlabs.py duits[:henk,tineke] <map>  Hetzelfde in het Duits (translatedSpeechJobs("de")),
+#                                                    voor sounds/de/
 #   python3 tools/elevenlabs.py proef:<eigenaar>/<stem>/<Naam> <map>  Bibliotheekstem aan het account toevoegen en
 #                                                    een paar spelzinnen laten inspreken (kost een paar honderd credits)
 import base64, http.client, json, os, re, sys, urllib.error, urllib.parse, urllib.request
@@ -349,12 +351,13 @@ def extra(out, only):
     print("klaar:", len(ms), "geluiden")
 
 
-def engels(out, only):
-    """Alle zinnen in het Engels (englishSpeechJobs uit web/static/speech.js), met dezelfde stemmen en tonen."""
+def engels(out, only, language="en"):
+    """Alle zinnen in een andere taal (translatedSpeechJobs uit web/static/speech.js), met dezelfde stemmen en tonen.
+    Nodig voor het Engels (sounds/en/) en het Duits (sounds/de/); de uitkomst heet <taal>.json met de duur per zin."""
     import shutil, subprocess
     from concurrent.futures import ThreadPoolExecutor
     root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
-    js = "import('./web/static/speech.js').then((m) => console.log(JSON.stringify(m.englishSpeechJobs())))"
+    js = f"import('./web/static/speech.js').then((m) => console.log(JSON.stringify(m.translatedSpeechJobs('{language}'))))"
     jobs = json.loads(subprocess.run(["node", "--input-type=module", "-e", js], cwd=root, capture_output=True, text=True, check=True).stdout)
     jobs = [j for j in jobs if not only or j["who"] in only]
     os.makedirs(f"{out}/ruw", exist_ok=True)
@@ -381,7 +384,7 @@ def engels(out, only):
         else:
             settings = {"stability": 0.5}
         for _ in range(4):
-            speak(vid, model, prefix + j["text"], f"{out}/ruw/{j['file']}.mp3", settings, "en")
+            speak(vid, model, prefix + j["text"], f"{out}/ruw/{j['file']}.mp3", settings, language)
             ms = polish(out, j["file"])
             if 250 <= ms <= 400 + 140 * len(j["text"]):
                 break
@@ -391,7 +394,7 @@ def engels(out, only):
     print(len(jobs), "zinnen,", sum(len(j["text"]) for j in jobs), "tekens", flush=True)
     with ThreadPoolExecutor(4) as pool:
         ms = dict(pool.map(one, jobs))
-    json.dump({"ms": ms}, open(f"{out}/engels.json", "w"), ensure_ascii=False)
+    json.dump({"ms": ms}, open(f"{out}/{'engels' if language == 'en' else 'duits'}.json", "w"), ensure_ascii=False)
     shutil.rmtree(f"{out}/ruw")
     print("klaar:", len(ms), "geluiden")
 
@@ -479,6 +482,8 @@ def main(stap, out):
         begroeting(out)
     elif stap.startswith("engels"):
         engels(out, stap[7:].split(",") if ":" in stap else None)
+    elif stap.startswith("duits"):
+        engels(out, stap[6:].split(",") if ":" in stap else None, "de")
     elif stap.startswith("extra"):
         extra(out, stap[6:].split(",") if ":" in stap else None)
     elif stap.startswith("inspreken"):

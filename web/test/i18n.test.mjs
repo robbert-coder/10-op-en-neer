@@ -1,12 +1,16 @@
-// Vertalingen (i18n.js): elke tekst die je op het scherm ziet, moet ook in het Engels bestaan. Deze test zoekt
-// alle t("…") in de code en alle vaste teksten in index.html, en kijkt of ze in i18n-en.js staan.
+// Vertalingen (i18n.js): elke tekst die je op het scherm ziet, moet ook in het Engels en het Duits bestaan. Deze
+// test zoekt alle t("…") in de code en alle vaste teksten in index.html, en kijkt of ze in i18n-en.js en
+// i18n-de.js staan.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 
 const dir = new URL("../static/", import.meta.url);
 const EN = (await import("../static/i18n-en.js")).default;
-const has = (key) => Object.prototype.hasOwnProperty.call(EN, key);
+const DE = (await import("../static/i18n-de.js")).default;
+const TABLES = { en: EN, de: DE };
+/** Staat de tekst in elke vertaling? */
+const has = (key) => Object.values(TABLES).every((table) => Object.prototype.hasOwnProperty.call(table, key));
 const placeholders = (s) => [...new Set(String(s).match(/\{\w+\}/g) ?? [])].sort();
 
 /**
@@ -65,25 +69,25 @@ export function htmlKeys(html) {
   return keys.filter((k) => /\p{L}/u.test(k));
 }
 
-test("elke t(\"…\") in de code heeft een Engelse vertaling met dezelfde {variabelen}", () => {
-  const files = readdirSync(dir).filter((f) => f.endsWith(".js") && f !== "i18n-en.js");
+test("elke t(\"…\") in de code heeft een Engelse en Duitse vertaling met dezelfde {variabelen}", () => {
+  const files = readdirSync(dir).filter((f) => f.endsWith(".js") && f !== "i18n-en.js" && f !== "i18n-de.js");
   const missing = [];
   for (const f of files) {
     const { keys, errors } = tKeys(readFileSync(new URL(f, dir), "utf8"));
     assert.deepEqual(errors, [], `${f}: ${errors.join("; ")}`);
     for (const k of keys) {
       if (!has(k)) missing.push(`${f}: ${k}`);
-      else assert.deepEqual(placeholders(EN[k]), placeholders(k), `${f}: andere {variabelen} in de vertaling van "${k}"`);
+      else for (const [code, table] of Object.entries(TABLES)) assert.deepEqual(placeholders(table[k]), placeholders(k), `${f}: andere {variabelen} in de ${code}-vertaling van "${k}"`);
     }
   }
-  assert.deepEqual(missing, [], `zonder Engelse vertaling:\n${missing.join("\n")}`);
+  assert.deepEqual(missing, [], `zonder Engelse of Duitse vertaling:\n${missing.join("\n")}`);
 });
 
-test("elke vaste tekst in index.html heeft een Engelse vertaling", () => {
+test("elke vaste tekst in index.html heeft een Engelse en Duitse vertaling", () => {
   const keys = htmlKeys(readFileSync(new URL("index.html", dir), "utf8"));
   assert.ok(keys.length > 100, "teksten gevonden");
   const missing = [...new Set(keys.filter((k) => !has(k)))];
-  assert.deepEqual(missing, [], `zonder Engelse vertaling:\n${missing.join("\n")}`);
+  assert.deepEqual(missing, [], `zonder Engelse of Duitse vertaling:\n${missing.join("\n")}`);
   const desc = /<meta name="description" content="([^"]*)"/.exec(readFileSync(new URL("index.html", dir), "utf8"))[1];
   assert.ok(has(desc), "beschrijving van de pagina");
 });
@@ -97,18 +101,22 @@ test("teksten die niet via t(\"…\") gaan: Tineke, snelle zinnen, soorten spel,
   assert.ok(hostTexts.length >= 3);
   const all = [...shownLines(), ...PHRASES, ...QUICK, TIP_CHAT, ...WIRE_TEXTS, ...Object.values(KINDS), ...hostTexts];
   const missing = [...new Set(all.filter((k) => /\p{L}/u.test(k) && !has(k)))];
-  assert.deepEqual(missing, [], `zonder Engelse vertaling:\n${missing.join("\n")}`);
+  assert.deepEqual(missing, [], `zonder Engelse of Duitse vertaling:\n${missing.join("\n")}`);
 });
 
-test("reacties van de computerspelers en het nieuws bestaan in beide talen", async () => {
-  const { REACTIONS, REACTIONS_EN } = await import("../static/characters.js");
+test("reacties van de computerspelers en het nieuws bestaan in alle talen", async () => {
+  const { REACTIONS, REACTIONS_EN, REACTIONS_DE } = await import("../static/characters.js");
   for (const [kind, byWho] of Object.entries(REACTIONS)) {
     for (const [who, lines] of Object.entries(byWho)) {
       assert.equal(REACTIONS_EN[kind]?.[who]?.length, lines.length, `${kind}/${who}`);
+      assert.equal(REACTIONS_DE[kind]?.[who]?.length, lines.length, `de ${kind}/${who}`);
     }
   }
   const { CHANGES } = await import("../static/changelog.js");
   for (const c of CHANGES) assert.equal(c.en?.length, c.items.length, `nieuws van versie ${c.v}`);
+  // Duits pas vanaf de versie waarin het Duits erbij kwam; oudere versies tonen in het Duits het Engels
+  for (const c of CHANGES.filter((x) => x.de)) assert.equal(c.de.length, c.items.length, `Duits nieuws van versie ${c.v}`);
+  assert.ok(CHANGES[0].de, "het nieuwste nieuws bestaat ook in het Duits");
 });
 
 test("t() vult variabelen in en geeft onbekende tekst ongewijzigd terug", async () => {
@@ -136,5 +144,37 @@ test("Engelse teksten van de spelmotor", async () => {
     assert.equal(m.cardName(412), "queen of hearts");
   } finally {
     delete globalThis.localStorage;
+  }
+});
+
+test("Duitse teksten van de spelmotor, kaarten en spelsoorten", async () => {
+  globalThis.localStorage = { getItem: () => JSON.stringify({ lang: "de" }) };
+  try {
+    const m = await import(`../static/i18n.js?de=${Date.now()}`);
+    assert.equal(m.lang, "de");
+    assert.equal(m.locale, "de-DE");
+    assert.equal(m.cardName(412), "Herz Dame");
+    assert.equal(m.suitWord(1), "Kreuz");
+    assert.ok(m.engineText("Henk legt klaver vrouw op.").includes("Kreuz Dame"));
+    assert.ok(m.engineText("Je moet kleur bekennen. Kies een harten.").includes("Herz"));
+    assert.equal(m.variantText("Hybride (nr, iv) tot 5"), "Hybrid (nr, tz) bis 5");
+    assert.equal(m.detailText("tot 5 · 4 spelers: 1 mens, 3 sterke computers"), "bis 5 · 4 Spieler: 1 Mensch, 3 starke Computer");
+    assert.equal(m.decimal(2.5), "2,5");
+    assert.equal(m.t("Sluiten"), DE["Sluiten"]);
+  } finally {
+    delete globalThis.localStorage;
+  }
+});
+
+test("de taal van het apparaat: nl en de herkend, de rest Engels", async () => {
+  const { deviceLang } = await import("../static/i18n.js");
+  const orig = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+  const as = (language) => { Object.defineProperty(globalThis, "navigator", { value: { language }, configurable: true }); return deviceLang(); };
+  try {
+    assert.equal(as("nl-BE"), "nl");
+    assert.equal(as("de-AT"), "de");
+    assert.equal(as("fr-FR"), "en");
+  } finally {
+    if (orig) Object.defineProperty(globalThis, "navigator", orig); else delete globalThis.navigator;
   }
 });
