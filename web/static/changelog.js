@@ -1,6 +1,13 @@
 // Wat er per versie nieuw is. Wie na een nieuwe versie terugkomt, ziet dit in het hoofdmenu.
 // items in het Nederlands, en dezelfde punten in het Engels (en), voor wie het spel in het Engels speelt.
 export const CHANGES = [
+  { v: "2.71", items: [
+    "Duitse stemmen: speel je in het Duits, dan praten alle personages, Tineke en de begroeting nu ook in het Duits, met hun eigen stem.",
+  ], en: [
+    "German voices: when you play in German, all characters, Tineke and the welcome now speak German too, with their own voice.",
+  ], de: [
+    "Deutsche Stimmen: Spielst du auf Deutsch, sprechen jetzt alle Figuren, Tineke und die Begrüßung auch Deutsch, jede mit ihrer eigenen Stimme.",
+  ] },
   { v: "2.70", items: [
     "Duits als derde taal: tik op het Duitse vlaggetje in het hoofdmenu of kies het bij Instellingen. Alle teksten, de uitleg van Tineke en wat de personages zeggen zijn vertaald.",
   ], en: [

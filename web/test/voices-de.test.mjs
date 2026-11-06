@@ -29,3 +29,12 @@ test("de Duitse opnamelijst heeft (bijna) evenveel zinnen als de Engelse, met un
   assert.equal(new Set(de.map((j) => j.file)).size, de.length);
   assert.ok(de.every((j) => j.text && !j.text.includes("{")), "alle teksten ingevuld");
 });
+
+test("elke Duitse zin heeft een opname en een duur", async () => {
+  const { existsSync } = await import("node:fs");
+  const { DE_MS } = await import("../static/voices-de-ms.js");
+  for (const job of translatedSpeechJobs("de")) {
+    assert.ok(existsSync(new URL(`../static/sounds/de/${job.file}.mp3`, import.meta.url)), job.file);
+    assert.ok(DE_MS[job.file] > 0, job.file);
+  }
+});
