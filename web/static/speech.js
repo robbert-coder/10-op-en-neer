@@ -7,7 +7,7 @@ import { BID_LINES_EN, OPENERS_EN, RETURNERS_EN, WET_LINES_EN } from "./voices-e
 import { BID_LINES_DE, OPENERS_DE, RETURNERS_DE, WET_LINES_DE } from "./voices-de.js";
 import EN from "./i18n-en.js";
 import DE from "./i18n-de.js";
-import { winnerSpeechJobs } from "./winnerspeech.js";
+import { scoreSpeechJobs, winnerSpeechJobs } from "./scorespeech.js";
 
 // Truus roept je toe op het startscherm (gekozen door Robbert). De opnames maakt de stap "begroeting" van
 // tools/elevenlabs.py; deze teksten staan hier alleen ter informatie.
@@ -139,7 +139,7 @@ const REACTIONS_BY_LANG = { nl: REACTIONS, en: REACTIONS_EN, de: REACTIONS_DE };
  * Nieuwe opnames per set, voor de stap "opnames:<set>" van tools/elevenlabs.py: { file, text, who, tone?, language }.
  * file is het pad onder sounds/ (met en/ of de/ ervoor), zodat één stap alle talen tegelijk kan inspreken.
  * Nodig om alleen wat nieuw is in te spreken, in plaats van alles opnieuw (dat kost tegoed).
- *   winnaar          de felicitatie van de winnaar (winnerspeech.js), in alle talen
+ *   uitslag          de uitslag van je ronde en de felicitatie van de winnaar (scorespeech.js), in alle talen
  *   reacties[:a,b]   de reacties uit EXTRA_SPOKEN_REACTIONS (of alleen de soorten a en b), in de talen van
  *                    EXTRA_REACTION_LANGS; in delen, zodat wat klaar is bewaard blijft als het tegoed op raakt
  * @param {string} set
@@ -147,7 +147,9 @@ const REACTIONS_BY_LANG = { nl: REACTIONS, en: REACTIONS_EN, de: REACTIONS_DE };
 export function recordingJobs(set) {
   const inDir = (language, jobs) => jobs.map((job) => ({ ...job, file: VOICE_DIRS[language] + job.file, language }));
   const languages = ["nl", "en", "de"];
-  if (set === "winnaar") return languages.flatMap((language) => inDir(language, winnerSpeechJobs(language, CHARACTERS)));
+  if (set === "uitslag") {
+    return languages.flatMap((language) => inDir(language, [...winnerSpeechJobs(language, CHARACTERS), ...scoreSpeechJobs(language)]));
+  }
   if (set.startsWith("reacties")) {
     const only = set.includes(":") ? set.slice(set.indexOf(":") + 1).split(",") : Object.keys(EXTRA_SPOKEN_REACTIONS);
     const kinds = Object.entries(EXTRA_SPOKEN_REACTIONS).filter(([kind]) => only.includes(kind));

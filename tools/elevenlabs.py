@@ -12,7 +12,7 @@
 #   python3 tools/elevenlabs.py extra[:tineke] <map>  Begroeting, snelle zinnen en Tineke (web/static/speech.js)
 #   python3 tools/elevenlabs.py engels[:henk,tineke] <map>  Alles in het Engels, met dezelfde stemmen
 #                                                    (englishSpeechJobs in web/static/speech.js), voor sounds/en/
-#   python3 tools/elevenlabs.py opnames:<set> <map>  Alleen nieuwe zinnen (recordingJobs in speech.js: winnaar of
+#   python3 tools/elevenlabs.py opnames:<set> <map>  Alleen nieuwe zinnen (recordingJobs in speech.js: uitslag of
 #                                                    reacties), alle talen tegelijk
 #   python3 tools/elevenlabs.py saldo <map>          Hoeveel tekens er nog over zijn (kost niets)
 #   python3 tools/elevenlabs.py duits[:henk,tineke] <map>  Hetzelfde in het Duits (translatedSpeechJobs("de")),
