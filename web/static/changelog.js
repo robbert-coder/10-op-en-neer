@@ -1,6 +1,13 @@
 // Wat er per versie nieuw is. Wie na een nieuwe versie terugkomt, ziet dit in het hoofdmenu.
 // items in het Nederlands, en dezelfde punten in het Engels (en), voor wie het spel in het Engels speelt.
 export const CHANGES = [
+  { v: "2.75", items: [
+    "Elk personage heeft een nieuwe opmerking als je om een tip vraagt, in alle drie de talen.",
+  ], en: [
+    "Every character has a new remark when you ask for a tip, in all three languages.",
+  ], de: [
+    "Jede Figur hat einen neuen Spruch, wenn du nach einem Tipp fragst, in allen drei Sprachen.",
+  ] },
   { v: "2.74", items: [
     "Nog meer nieuwe zinnen van de personages: als ze per ongeluk een slag te veel halen, bij een hoog bod en als er te veel of te weinig slagen voorspeld zijn. In alle drie de talen.",
   ], en: [
