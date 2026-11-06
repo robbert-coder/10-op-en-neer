@@ -707,6 +707,6 @@ export default {
   "Alles wissen": "Alles löschen",
   "Je kunt ook een cijfer typen.": "Du kannst auch eine Zahl eintippen.",
   "Tip: welke kaart of welk bod raadt de computer aan?": "Tipp: Welche Karte oder welche Ansage empfiehlt der Computer?",
-  "Uitslag hardop": "Ergebnis vorlesen",
-  "Na elke ronde zegt Tineke wat je voorspelde, hoeveel slagen je haalde en hoeveel punten je krijgt. Aan het eind feliciteert ze de winnaar.": "Nach jeder Runde sagt Tineke, was du angesagt hast, wie viele Stiche du gemacht hast und wie viele Punkte du bekommst. Am Ende gratuliert sie dem Sieger.",
+  "Winnaar feliciteren": "Sieger gratulieren",
+  "Aan het eind van het spel feliciteert Tineke de winnaar hardop.": "Am Ende des Spiels gratuliert Tineke dem Sieger laut.",
 };

@@ -707,6 +707,6 @@ export default {
   "Alles wissen": "Clear all",
   "Je kunt ook een cijfer typen.": "You can also type a number.",
   "Tip: welke kaart of welk bod raadt de computer aan?": "Tip: which card or bid does the computer recommend?",
-  "Uitslag hardop": "Result out loud",
-  "Na elke ronde zegt Tineke wat je voorspelde, hoeveel slagen je haalde en hoeveel punten je krijgt. Aan het eind feliciteert ze de winnaar.": "After every round Tineke says what you bid, how many tricks you took and how many points you get. At the end she congratulates the winner.",
+  "Winnaar feliciteren": "Congratulate the winner",
+  "Aan het eind van het spel feliciteert Tineke de winnaar hardop.": "At the end of the game Tineke congratulates the winner out loud.",
 };
