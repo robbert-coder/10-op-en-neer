@@ -33,8 +33,10 @@ test("de Duitse opnamelijst heeft (bijna) evenveel zinnen als de Engelse, met un
 test("elke Duitse zin heeft een opname en een duur", async () => {
   const { existsSync } = await import("node:fs");
   const { DE_MS } = await import("../static/voices-de-ms.js");
+  // Later bijgekomen zinnen staan in EXTRA_MS (op pad), net zoals voiceMs() in app.js ze zoekt
+  const { EXTRA_MS } = await import("../static/voices-extra-ms.js");
   for (const job of translatedSpeechJobs("de")) {
     assert.ok(existsSync(new URL(`../static/sounds/de/${job.file}.mp3`, import.meta.url)), job.file);
-    assert.ok(DE_MS[job.file] > 0, job.file);
+    assert.ok((EXTRA_MS[`de/${job.file}`] ?? DE_MS[job.file]) > 0, job.file);
   }
 });

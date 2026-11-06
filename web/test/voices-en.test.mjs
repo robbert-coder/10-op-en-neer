@@ -23,9 +23,11 @@ test("elke Nederlandse zin van Tineke heeft een Engelse", () => {
   for (const line of spokenLines()) assert.ok(pairs.get(line), line);
 });
 
-test("elke Engelse zin heeft een opname en een duur", () => {
+test("elke Engelse zin heeft een opname en een duur", async () => {
+  // Later bijgekomen zinnen staan in EXTRA_MS (op pad), net zoals voiceMs() in app.js ze zoekt
+  const { EXTRA_MS } = await import("../static/voices-extra-ms.js");
   for (const job of englishSpeechJobs()) {
     assert.ok(existsSync(new URL(`../static/sounds/en/${job.file}.mp3`, import.meta.url)), job.file);
-    assert.ok(EN_MS[job.file] > 0, job.file);
+    assert.ok((EXTRA_MS[`en/${job.file}`] ?? EN_MS[job.file]) > 0, job.file);
   }
 });

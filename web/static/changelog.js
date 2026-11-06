@@ -1,6 +1,13 @@
 // Wat er per versie nieuw is. Wie na een nieuwe versie terugkomt, ziet dit in het hoofdmenu.
 // items in het Nederlands, en dezelfde punten in het Engels (en), voor wie het spel in het Engels speelt.
 export const CHANGES = [
+  { v: "2.73", items: [
+    "De personages hebben nieuwe zinnen als ze op je wachten en als iedereen nat gaat, ingesproken in alle drie de talen.",
+  ], en: [
+    "The characters have new lines when they are waiting for you and when everyone misses, recorded in all three languages.",
+  ], de: [
+    "Die Figuren haben neue Sprüche, wenn sie auf dich warten und wenn alle danebenliegen, eingesprochen in allen drei Sprachen.",
+  ] },
   { v: "2.72", items: [
     "De personages zeggen nu veel meer hardop, met hun eigen stem en emotie: als ze een slag halen, \"oei\" als ze niets meer mogen halen, en hun commentaar op een hoog bod, een rond bod, te veel of te weinig slagen en een tip. In alle drie de talen.",
     "Na elke ronde zegt Tineke je uitslag: wat je voorspelde, wat je haalde en hoeveel punten je krijgt. Aan het eind feliciteert ze de winnaar. Uit te zetten bij Instellingen (Uitslag hardop).",
