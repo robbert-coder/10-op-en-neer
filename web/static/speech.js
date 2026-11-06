@@ -157,5 +157,11 @@ export function recordingJobs(set) {
       Object.entries(REACTIONS_BY_LANG[language][kind]).flatMap(([who, lines]) =>
         lines.map((text, k) => ({ file: reactionFile(kind, who, k), text, who, tone }))))));
   }
+  // De extra zinnen bij wachten en allemaal nat (vanaf de vierde): de eerste drie zijn al eerder ingesproken
+  if (set === "erbij") {
+    return languages.flatMap((language) => inDir(language, Object.entries(SPOKEN_REACTIONS).flatMap(([kind, tone]) =>
+      Object.entries(REACTIONS_BY_LANG[language][kind]).flatMap(([who, lines]) =>
+        lines.map((text, k) => ({ file: reactionFile(kind, who, k), text, who, tone })).slice(3)))));
+  }
   return [];
 }
