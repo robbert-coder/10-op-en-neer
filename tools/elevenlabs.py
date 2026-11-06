@@ -12,6 +12,7 @@
 #   python3 tools/elevenlabs.py extra[:tineke] <map>  Begroeting, snelle zinnen en Tineke (web/static/speech.js)
 #   python3 tools/elevenlabs.py engels[:henk,tineke] <map>  Alles in het Engels, met dezelfde stemmen
 #                                                    (englishSpeechJobs in web/static/speech.js), voor sounds/en/
+#   python3 tools/elevenlabs.py saldo <map>          Hoeveel tekens er nog over zijn (kost niets)
 #   python3 tools/elevenlabs.py duits[:henk,tineke] <map>  Hetzelfde in het Duits (translatedSpeechJobs("de")),
 #                                                    voor sounds/de/
 #   python3 tools/elevenlabs.py proef:<eigenaar>/<stem>/<Naam> <map>  Bibliotheekstem aan het account toevoegen en
@@ -477,8 +478,22 @@ def inspreken(out, only):
     print("klaar:", len(ms), "geluiden")
 
 
+def saldo(out):
+    """Hoeveel tekens er deze periode nog over zijn (kost zelf niets). Nodig om te weten wat er nog ingesproken kan
+    worden voordat we een grote stap starten."""
+    sub = get("/user/subscription")
+    over = sub.get("character_limit", 0) - sub.get("character_count", 0)
+    res = {k: sub.get(k) for k in ("tier", "character_count", "character_limit", "next_character_count_reset_unix")}
+    res["over"] = over
+    os.makedirs(out, exist_ok=True)
+    json.dump(res, open(f"{out}/saldo.json", "w"))
+    print(f"::notice::Nog {over} tekens over ({sub.get('character_count')} van {sub.get('character_limit')} gebruikt)")
+
+
 def main(stap, out):
-    if stap == "begroeting":
+    if stap == "saldo":
+        saldo(out)
+    elif stap == "begroeting":
         begroeting(out)
     elif stap.startswith("engels"):
         engels(out, stap[7:].split(",") if ":" in stap else None)
