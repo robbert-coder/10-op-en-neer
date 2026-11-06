@@ -7,6 +7,7 @@ import { BID_LINES_EN, OPENERS_EN, RETURNERS_EN, WET_LINES_EN } from "./voices-e
 import { BID_LINES_DE, OPENERS_DE, RETURNERS_DE, WET_LINES_DE } from "./voices-de.js";
 import EN from "./i18n-en.js";
 import DE from "./i18n-de.js";
+import { scoreSpeechJobs } from "./scorespeech.js";
 
 // Truus roept je toe op het startscherm (gekozen door Robbert). De opnames maakt de stap "begroeting" van
 // tools/elevenlabs.py; deze teksten staan hier alleen ter informatie.
@@ -73,6 +74,16 @@ export const phraseFile = (voice, k) => `zin_${voice}_${k}`;
  * toon: 0 = hun gewone toon, 1 = de toon waarmee ze nat gaan (zie TOON in tools/elevenlabs.py).
  */
 export const SPOKEN_REACTIONS = { wacht: 0, allenat: 1 };
+/**
+ * Reacties die sinds v2.72 ook hardop gaan (toon zoals hierboven), maar alleen in de talen van
+ * EXTRA_REACTION_LANGS: daar zijn ze ingesproken (stap "opnames:reacties"). In een andere taal blijft het een
+ * tekstballon.
+ */
+export const EXTRA_SPOKEN_REACTIONS = { oei: 1, slag: 0, hoog: 0, rond: 1, over: 0, onder: 0, tip: 0 };
+export const EXTRA_REACTION_LANGS = ["nl"];
+/** Wordt deze soort reactie in deze taal hardop gezegd? */
+export const isSpokenReaction = (kind, language) =>
+  kind in SPOKEN_REACTIONS || (kind in EXTRA_SPOKEN_REACTIONS && EXTRA_REACTION_LANGS.includes(language));
 /** Bestandsnaam (sounds/<naam>.mp3) van een uitgesproken reactie: soort, personage en nummer van de zin. */
 export const reactionFile = (kind, who, k) => `reactie_${kind}_${who}_${k}`;
 export { speechFile as tinekeFile };
@@ -120,3 +131,25 @@ export function translatedSpeechJobs(language) {
 
 /** De Engelse opnames (stap "engels"); zie translatedSpeechJobs. */
 export const englishSpeechJobs = () => translatedSpeechJobs("en");
+
+/** De reacties per taal (Nederlands is de basis). */
+const REACTIONS_BY_LANG = { nl: REACTIONS, en: REACTIONS_EN, de: REACTIONS_DE };
+
+/**
+ * Nieuwe opnames per set, voor de stap "opnames:<set>" van tools/elevenlabs.py: { file, text, who, tone?, language }.
+ * file is het pad onder sounds/ (met en/ of de/ ervoor), zodat één stap alle talen tegelijk kan inspreken.
+ * Nodig om alleen wat nieuw is in te spreken, in plaats van alles opnieuw (dat kost tegoed).
+ *   uitslag  de uitslag van je ronde (scorespeech.js), in alle talen
+ *   reacties de reacties uit EXTRA_SPOKEN_REACTIONS, in de talen van EXTRA_REACTION_LANGS
+ * @param {"uitslag"|"reacties"} set
+ */
+export function recordingJobs(set) {
+  const inDir = (language, jobs) => jobs.map((job) => ({ ...job, file: VOICE_DIRS[language] + job.file, language }));
+  if (set === "uitslag") return ["nl", "en", "de"].flatMap((language) => inDir(language, scoreSpeechJobs(language)));
+  if (set === "reacties") {
+    return EXTRA_REACTION_LANGS.flatMap((language) => inDir(language, Object.entries(EXTRA_SPOKEN_REACTIONS).flatMap(([kind, tone]) =>
+      Object.entries(REACTIONS_BY_LANG[language][kind]).flatMap(([who, lines]) =>
+        lines.map((text, k) => ({ file: reactionFile(kind, who, k), text, who, tone }))))));
+  }
+  return [];
+}

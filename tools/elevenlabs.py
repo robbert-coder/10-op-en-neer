@@ -12,6 +12,8 @@
 #   python3 tools/elevenlabs.py extra[:tineke] <map>  Begroeting, snelle zinnen en Tineke (web/static/speech.js)
 #   python3 tools/elevenlabs.py engels[:henk,tineke] <map>  Alles in het Engels, met dezelfde stemmen
 #                                                    (englishSpeechJobs in web/static/speech.js), voor sounds/en/
+#   python3 tools/elevenlabs.py opnames:<set> <map>  Alleen nieuwe zinnen (recordingJobs in speech.js: uitslag of
+#                                                    reacties), alle talen tegelijk
 #   python3 tools/elevenlabs.py saldo <map>          Hoeveel tekens er nog over zijn (kost niets)
 #   python3 tools/elevenlabs.py duits[:henk,tineke] <map>  Hetzelfde in het Duits (translatedSpeechJobs("de")),
 #                                                    voor sounds/de/
@@ -478,6 +480,52 @@ def inspreken(out, only):
     print("klaar:", len(ms), "geluiden")
 
 
+def opnames(out, which):
+    """Alleen nieuwe zinnen inspreken (recordingJobs(which) uit web/static/speech.js), in alle talen tegelijk.
+    Nodig zodat een uitbreiding (uitslag, extra reacties) niet alles opnieuw laat inspreken; de bestanden komen in
+    mp3/<pad onder sounds/> en de duur per pad in opnames.json."""
+    import shutil, subprocess
+    from concurrent.futures import ThreadPoolExecutor
+    root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+    js = f"import('./web/static/speech.js').then((m) => console.log(JSON.stringify(m.recordingJobs('{which}'))))"
+    jobs = json.loads(subprocess.run(["node", "--input-type=module", "-e", js], cwd=root, capture_output=True, text=True, check=True).stdout)
+    if not jobs:
+        raise SystemExit(f"::error::Geen zinnen voor {which}")
+    for sub in ("ruw", "mp3"):
+        for d in {os.path.dirname(j["file"]) for j in jobs}:
+            os.makedirs(os.path.join(out, sub, d), exist_ok=True)
+
+    ids = {}
+    for who in {j["who"] for j in jobs}:
+        if who in EXTRA:
+            ids[who] = EXTRA[who]
+        elif "ontwerp" in KEUZE[who]:
+            ids[who] = (saved_voice(KEUZE[who]), MODEL["ontwerp"], "")
+        else:
+            ids[who] = (KEUZE[who]["stem"], MODEL["stem"], "")
+
+    def one(j):
+        vid, model, prefix = ids[j["who"]]
+        if "tone" in j and j["who"] in TOON:
+            prefix, settings = TOON[j["who"]][j["tone"]] + " ", EXPRESSIEF
+        else:
+            settings = {"stability": 0.5}
+        for _ in range(3):
+            speak(vid, model, prefix + j["text"], f"{out}/ruw/{j['file']}.mp3", settings, j["language"])
+            ms = polish(out, j["file"])
+            if 250 <= ms <= 400 + 140 * len(j["text"]):
+                break
+            print("opnieuw", j["file"], ms, "ms:", j["text"], flush=True)
+        return j["file"], ms
+
+    print(len(jobs), "zinnen,", sum(len(j["text"]) for j in jobs), "tekens", flush=True)
+    with ThreadPoolExecutor(4) as pool:
+        ms = dict(pool.map(one, jobs))
+    json.dump({"ms": ms}, open(f"{out}/opnames.json", "w"), ensure_ascii=False)
+    shutil.rmtree(f"{out}/ruw")
+    print("klaar:", len(ms), "geluiden")
+
+
 def saldo(out):
     """Hoeveel tekens er deze periode nog over zijn (kost zelf niets). Nodig om te weten wat er nog ingesproken kan
     worden voordat we een grote stap starten."""
@@ -493,6 +541,8 @@ def saldo(out):
 def main(stap, out):
     if stap == "saldo":
         saldo(out)
+    elif stap.startswith("opnames:"):
+        opnames(out, stap[8:])
     elif stap == "begroeting":
         begroeting(out)
     elif stap.startswith("engels"):

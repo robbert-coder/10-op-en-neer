@@ -25,7 +25,9 @@ import { KINDS, addGame, addHighScore, highScoreWindow, loadHighScores, matchesV
 import { flushHof, hofCache, hofId, queueHof, sha256Hex } from "./hof.js";
 import { cardSound, initSound, loadSound, playSound, soundReady, stopSound, turnChime, voicePlaying } from "./sound.js";
 import { ALL_WET_REMARK_MS, MAX_WAITING_REMARKS, REMARK_SHOW_MS, WAITING_REMARK_MS, resultWait, toastMs, FIRST_BID_PAUSE_MS, worriesAloud } from "./pacing.js";
-import { OPENERS, PHRASES, PHRASE_GAP_MS, sayWire, spokenPhrase, QUICK, RETURNERS, TIP_CHAT, WIRE_TEXTS, openerFile, phraseFile, reactionFile, returnFile, SPOKEN_REACTIONS, tinekeFile, VOICE_DIRS } from "./speech.js";
+import { OPENERS, PHRASES, PHRASE_GAP_MS, sayWire, spokenPhrase, QUICK, RETURNERS, TIP_CHAT, WIRE_TEXTS, openerFile, phraseFile, reactionFile, returnFile, isSpokenReaction, tinekeFile, VOICE_DIRS } from "./speech.js";
+import { roundResultFiles } from "./scorespeech.js";
+import { EXTRA_MS } from "./voices-extra-ms.js";
 import { celebrate, isCelebrating } from "./celebrate.js";
 import { askNotifications, clearTurnNotice, inBackground, iosBrowser, isIOS, notifyAlways, notifyPermission, notifyUnsupportedText, setAppVisible, turnNotice } from "./notify.js";
 import { cardHtml, sortHand, trumpMiniHtml } from "./cards.js";
@@ -304,7 +306,7 @@ const SPOKEN = {
 /** De opname van een stem in de taal van het spel: in het Engels uit sounds/en/, in het Duits uit sounds/de/. */
 const voice = (name) => VOICE_DIRS[lang] + name;
 /** Hoe lang een opname duurt (ms), in de taal van het spel; 0 als die niet bekend is. */
-const voiceMs = (file) => (SPOKEN.ms ? SPOKEN.ms[file] ?? 0 : REACTION_MS[file] ?? 0);
+const voiceMs = (file) => EXTRA_MS[voice(file)] ?? (SPOKEN.ms ? SPOKEN.ms[file] ?? 0 : REACTION_MS[file] ?? 0);
 /** Hoe lang een opname van een voorspelling duurt (ms), in de taal van het spel. */
 const bidMs = (v, n, k) => (SPOKEN.ms ? SPOKEN.ms[`bod_${v}_${n}_${k}`] ?? 1500 : BID_MS[v][n][k]);
 
@@ -723,7 +725,7 @@ function react(nr, kind, delay, mood = "", interrupt = false) {
   setTimeout(() => {
     if (!canReact() || st.round !== round) return;
     // Sommige reacties zijn ingesproken (net als bij nat gaan); de stem kan uit
-    const spoken = kind in SPOKEN_REACTIONS && settings.sound && settings.speakBids;
+    const spoken = isSpokenReaction(kind, lang) && settings.sound && settings.speakBids;
     // Praat er al iemand (wolkje in beeld of een stem), dan alleen een gebaar: niet door elkaar heen
     if (!interrupt && ($("#flyers .bubble") || (spoken && voicePlaying()))) { gesture(nr, mood === "sad" ? "sigh" : "react"); return; }
     const k = pickLine(`r-${kind}-${nr}`, lines.length, false);
@@ -1886,6 +1888,9 @@ function roundPoints(p, r) {
   return crossed ? "0" : `+${score}`;
 }
 
+/** Van welke ronde (spel en ronde) de uitslag of de uitleg erbij al is gezegd: één keer per ronde. */
+let roundEndSpokenKey = "";
+
 /**
  * Einde van de ronde: de tafel blijft in beeld, met bij elk hoofd de punten die erbij komen, en onderaan de
  * knoppen voor de scorelijst en de volgende ronde. Pas als iedereen uitgepraat is (roundResultReady), zodat
@@ -1915,10 +1920,27 @@ function renderRoundEnd() {
   bids.hidden = !show;
   if (!show) return;
   const key = `score${game.seed}|${st.round}`;
-  if (settings.tinekeHelp && tinekeSpokenKey !== key) {
-    tinekeSpokenKey = key;
-    const h = tineke.help("score", st, helpLevel, cardName);
-    if (h) tinekeSay(h.text, { isHelp: true, say: h.say });
+  if (roundEndSpokenKey === key) return;
+  roundEndSpokenKey = key;
+  const h = settings.tinekeHelp ? tineke.help("score", st, helpLevel, cardName) : null;
+  // Legt Tineke de score al uit, dan zegt ze de uitslag niet ook nog eens
+  if (h) tinekeSay(h.text, { isHelp: true, say: h.say });
+  else speakRoundResult(r);
+}
+
+/**
+ * Tineke zegt jouw uitslag van ronde r (0-based) hardop: "Goed voorspeld! 12 punten erbij!" of "Twee voorspeld,
+ * drie gehaald. Geen punten." (scorespeech.js). Alleen als het geluid en deze instelling aan staan.
+ */
+async function speakRoundResult(r) {
+  if (!soundReady() || !settings.sound || settings.speakResult === false || !st) return;
+  const [bid, tricks, points, , good] = st.players[0].rounds[r] ?? [];
+  const round = st.round;
+  for (const file of roundResultFiles(bid, tricks, points, good)) {
+    if (!st || st.round !== round || st.phase !== "ROUND_COMPLETE" || screen !== "game") return;
+    const ms = await playSound(voice(file));
+    if (!ms) return;
+    await wait(ms + 80);
   }
 }
 
@@ -2577,6 +2599,8 @@ function renderSettings() {
   renderVoicePick();
   $("#set-tineke-voice").checked = settings.tinekeVoice !== false;
   $("#row-tineke-voice").hidden = !settings.sound;
+  $("#set-result").checked = settings.speakResult !== false;
+  $("#row-result").hidden = !settings.sound;
   $("#set-opener").checked = settings.opener !== false;
   $("#row-opener").hidden = !settings.sound;
   $("#row-speak-humans").hidden = !settings.sound || !settings.speakBids;
@@ -3802,6 +3826,7 @@ document.addEventListener("click", (e) => {
   online?.link?.setVoice?.(settings.voice);
   if (soundReady() && settings.sound && myVoice() !== "geen") playSound(voice(`bod_speler_${myVoice()}_${2 + Math.floor(Math.random() * 6)}_0`));
 });
+$("#set-result").addEventListener("change", (e) => { settings.speakResult = e.target.checked; saveSettings(); });
 $("#set-tineke-voice").addEventListener("change", (e) => { settings.tinekeVoice = e.target.checked; saveSettings(); if (!e.target.checked) tinekeSilence(); });
 $("#set-opener").addEventListener("change", (e) => { settings.opener = e.target.checked; saveSettings(); });
 $("#set-cards").addEventListener("change", (e) => { settings.cardSounds = e.target.checked; saveSettings(); });
