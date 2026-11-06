@@ -26,7 +26,7 @@ import { flushHof, hofCache, hofId, queueHof, sha256Hex } from "./hof.js";
 import { cardSound, initSound, loadSound, playSound, soundReady, stopSound, turnChime, voicePlaying } from "./sound.js";
 import { ALL_WET_REMARK_MS, MAX_WAITING_REMARKS, REMARK_SHOW_MS, WAITING_REMARK_MS, resultWait, toastMs, FIRST_BID_PAUSE_MS, worriesAloud } from "./pacing.js";
 import { OPENERS, PHRASES, PHRASE_GAP_MS, sayWire, spokenPhrase, QUICK, RETURNERS, TIP_CHAT, WIRE_TEXTS, openerFile, phraseFile, reactionFile, returnFile, isSpokenReaction, tinekeFile, VOICE_DIRS } from "./speech.js";
-import { roundResultFiles } from "./scorespeech.js";
+import { roundResultFiles, winnerFile } from "./scorespeech.js";
 import { EXTRA_MS } from "./voices-extra-ms.js";
 import { celebrate, isCelebrating } from "./celebrate.js";
 import { askNotifications, clearTurnNotice, inBackground, iosBrowser, isIOS, notifyAlways, notifyPermission, notifyUnsupportedText, setAppVisible, turnNotice } from "./notify.js";
@@ -966,10 +966,24 @@ function handleGameOver() {
   else if (me.rank === 1) applause = "goed_gespeeld";
   else if (st.isTienOpEnNeer && me.total >= 190) applause = "zeer_goed_gespeeld";
   else if (st.isTienOpEnNeer && me.total >= 180) applause = "goed_gespeeld";
-  if (applause && settings.sound) playSound(applause);
+  // Eerst het applaus, dan feliciteert Tineke de winnaar (playSound zou het applaus anders afbreken)
+  const applauseDone = applause && settings.sound ? playSound(applause) : Promise.resolve(0);
+  applauseDone.then((ms) => wait(ms + 150)).then(congratulateWinner);
   store.remove("spel");
   celebrateWinners().then(renderDialog);
   renderDialog();
+}
+
+/**
+ * Tineke feliciteert de winnaar van het spel hardop (scorespeech.js): een personage bij naam, jou, of iedereen
+ * bij een gedeelde eerste plaats. Valt onder de instelling Uitslag hardop.
+ */
+function congratulateWinner() {
+  if (!soundReady() || !settings.sound || settings.speakResult === false || st?.phase !== "GAME_OVER" || screen !== "game") return;
+  const winners = st.players.map((p, i) => ({ p, nr: i + 1 })).filter(({ p }) => p.rank === 1)
+    .map(({ p, nr }) => ({ me: nr === 1 && p.human, character: faceFor(nr) }));
+  const file = winnerFile(winners, CHARACTER_IDS);
+  if (file) playSound(voice(file));
 }
 
 /** Het feestje aan het einde (celebrate.js), met de winnaars van dit spel als poppetjes. */

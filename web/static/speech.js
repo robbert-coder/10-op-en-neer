@@ -2,12 +2,12 @@
 // bij samen spelen hardop kunt laten zeggen, en de uitleg van Tineke (tineke.js). Opnames: sounds/<naam>.mp3,
 // gemaakt met tools/elevenlabs.py (stap "extra"), dat speechJobs() via node uitleest.
 import { spokenLines, spokenPairs, speechFile } from "./tineke.js";
-import { REACTIONS, REACTIONS_DE, REACTIONS_EN } from "./characters.js";
+import { CHARACTERS, REACTIONS, REACTIONS_DE, REACTIONS_EN } from "./characters.js";
 import { BID_LINES_EN, OPENERS_EN, RETURNERS_EN, WET_LINES_EN } from "./voices-en.js";
 import { BID_LINES_DE, OPENERS_DE, RETURNERS_DE, WET_LINES_DE } from "./voices-de.js";
 import EN from "./i18n-en.js";
 import DE from "./i18n-de.js";
-import { scoreSpeechJobs } from "./scorespeech.js";
+import { scoreSpeechJobs, winnerSpeechJobs } from "./scorespeech.js";
 
 // Truus roept je toe op het startscherm (gekozen door Robbert). De opnames maakt de stap "begroeting" van
 // tools/elevenlabs.py; deze teksten staan hier alleen ter informatie.
@@ -80,7 +80,7 @@ export const SPOKEN_REACTIONS = { wacht: 0, allenat: 1 };
  * tekstballon.
  */
 export const EXTRA_SPOKEN_REACTIONS = { oei: 1, slag: 0, hoog: 0, rond: 1, over: 0, onder: 0, tip: 0 };
-export const EXTRA_REACTION_LANGS = ["nl"];
+export const EXTRA_REACTION_LANGS = ["nl", "en", "de"];
 /** Wordt deze soort reactie in deze taal hardop gezegd? */
 export const isSpokenReaction = (kind, language) =>
   kind in SPOKEN_REACTIONS || (kind in EXTRA_SPOKEN_REACTIONS && EXTRA_REACTION_LANGS.includes(language));
@@ -139,15 +139,21 @@ const REACTIONS_BY_LANG = { nl: REACTIONS, en: REACTIONS_EN, de: REACTIONS_DE };
  * Nieuwe opnames per set, voor de stap "opnames:<set>" van tools/elevenlabs.py: { file, text, who, tone?, language }.
  * file is het pad onder sounds/ (met en/ of de/ ervoor), zodat één stap alle talen tegelijk kan inspreken.
  * Nodig om alleen wat nieuw is in te spreken, in plaats van alles opnieuw (dat kost tegoed).
- *   uitslag  de uitslag van je ronde (scorespeech.js), in alle talen
- *   reacties de reacties uit EXTRA_SPOKEN_REACTIONS, in de talen van EXTRA_REACTION_LANGS
- * @param {"uitslag"|"reacties"} set
+ *   uitslag          de uitslag van je ronde en de felicitatie van de winnaar (scorespeech.js), in alle talen
+ *   reacties[:a,b]   de reacties uit EXTRA_SPOKEN_REACTIONS (of alleen de soorten a en b), in de talen van
+ *                    EXTRA_REACTION_LANGS; in delen, zodat wat klaar is bewaard blijft als het tegoed op raakt
+ * @param {string} set
  */
 export function recordingJobs(set) {
   const inDir = (language, jobs) => jobs.map((job) => ({ ...job, file: VOICE_DIRS[language] + job.file, language }));
-  if (set === "uitslag") return ["nl", "en", "de"].flatMap((language) => inDir(language, scoreSpeechJobs(language)));
-  if (set === "reacties") {
-    return EXTRA_REACTION_LANGS.flatMap((language) => inDir(language, Object.entries(EXTRA_SPOKEN_REACTIONS).flatMap(([kind, tone]) =>
+  const languages = ["nl", "en", "de"];
+  if (set === "uitslag") {
+    return languages.flatMap((language) => inDir(language, [...winnerSpeechJobs(language, CHARACTERS), ...scoreSpeechJobs(language)]));
+  }
+  if (set.startsWith("reacties")) {
+    const only = set.includes(":") ? set.slice(set.indexOf(":") + 1).split(",") : Object.keys(EXTRA_SPOKEN_REACTIONS);
+    const kinds = Object.entries(EXTRA_SPOKEN_REACTIONS).filter(([kind]) => only.includes(kind));
+    return EXTRA_REACTION_LANGS.flatMap((language) => inDir(language, kinds.flatMap(([kind, tone]) =>
       Object.entries(REACTIONS_BY_LANG[language][kind]).flatMap(([who, lines]) =>
         lines.map((text, k) => ({ file: reactionFile(kind, who, k), text, who, tone }))))));
   }

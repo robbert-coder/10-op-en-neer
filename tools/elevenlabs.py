@@ -510,8 +510,14 @@ def opnames(out, which):
             prefix, settings = TOON[j["who"]][j["tone"]] + " ", EXPRESSIEF
         else:
             settings = {"stability": 0.5}
-        for _ in range(3):
-            speak(vid, model, prefix + j["text"], f"{out}/ruw/{j['file']}.mp3", settings, j["language"])
+        ms = 0
+        for _ in range(2):
+            try:
+                speak(vid, model, prefix + j["text"], f"{out}/ruw/{j['file']}.mp3", settings, j["language"])
+            except urllib.error.HTTPError as e:
+                # Bijvoorbeeld het tegoed is op: bewaren wat al klaar is in plaats van alles kwijt te raken
+                print("mislukt", j["file"], e.code, e.read()[:200], flush=True)
+                return j["file"], 0
             ms = polish(out, j["file"])
             if 250 <= ms <= 400 + 140 * len(j["text"]):
                 break
@@ -520,7 +526,10 @@ def opnames(out, which):
 
     print(len(jobs), "zinnen,", sum(len(j["text"]) for j in jobs), "tekens", flush=True)
     with ThreadPoolExecutor(4) as pool:
-        ms = dict(pool.map(one, jobs))
+        done = dict(pool.map(one, jobs))
+    ms = {f: v for f, v in done.items() if v > 0}
+    if len(ms) < len(jobs):
+        print(f"::warning::{len(jobs) - len(ms)} van {len(jobs)} zinnen niet ingesproken (tegoed op?)")
     json.dump({"ms": ms}, open(f"{out}/opnames.json", "w"), ensure_ascii=False)
     shutil.rmtree(f"{out}/ruw")
     print("klaar:", len(ms), "geluiden")
