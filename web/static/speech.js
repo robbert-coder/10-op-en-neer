@@ -136,6 +136,15 @@ export const englishSpeechJobs = () => translatedSpeechJobs("en");
 const REACTIONS_BY_LANG = { nl: REACTIONS, en: REACTIONS_EN, de: REACTIONS_DE };
 
 /**
+ * Per opnameset de reacties die er later bij kwamen, met vanaf welke zin ze nieuw zijn. Nodig om alleen de
+ * nieuwe zinnen in te spreken (credits): v2.73 wachten en allemaal nat, v2.74 oei, hoog, te veel en te weinig.
+ */
+export const LATER_LINES = {
+  erbij: { wacht: 3, allenat: 3 },
+  erbij2: { oei: 3, hoog: 6, over: 6, onder: 6 },
+};
+
+/**
  * Nieuwe opnames per set, voor de stap "opnames:<set>" van tools/elevenlabs.py: { file, text, who, tone?, language }.
  * file is het pad onder sounds/ (met en/ of de/ ervoor), zodat één stap alle talen tegelijk kan inspreken.
  * Nodig om alleen wat nieuw is in te spreken, in plaats van alles opnieuw (dat kost tegoed).
@@ -157,11 +166,11 @@ export function recordingJobs(set) {
       Object.entries(REACTIONS_BY_LANG[language][kind]).flatMap(([who, lines]) =>
         lines.map((text, k) => ({ file: reactionFile(kind, who, k), text, who, tone }))))));
   }
-  // De extra zinnen bij wachten en allemaal nat (vanaf de vierde): de eerste drie zijn al eerder ingesproken
-  if (set === "erbij") {
-    return languages.flatMap((language) => inDir(language, Object.entries(SPOKEN_REACTIONS).flatMap(([kind, tone]) =>
+  // Later bijgekomen zinnen: alleen die inspreken, de eerdere zijn er al
+  if (LATER_LINES[set]) {
+    return languages.flatMap((language) => inDir(language, Object.entries(LATER_LINES[set]).flatMap(([kind, from]) =>
       Object.entries(REACTIONS_BY_LANG[language][kind]).flatMap(([who, lines]) =>
-        lines.map((text, k) => ({ file: reactionFile(kind, who, k), text, who, tone })).slice(3)))));
+        lines.map((text, k) => ({ file: reactionFile(kind, who, k), text, who, tone: SPOKEN_REACTIONS[kind] ?? EXTRA_SPOKEN_REACTIONS[kind] })).slice(from)))));
   }
   return [];
 }
