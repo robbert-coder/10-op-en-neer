@@ -1,6 +1,16 @@
 // Wat er per versie nieuw is. Wie na een nieuwe versie terugkomt, ziet dit in het hoofdmenu.
 // items in het Nederlands, en dezelfde punten in het Engels (en), voor wie het spel in het Engels speelt.
 export const CHANGES = [
+  { v: "2.72", items: [
+    "De personages zeggen nu veel meer hardop, met hun eigen stem en emotie: als ze een slag halen, \"oei\" als ze niets meer mogen halen, en hun commentaar op een hoog bod, een rond bod, te veel of te weinig slagen en een tip. In alle drie de talen.",
+    "Na elke ronde zegt Tineke je uitslag: wat je voorspelde, wat je haalde en hoeveel punten je krijgt. Aan het eind feliciteert ze de winnaar. Uit te zetten bij Instellingen (Uitslag hardop).",
+  ], en: [
+    "The characters now say much more out loud, with their own voice and emotion: when they win a trick, \"oops\" when they must not take any more, and their comments on a high bid, an even bid, too many or too few tricks and a tip. In all three languages.",
+    "After every round Tineke says your result: what you bid, what you took and how many points you get. At the end she congratulates the winner. You can switch this off in Settings (Result out loud).",
+  ], de: [
+    "Die Figuren sagen jetzt viel mehr laut, mit eigener Stimme und Gefühl: wenn sie einen Stich machen, „oje“, wenn sie keinen mehr machen dürfen, und ihre Kommentare zu einer hohen Ansage, aufgehenden Ansagen, zu vielen oder zu wenigen Stichen und einem Tipp. In allen drei Sprachen.",
+    "Nach jeder Runde sagt Tineke dein Ergebnis: was du angesagt hast, was du gemacht hast und wie viele Punkte du bekommst. Am Ende gratuliert sie dem Sieger. Abschaltbar in den Einstellungen (Ergebnis vorlesen).",
+  ] },
   { v: "2.71", items: [
     "Duitse stemmen: speel je in het Duits, dan praten alle personages, Tineke en de begroeting nu ook in het Duits, met hun eigen stem.",
   ], en: [

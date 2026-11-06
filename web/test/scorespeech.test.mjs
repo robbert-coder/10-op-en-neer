@@ -63,3 +63,14 @@ test("reacties in delen inspreken", async () => {
   assert.ok(part.every((j) => /reactie_(slag|oei)_/.test(j.file)));
   assert.ok(["nl", "en", "de"].every((l) => part.some((j) => j.language === l)));
 });
+
+test("elke nieuwe opname (uitslag, felicitatie, reacties) bestaat en heeft een duur", async () => {
+  const { existsSync } = await import("node:fs");
+  const { EXTRA_MS } = await import("../static/voices-extra-ms.js");
+  for (const set of ["uitslag", "reacties"]) {
+    for (const job of recordingJobs(set)) {
+      assert.ok(existsSync(new URL(`../static/sounds/${job.file}.mp3`, import.meta.url)), job.file);
+      assert.ok(EXTRA_MS[job.file] > 0, job.file);
+    }
+  }
+});
